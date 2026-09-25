@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
@@ -634,7 +634,28 @@ async function start() {
 
     console.log("Database schema: OK");
 
-    app.listen(PORT, "0.0.0.0", () => {
+    app.post("/api/auth/logout", (req, res) => {
+  try {
+    res.clearCookie("dioralink_session", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/"
+    });
+
+    return res.json({
+      success: true,
+      message: "Logged out successfully."
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+
+    return res.status(500).json({
+      message: "Unable to logout."
+    });
+  }
+});
+app.listen(PORT, "0.0.0.0", () => {
       console.log(`DioraLink server running on http://localhost:${PORT}`);
     });
   } catch (error) {

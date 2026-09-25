@@ -847,7 +847,44 @@ function loginGoogle(){if(CONFIG.demoMode){authSocial('google');return;}const cl
 async function handleGoogleCredential(response){try{const result=await fetch(apiURL('/api/auth/google'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential:response.credential,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Google authentication failed');const u=data.session?.user||data.user||{};state.user={...state.user,...u,authenticated:true,provider:'google'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Signed in with Google.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Google authentication failed','warning');}}
 function loginFacebook(){if(CONFIG.demoMode){authSocial('facebook');return;}if(!CONFIG.facebookAppId||CONFIG.facebookAppId.includes('YOUR_FACEBOOK')){toast('Chưa cấu hình Facebook App ID.','warning');return;}if(!window.FB){toast('Facebook SDK chưa sẵn sàng.','warning');return;}FB.login(async response=>{if(!response?.authResponse){toast('Facebook login đã bị huỷ.','warning');return;}try{const result=await fetch(apiURL('/api/auth/facebook'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accessToken:response.authResponse.accessToken,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Facebook authentication failed');const u=data.session?.user||data.user||{};state.user={...state.user,...u,authenticated:true,provider:'facebook'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Signed in with Facebook.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Facebook authentication failed','warning');}}, {scope:'public_profile,email'});}
 async function restoreSession(){if(CONFIG.demoMode)return;try{const res=await fetch(apiURL('/api/auth/me'),{method:'GET',credentials:'include'});if(res.ok){const data=await res.json();if(data.user){state=normalizeState({...state,user:{...state.user,...data.user,authenticated:true},session:{authenticated:true,userId:data.user.id}});save();}}else if(res.status===401){setGuest();}}catch(e){console.warn('Session restore failed:',e.message);}}
-async function logout(){let serverError='';try{if(!CONFIG.demoMode){const res=await fetch(apiURL('/api/auth/logout'),{method:'POST',credentials:'include'});if(!res.ok){const data=await res.json().catch(()=>({}));serverError=data.message||`Logout failed (HTTP ${res.status}).`;}}}catch(error){serverError=error?.message||'Logout request failed.';}finally{setGuest();closeModal();navigate('home');toast(serverError?'Signed out on this device.':'Signed out.','success');}}
+async function logout(){
+  let serverError = "";
+
+  try {
+    if (!CONFIG.demoMode) {
+      const res = await fetch(
+        apiURL("/api/auth/logout"),
+        {
+          method: "POST",
+          credentials: "include"
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+
+        serverError =
+          data.message ||
+          `Logout API failed (HTTP ${res.status}).`;
+      }
+    }
+  } catch (error) {
+    serverError =
+      error?.message ||
+      "Logout request failed.";
+  } finally {
+    setGuest();
+    closeModal();
+    navigate("home");
+
+    toast(
+      serverError
+        ? "Signed out on this device."
+        : "Signed out.",
+      "success"
+    );
+  }
+}
 function getVoucher(code){const normalized=String(code||'').trim().toUpperCase();return(state.vouchers||[]).find(v=>v.code===normalized);}
 function voucherDiscount(voucher,amount){if(!voucher)return 0;let discount=voucher.type==='percent'?Math.round(amount*voucher.value/100):Number(voucher.value||0);if(voucher.maxDiscount)discount=Math.min(discount,voucher.maxDiscount);return Math.max(0,Math.min(discount,amount));}
 function applyVoucher(projectId,milestoneId){if(!requireRole('customer'))return;const p=projectById(projectId);const input=document.getElementById(`voucher-${projectId}-${milestoneId}`);const m=p?.milestones.find(x=>x.id===milestoneId);const v=getVoucher(input?.value);if(!p||!m||!v){toast('Mã voucher không hợp lệ.','error');return;}if(m.amount<v.minSpend){toast(`Voucher yêu cầu tối thiểu ${money(v.minSpend)}.` ,'warning');return;}const discount=voucherDiscount(v,m.amount);p.appliedVoucher={code:v.code,milestoneId,discount,appliedAt:new Date().toISOString()};p.activity.unshift({text:`Voucher ${v.code} applied to ${milestoneId}`,time:dateTime(new Date())});save();toast(`Voucher applied: -${money(discount)}.`,'success');render();}
