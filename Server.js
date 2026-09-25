@@ -23,11 +23,17 @@ app.use(express.json({ limit: "6mb" }));
 app.use(cookieParser());
 
 const pool = new Pool({
-  host: String(process.env.PGHOST || "localhost"),
-  port: Number(process.env.PGPORT || 5432),
-  database: String(process.env.PGDATABASE || "dioralink"),
-  user: String(process.env.PGUSER || "postgres"),
-  password: String(process.env.PGPASSWORD || ""),
+  connectionString: process.env.DATABASE_URL || undefined,
+
+  ...(!process.env.DATABASE_URL
+    ? {
+        host: String(process.env.PGHOST || "localhost"),
+        port: Number(process.env.PGPORT || 5432),
+        database: String(process.env.PGDATABASE || "dioralink"),
+        user: String(process.env.PGUSER || "postgres"),
+        password: String(process.env.PGPASSWORD || ""),
+      }
+    : {})
 });
 
 const PUBLIC_DIR = path.join(__dirname, "Public");
@@ -623,7 +629,7 @@ async function start() {
 
     console.log("PostgreSQL connection: OK");
 
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`DioraLink server running on http://localhost:${PORT}`);
     });
   } catch (error) {
@@ -635,4 +641,6 @@ async function start() {
 }
 
 start();
+
+
 
