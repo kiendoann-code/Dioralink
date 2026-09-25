@@ -391,7 +391,7 @@ app.put("/api/auth/profile", requireAuth, async (req, res) => {
 
     if (!name) {
       return res.status(400).json({
-        message: "Name is required.",
+        message: "Name is required."
       });
     }
 
@@ -401,7 +401,7 @@ app.put("/api/auth/profile", requireAuth, async (req, res) => {
       !avatar.startsWith("http")
     ) {
       return res.status(400).json({
-        message: "Invalid avatar format.",
+        message: "Invalid avatar format."
       });
     }
 
@@ -409,8 +409,7 @@ app.put("/api/auth/profile", requireAuth, async (req, res) => {
       `
       UPDATE users
       SET
-        name = /* =========================
-   AUTH LOGOUT,
+        name = $1,
         phone = $2,
         city = $3,
         bio = $4,
@@ -435,13 +434,13 @@ app.put("/api/auth/profile", requireAuth, async (req, res) => {
         city,
         bio,
         avatar,
-        req.user.id,
+        req.user.id
       ]
     );
 
     if (!result.rows[0]) {
       return res.status(404).json({
-        message: "User not found.",
+        message: "User not found."
       });
     }
 
@@ -449,37 +448,17 @@ app.put("/api/auth/profile", requireAuth, async (req, res) => {
 
     res.json({
       success: true,
-      user: publicUser(user),
+      user: publicUser(user)
     });
+
   } catch (error) {
-    console.error("========== UPDATE PROFILE ERROR ==========");
-    console.error("Message:", error?.message);
-    console.error("Name:", error?.name);
-    console.error("Code:", error?.code);
-    console.error("Stack:", error?.stack);
-    console.error("==========================================");
+    console.error("Update profile error:", error);
 
     res.status(500).json({
-      message: error?.message || "Unable to update profile.",
+      message: error?.message || "Unable to update profile."
     });
   }
 });
-/* =========================
-   AUTH LOGOUT
-========================= */
-
-app.post("/api/auth/logout", async (req, res) => {
-  clearSessionCookie(res);
-
-  res.json({
-    success: true,
-  });
-});
-
-/* =========================
-   CHANGE PASSWORD
-========================= */
-
 app.post("/api/auth/change-password", requireAuth, async (req, res) => {
   try {
     const currentPassword = String(req.body?.currentPassword || "");
@@ -667,6 +646,8 @@ async function start() {
 }
 
 start();
+
+
 
 
 
