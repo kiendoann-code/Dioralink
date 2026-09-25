@@ -630,6 +630,31 @@ async function start() {
 
     console.log("PostgreSQL connection: OK");
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        password_hash TEXT,
+        phone VARCHAR(50) DEFAULT '',
+        city VARCHAR(150) DEFAULT '',
+        role VARCHAR(20) NOT NULL CHECK (role IN ('customer', 'artisan')),
+        avatar TEXT DEFAULT '',
+        bio TEXT DEFAULT '',
+        joined VARCHAR(4),
+        provider VARCHAR(30) NOT NULL DEFAULT 'email',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique
+      ON users (LOWER(email));
+    `);
+
+    console.log("Database schema: OK");
+
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`DioraLink server running on http://localhost:${PORT}`);
     });
@@ -642,6 +667,7 @@ async function start() {
 }
 
 start();
+
 
 
 
