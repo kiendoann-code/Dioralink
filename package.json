@@ -1,24 +1,22 @@
 {
   "name": "dioralink",
   "version": "1.0.0",
-  "description": "DioraLink platform",
-  "type": "module",
-  "main": "server/server.js",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "node --watch server/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node Server.js",
+    "dev": "node --watch Server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.7.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0"
   }

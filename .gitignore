@@ -1,0 +1,11 @@
+﻿node_modules/
+.env
+*.log
+.DS_Store
+
+# Local backups
+*.backup
+*.backup2
+*.backup3
+*.backup4
+*.debug-backup
