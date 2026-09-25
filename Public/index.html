@@ -237,7 +237,7 @@
 const CONFIG = {
   apiBase: window.DIORALINK_CONFIG?.apiBase || "",
   storageKey: "dioralink_state_v25_directpay",
-  demoMode: window.DIORALINK_CONFIG?.demoMode ?? true,
+  demoMode: window.DIORALINK_CONFIG?.demoMode ?? false,
   currency: "VND",
   googleClientId: window.DIORALINK_CONFIG?.googleClientId || "",
   facebookAppId: window.DIORALINK_CONFIG?.facebookAppId || ""
@@ -252,14 +252,14 @@ const SEED = {
   },
   artisans: [
     {id:"A-001",name:"Đào Studio",handle:"@DaoStudio",city:"Hà Nội",verified:true,online:true,rating:4.9,reviews:42,completed:61,startingPrice:5000000,response:"< 2h",specialties:["Fantasy","Resin","Architecture"],bio:"Fantasy environments, resin water effects and atmospheric miniature scenes.",avatar:"https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80",hero:"https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&w=1000&q=80",portfolio:["https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?auto=format&fit=crop&w=900&q=80","https://images.unsplash.com/photo-1531058020387-3be344556be6?auto=format&fit=crop&w=900&q=80","https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=900&q=80"],paymentProfile:{method:"vietqr",bankName:"",accountName:"",accountNumber:"",qrImage:""}},
-    {id:"A-002",name:"Qu�n Customs",handle:"@QuanCustoms",city:"TP. Hồ Chí Minh",verified:true,online:false,rating:4.8,reviews:31,completed:44,startingPrice:7000000,response:"< 6h",specialties:["Mecha","Gunpla","Miniature"],bio:"Custom mecha, display scenes and precision miniature fabrication.",avatar:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80",hero:"https://images.unsplash.com/photo-1549490349-8643362247b5?auto=format&fit=crop&w=1000&q=80",portfolio:["https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=900&q=80","https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=900&q=80"],paymentProfile:{method:"vietqr",bankName:"",accountName:"",accountNumber:"",qrImage:""}},
+    {id:"A-002",name:"Quân Customs",handle:"@QuanCustoms",city:"TP. Hồ Chí Minh",verified:true,online:false,rating:4.8,reviews:31,completed:44,startingPrice:7000000,response:"< 6h",specialties:["Mecha","Gunpla","Miniature"],bio:"Custom mecha, display scenes and precision miniature fabrication.",avatar:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80",hero:"https://images.unsplash.com/photo-1549490349-8643362247b5?auto=format&fit=crop&w=1000&q=80",portfolio:["https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=900&q=80","https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=900&q=80"],paymentProfile:{method:"vietqr",bankName:"",accountName:"",accountNumber:"",qrImage:""}},
     {id:"A-003",name:"Lumino Craft",handle:"@LuminoCraft",city:"Đà Nẵng",verified:true,online:true,rating:4.7,reviews:27,completed:39,startingPrice:4500000,response:"< 4h",specialties:["Lighting","Fantasy","Resin"],bio:"Miniature lighting, resin scenes and cinematic display pieces.",avatar:"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80",hero:"https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1000&q=80",portfolio:["https://images.unsplash.com/photo-1518655048521-f130df041f66?auto=format&fit=crop&w=900&q=80","https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=900&q=80"],paymentProfile:{method:"vietqr",bankName:"",accountName:"",accountNumber:"",qrImage:""}},
     {id:"A-004",name:"Gara Tí Hon",handle:"@GaraTiHon",city:"Hà Nội",verified:false,online:true,rating:4.6,reviews:19,completed:21,startingPrice:3000000,response:"< 1d",specialties:["Architecture","Miniature","Mecha"],bio:"Architectural miniature scenes, diorama structures and custom display bases.",avatar:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80",hero:"https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1000&q=80",portfolio:["https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80"]}
   ],
   requests: [
     {
       id:"REQ-2026-001", customerId:"USR-CUSTOMER-01", title:"Elf Waterfall — Fantasy Diorama", style:"Fantasy", size:"40 × 30 × 30 cm", budget:35000000, timeline:"45 ngày",
-      description:"Diorama fantasy với thác nước resin, c�y cổ thụ, character elf và atmospheric lighting.", status:"proposal_received", createdAt:"2026-09-18", creatorMode:"matching", preferredArtisanId:null,
+      description:"Diorama fantasy với thác nước resin, cây cổ thụ, character elf và atmospheric lighting.", status:"proposal_received", createdAt:"2026-09-18", creatorMode:"matching", preferredArtisanId:null,
       attachments:[{name:"brief-v1.pdf",size:180000}], proposals:[
         {id:"PROP-001",requestId:"REQ-2026-001",artisanId:"A-001",quote:35000000,timeline:"48 ngày",message:"Mình đã xem brief. Concept phù hợp với hướng fantasy environment và resin water effect của studio.",deliverables:["Concept refinement","Base structure","Sculpt & composition","Paint & resin","Final assembly"],status:"pending",createdAt:"2026-09-18T09:30:00"}
       ]
@@ -308,14 +308,7 @@ function loadState(){
   try{ const raw=localStorage.getItem(CONFIG.storageKey); if(raw) return JSON.parse(raw); }catch(e){}
   return clone(SEED);
 }
-function save(){
-  try {
-    localStorage.setItem(CONFIG.storageKey, JSON.stringify(state));
-  } catch(e) {
-    console.warn("Local storage save skipped:", e.message);
-  }
-  refreshShell();
-}
+function save(){ try{ localStorage.setItem(CONFIG.storageKey, JSON.stringify(state)); refreshShell(); return true; }catch(e){ if(e?.name==='QuotaExceededError'||e?.code===22){ toast('Storage is full. Uploaded media is stored separately; please reload the page and try again.','warning'); return false; } throw e; } }
 function apiURL(path){ return (CONFIG.apiBase||"").replace(/\/$/,"")+path; }
 function authUserFromArtisan(a,provider="demo"){ return {id:"USR-ARTISAN-01",name:a?.name||"Artisan",email:"artisan@example.com",phone:"",city:a?.city||"",role:"artisan",avatar:a?.avatar||GUEST_USER.avatar,bio:a?.bio||"",joined:"2026",artisanId:a?.id||"A-001",authenticated:true,provider}; }
 function setGuest(){ state.session={authenticated:false,userId:null}; state.user=clone(GUEST_USER); save(); }
@@ -366,13 +359,13 @@ function refreshShell(){
   const actions=document.getElementById('auth-header-actions');
   if(actions){
     if(isAuthenticated()){
-      actions.innerHTML=`<button class="icon-btn" onclick="navigate('messages')" title="Messages"><i data-lucide="message-circle"></i></button><button class="icon-btn" onclick="openNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><span class="role-badge">${isCustomer()?'Customer':'Artisan'}</span><button class="icon-btn" onclick="openAccountMenu()" title="Account"><img id="header-avatar" class="avatar" alt="Avatar" src="${esc(state.user.avatar||GUEST_USER.avatar)}"></button>`;
+      actions.innerHTML=`<button class="icon-btn" onclick="navigate('messages')" title="Messages"><i data-lucide="message-circle"></i></button><button class="icon-btn" onclick="openNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><span class="role-badge">${isCustomer()?'Customer':'Artisan'}</span><button class="icon-btn" onclick="openAccountMenu()" title="Account"><img id="header-avatar" class="avatar" alt="Avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}></button>`;
       const dot=document.getElementById('notif-dot'); if(dot) dot.hidden=!state.notifications.some(n=>!n.read);
     }else{
       actions.innerHTML=`<button class="btn btn-sm" onclick="openAuthModal('login')">Sign in</button><button class="btn btn-sm btn-mint" onclick="openAuthModal('register')">Register</button>`;
     }
   }
-  if(window.lucide)lucide.createIcons();
+  if(window.lucide)lucide.createIcons(); hydrateMediaAssets();
 }
 function toggleMobileNav(){ mobileNavOpen=!mobileNavOpen; document.getElementById('mobile-nav').style.display=mobileNavOpen?'block':'none'; }
 window.addEventListener('hashchange', render);
@@ -433,7 +426,7 @@ function renderHome(){
 function renderCreatorCard(a){
   const saved=state.savedCreators.includes(a.id);
   return `<article class="card creator-card">
-    <div class="creator-cover"><img src="${esc(a.hero)}" alt="${esc(a.name)}"><button class="icon-btn" style="position:absolute;right:10px;top:10px;background:rgba(4,17,23,.58)" onclick="toggleSaved('${a.id}')"><i data-lucide="${saved?'bookmark-check':'bookmark'}" style="width:16px"></i></button>${a.verified?'<span class="pill pill-success" style="position:absolute;left:10px;bottom:10px">Verified</span>':''}</div>
+    <div class="creator-cover"><img ${mediaAttrs(a.hero,a.heroFallback||'')} alt="${esc(a.name)}"><button class="icon-btn" style="position:absolute;right:10px;top:10px;background:rgba(4,17,23,.58)" onclick="toggleSaved('${a.id}')"><i data-lucide="${saved?'bookmark-check':'bookmark'}" style="width:16px"></i></button>${a.verified?'<span class="pill pill-success" style="position:absolute;left:10px;bottom:10px">Verified</span>':''}</div>
     <div class="creator-body">
       <div class="between"><div><div class="creator-name">${esc(a.name)}</div><div class="creator-handle">${esc(a.handle)} · ${esc(a.city)}</div></div><div class="rating">★ ${a.rating}</div></div>
       <p class="body" style="margin-top:12px;min-height:43px">${esc(a.bio)}</p>
@@ -482,15 +475,15 @@ function renderSaved(){
 }
 function renderMessages(){
   const mine=state.projects.filter(p=>isCustomer()?p.customerId===state.user.id:p.artisanId===(state.user.artisanId||'A-001'));
-  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Inbox</div><div class="section-title">MESSAGES</div></div></div><div class="grid" style="gap:10px;max-width:900px">${mine.length?mine.map(p=>{const a=artisanById(p.artisanId), c=customerById(p.customerId), last=p.messages?.[p.messages.length-1];return `<button class="card pad" style="width:100%;text-align:left;color:inherit" onclick="navigate('${isCustomer()?'project':'artisan-project'}/${p.id}')"><div class="between"><div class="row"><img class="avatar-lg" src="${esc(isCustomer()?a?.avatar:state.user.avatar)}"><div><b>${esc(p.title)}</b><div class="small muted">${esc(isCustomer()?a?.name:(c?.name||'Customer'))}</div></div></div>${pill(p.status)}</div><div class="small" style="margin-top:12px">${esc(last?.text||'No messages yet.')}</div><div class="tiny muted" style="margin-top:5px">${esc(last?.time||'')}</div></button>`}).join(''):'<div class="empty">No conversations.</div>'}</div></section>`;
+  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Inbox</div><div class="section-title">MESSAGES</div></div></div><div class="grid" style="gap:10px;max-width:900px">${mine.length?mine.map(p=>{const a=artisanById(p.artisanId), c=customerById(p.customerId), last=p.messages?.[p.messages.length-1];return `<button class="card pad" style="width:100%;text-align:left;color:inherit" onclick="navigate('${isCustomer()?'project':'artisan-project'}/${p.id}')"><div class="between"><div class="row"><img class="avatar-lg" ${mediaAttrs(isCustomer()?a?.avatar:state.user.avatar,isCustomer()?(a?.avatarFallback||GUEST_USER.avatar):(state.user.avatarFallback||GUEST_USER.avatar))}><div><b>${esc(p.title)}</b><div class="small muted">${esc(isCustomer()?a?.name:(c?.name||'Customer'))}</div></div></div>${pill(p.status)}</div><div class="small" style="margin-top:12px">${esc(last?.text||'No messages yet.')}</div><div class="tiny muted" style="margin-top:5px">${esc(last?.time||'')}</div></button>`}).join(''):'<div class="empty">No conversations.</div>'}</div></section>`;
 }
 function renderCreator(id){
   const a=artisanById(id); if(!a){document.getElementById('app').innerHTML='<section class="page"><div class="empty">Artisan not found.</div></section>';return;}
   document.getElementById('app').innerHTML=`<section class="page">
     <button class="btn btn-sm" onclick="navigate('explore')">← Back to creators</button>
     <div class="grid two" style="margin-top:16px">
-      <div class="card" style="overflow:hidden"><img src="${esc(a.hero)}" style="width:100%;height:420px;object-fit:cover" alt="${esc(a.name)}"></div>
-      <div class="card pad"><div class="row"><img class="avatar" src="${esc(a.avatar)}" alt=""><div><div class="display" style="font-size:38px;text-transform:uppercase;line-height:.9">${esc(a.name)}</div><div class="small muted">${esc(a.handle)} · ${esc(a.city)}</div></div></div>
+      <div class="card" style="overflow:hidden"><img ${mediaAttrs(a.hero,a.heroFallback||'')} style="width:100%;height:420px;object-fit:cover" alt="${esc(a.name)}"></div>
+      <div class="card pad"><div class="row"><img class="avatar" ${mediaAttrs(a.avatar,a.avatarFallback||GUEST_USER.avatar)} alt=""><div><div class="display" style="font-size:38px;text-transform:uppercase;line-height:.9">${esc(a.name)}</div><div class="small muted">${esc(a.handle)} · ${esc(a.city)}</div></div></div>
         <div class="wrap" style="margin-top:15px">${a.verified?'<span class="pill pill-success">Verified</span>':''}<span class="pill">★ ${a.rating} / ${a.reviews} reviews</span><span class="pill">${a.completed} completed</span><span class="pill">response ${esc(a.response)}</span></div>
         <p class="body" style="margin-top:17px">${esc(a.bio)}</p>
         <div class="divider"></div><div class="label">Specialties</div><div class="wrap">${a.specialties.map(s=>`<span class="pill pill-mint">${esc(s)}</span>`).join('')}</div>
@@ -499,7 +492,7 @@ function renderCreator(id){
       </div>
     </div>
     <div class="section-head"><div><div class="eyebrow">Portfolio</div><div class="section-title">SELECTED WORKS</div></div></div>
-    <div class="grid three">${a.portfolio.map(img=>`<div class="card" style="overflow:hidden"><img src="${esc(img)}" style="width:100%;height:230px;object-fit:cover"></div>`).join('')}</div>
+    <div class="grid three">${a.portfolio.map((img,i)=>`<div class="card" style="overflow:hidden"><img ${mediaAttrs(img,a.portfolioFallback?.[i]||'')} style="width:100%;height:230px;object-fit:cover"></div>`).join('')}</div>
   </section>`;
 }
 function startFromCreator(id){ if(!requireRole('customer')) return; sessionStorage.setItem('dioralink_preferred_artisan',id); navigate('commission'); }
@@ -509,6 +502,53 @@ const FILE_DB_VERSION=1;
 const FILE_STORE='blobs';
 function openFileDB(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window)){reject(new Error('File storage is unavailable in this browser.'));return;}const req=indexedDB.open(FILE_DB_NAME,FILE_DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(FILE_STORE))db.createObjectStore(FILE_STORE,{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Unable to open file storage.'));});}
 async function storeBinaryFile(file,scope='project'){const id=`ATT-${scope}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;const db=await openFileDB();await new Promise((resolve,reject)=>{const tx=db.transaction(FILE_STORE,'readwrite');tx.objectStore(FILE_STORE).put({id,blob:file,name:file.name,size:file.size,type:file.type||'application/octet-stream',createdAt:new Date().toISOString()});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('Unable to save file.'));});db.close();return{id,name:file.name,size:file.size,type:file.type||'application/octet-stream',createdAt:new Date().toISOString()};}
+function mediaAttrs(value,fallback=''){
+  const v=String(value||'');
+  if(v.startsWith('asset:')) return `src="${esc(fallback)}" data-media-id="${esc(v.slice(6))}"`;
+  return `src="${esc(v||fallback)}"`;
+}
+const mediaUrlCache=new Map();
+async function hydrateMediaAssets(){
+  const nodes=[...document.querySelectorAll('[data-media-id]')];
+  for(const node of nodes){
+    const id=node.getAttribute('data-media-id'); if(!id) continue;
+    try{
+      let url=mediaUrlCache.get(id);
+      if(!url){
+        const db=await openFileDB();
+        const record=await new Promise((resolve,reject)=>{const tx=db.transaction(FILE_STORE,'readonly');const req=tx.objectStore(FILE_STORE).get(id);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+        db.close();
+        if(record?.blob){url=URL.createObjectURL(record.blob);mediaUrlCache.set(id,url);}
+      }
+      if(url) node.src=url;
+    }catch(e){ /* keep fallback */ }
+  }
+}
+async function migrateEmbeddedMedia(){
+  const tasks=[];
+  const add=(obj,field,scope,fallback)=>{
+    if(!obj)return; const value=obj[field];
+    if(typeof value==='string' && value.startsWith('data:image/')){
+      tasks.push((async()=>{try{
+        const blob=await (await fetch(value)).blob();
+        const rec=await storeBinaryFile(new File([blob],`${scope}.img`,{type:blob.type||'image/jpeg'}),scope);
+        obj[`${field}AssetId`]=rec.id; obj[`${field}Fallback`]=fallback||''; obj[field]=`asset:${rec.id}`;
+      }catch(e){} })());
+    }
+  };
+  add(state.user,'avatar','avatar',GUEST_USER.avatar);
+  (state.artisans||[]).forEach((a,i)=>{
+    add(a,'avatar',`artisan-avatar-${i}`,a.avatar&&a.avatar.startsWith('http')?a.avatar:GUEST_USER.avatar);
+    add(a,'hero',`artisan-hero-${i}`,a.hero&&a.hero.startsWith('http')?a.hero:'');
+    if(Array.isArray(a.portfolio)) a.portfolio=a.portfolio.map((v,j)=>{
+      if(typeof v==='string' && v.startsWith('data:image/')){
+        const holder={v}; tasks.push((async()=>{try{const blob=await (await fetch(v)).blob();const rec=await storeBinaryFile(new File([blob],`portfolio-${i}-${j}.img`,{type:blob.type||'image/jpeg'}),'portfolio'); holder.v=`asset:${rec.id}`;}catch(e){} })()); return holder;}
+      return {v};
+    }).map(x=>x.v);
+    add(a.paymentProfile,'qrImage',`artisan-qr-${i}`,a.paymentProfile?.qrImage?.startsWith('http')?a.paymentProfile.qrImage:'');
+  });
+  if(tasks.length){await Promise.all(tasks);try{localStorage.setItem(CONFIG.storageKey,JSON.stringify(state));}catch(e){/* migrated media may still be constrained by unrelated data */}}
+}
 async function downloadStoredFile(id,name){try{const db=await openFileDB();const record=await new Promise((resolve,reject)=>{const tx=db.transaction(FILE_STORE,'readonly');const req=tx.objectStore(FILE_STORE).get(id);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});db.close();if(!record?.blob){toast('File is no longer available.','error');return;}const url=URL.createObjectURL(record.blob);const a=document.createElement('a');a.href=url;a.download=name||record.name||'download';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}catch(e){toast(e.message||'Unable to download file.','error');}}
 function fileIcon(type,name){const n=String(name||'').toLowerCase();if((type||'').startsWith('image/'))return 'image';if(type==='application/pdf'||n.endsWith('.pdf'))return 'file-text';if(/\.(stl|obj|3mf|blend|fbx|glb|gltf|step|stp|3ds|dae|ply)$/i.test(n))return 'box';return 'paperclip';}
 function fileLabel(f){const ext=(String(f.name||'').split('.').pop()||'FILE').toUpperCase();return ext.slice(0,6);}
@@ -519,7 +559,7 @@ function renderMessageAttachments(m){return m.attachments?.length?`<div class="m
 function renderCommission(){
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">CREATE COMMISSION</div></div><button class="btn" onclick="navigate('requests')">Requests</button></div><form class="grid two" onsubmit="createRequest(event)"><div class="card pad"><div class="label">Project title</div><input name="title" class="field" required placeholder="e.g. Forest Shrine — 1/12 Diorama"><div class="grid two" style="margin-top:14px"><div><div class="label">Style</div><select name="style" class="field"><option>Fantasy</option><option>Resin</option><option>Mecha</option><option>Gunpla</option><option>Miniature</option><option>Architecture</option><option>Lighting</option></select></div><div><div class="label">Size</div><input name="size" class="field" required placeholder="40 × 30 × 30 cm"></div></div><div class="grid two" style="margin-top:14px"><div><div class="label">Budget (VND)</div><input name="budget" type="number" min="500000" step="50000" class="field" required value="20000000"></div><div><div class="label">Timeline</div><input name="timeline" class="field" required placeholder="45 days"></div></div><div style="margin-top:14px"><div class="label">Brief</div><textarea name="description" class="field" required placeholder="Mood, characters, materials, lighting, references, important constraints..."></textarea></div><div style="margin-top:14px"><div class="label">Reference images</div><input name="referenceImages" class="field" type="file" accept="image/*" multiple required><div class="tiny muted" style="margin-top:6px">At least one image is required.</div></div></div><div class="card pad"><div class="label">Routing</div><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="matching" checked> <b>Open matching</b><div class="small muted" style="margin-top:5px">Send to qualified artisans</div></label><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="specific"> <b>Specific artisan</b><div class="small muted" style="margin-top:5px">Send to a selected artisan</div></label><div style="margin-top:14px"><div class="label">Preferred artisan</div><select name="preferredArtisanId" class="field"><option value="">— Select artisan —</option>${state.artisans.map(a=>`<option value="${a.id}">${esc(a.name)} ${a.verified?'· Verified':''}</option>`).join('')}</select></div><div class="divider"></div><div class="notice">Your images will be shared with artisans who receive this request.</div><div class="sticky-actions" style="margin-top:25px"><button class="btn btn-mint" style="width:100%">Publish request <i data-lucide="arrow-up-right" style="width:15px;vertical-align:-3px"></i></button></div></div></form></section>`;const pre=sessionStorage.getItem('dioralink_preferred_artisan');if(pre){const el=document.querySelector('[name="preferredArtisanId"]');if(el){el.value=pre;document.querySelector('[value="specific"]').checked=true;}sessionStorage.removeItem('dioralink_preferred_artisan');}lucide.createIcons();
 }
-async function createRequest(e){if(!requireRole('customer'))return;e.preventDefault();const fd=new FormData(e.target);const files=Array.from(document.querySelector('[name="referenceImages"]')?.files||[]);const mode=fd.get('creatorMode');const preferred=fd.get('preferredArtisanId')||null;if(mode==='specific'&&!preferred){toast('H�y chọn artisan cụ thể hoặc chuyển sang Open matching.','error');return;}if(!files.length){toast('Vui lòng gửi ít nhất một hình ảnh tham khảo.','error');return;}for(const f of files){if(!f.type.startsWith('image/')){toast('Chỉ chấp nhận file hình ảnh ở Reference images.','error');return;}if(f.size>8*1024*1024){toast('Mỗi ảnh không được vượt quá 8MB.','error');return;}}const submit=e.target.querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Publishing...';}try{const attachments=[];for(const f of files)attachments.push(await storeBinaryFile(f,'request'));const id='REQ-'+new Date().getFullYear()+'-'+String(state.requests.length+1).padStart(3,'0');const r={id,customerId:state.user.id,title:String(fd.get('title')).trim(),style:String(fd.get('style')),size:String(fd.get('size')).trim(),budget:Number(fd.get('budget')),timeline:String(fd.get('timeline')).trim(),description:String(fd.get('description')).trim(),status:'pending',createdAt:new Date().toISOString(),creatorMode:mode,preferredArtisanId:preferred,attachments,proposals:[]};state.requests.unshift(r);addNotification({title:'Request published',body:`${r.title} has been sent to the Artisan inbox.`,route:`request/${r.id}`});save();toast('Commission request published.','success');navigate('request/'+r.id);}catch(err){toast(err.message||'Unable to save request images.','error');}finally{if(submit){submit.disabled=false;submit.textContent='Publish request';}}}
+async function createRequest(e){if(!requireRole('customer'))return;e.preventDefault();const fd=new FormData(e.target);const files=Array.from(document.querySelector('[name="referenceImages"]')?.files||[]);const mode=fd.get('creatorMode');const preferred=fd.get('preferredArtisanId')||null;if(mode==='specific'&&!preferred){toast('Hãy chọn artisan cụ thể hoặc chuyển sang Open matching.','error');return;}if(!files.length){toast('Vui lòng gửi ít nhất một hình ảnh tham khảo.','error');return;}for(const f of files){if(!f.type.startsWith('image/')){toast('Chỉ chấp nhận file hình ảnh ở Reference images.','error');return;}if(f.size>8*1024*1024){toast('Mỗi ảnh không được vượt quá 8MB.','error');return;}}const submit=e.target.querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Publishing...';}try{const attachments=[];for(const f of files)attachments.push(await storeBinaryFile(f,'request'));const id='REQ-'+new Date().getFullYear()+'-'+String(state.requests.length+1).padStart(3,'0');const r={id,customerId:state.user.id,title:String(fd.get('title')).trim(),style:String(fd.get('style')),size:String(fd.get('size')).trim(),budget:Number(fd.get('budget')),timeline:String(fd.get('timeline')).trim(),description:String(fd.get('description')).trim(),status:'pending',createdAt:new Date().toISOString(),creatorMode:mode,preferredArtisanId:preferred,attachments,proposals:[]};state.requests.unshift(r);addNotification({title:'Request published',body:`${r.title} has been sent to the Artisan inbox.`,route:`request/${r.id}`});save();toast('Commission request published.','success');navigate('request/'+r.id);}catch(err){toast(err.message||'Unable to save request images.','error');}finally{if(submit){submit.disabled=false;submit.textContent='Publish request';}}}
 
 function renderRequests(){
   const mine=state.requests.filter(r=>r.customerId===state.user.id);
@@ -539,7 +579,7 @@ function renderRequest(id){
     <div class="grid two">
       <div class="card pad"><div class="label">Brief</div><p class="body">${esc(r.description)}</p>${r.attachments?.length?`<div class="divider"></div><div class="label">Reference images</div>${renderAttachmentList(r.attachments)}`:``}<div class="divider"></div><div class="label">Routing</div><div class="small">${r.creatorMode==='specific'?`Specific artisan: <b>${esc(artisanById(r.preferredArtisanId)?.name||'')}</b>`:'Open matching to qualified artisans'}</div></div>
       <div class="card pad"><div class="between"><div><div class="eyebrow">Proposals</div><div class="section-title" style="font-size:29px">${r.proposals.length} RECEIVED</div></div>${selected?pill('approved'):''}</div>
-      ${r.proposals.length?r.proposals.map(p=>{const a=artisanById(p.artisanId); return `<div class="card-soft pad" style="margin-top:12px"><div class="between"><div class="row"><img class="avatar" src="${esc(a?.avatar||'')}" alt=""><div><b>${esc(a?.name||'Unknown artisan')}</b><div class="small muted">${esc(a?.handle||'')}</div></div></div>${pill(p.status)}</div><div class="grid three" style="margin-top:12px"><div><div class="label">Quote</div><b>${money(p.quote)}</b></div><div><div class="label">Timeline</div><b>${esc(p.timeline)}</b></div><div><div class="label">Status</div><b>${selected?.id===p.id?'Selected':'Available'}</b></div></div><p class="body" style="margin-top:10px">${esc(p.message)}</p><div class="wrap" style="margin-top:10px">${p.deliverables.map(d=>`<span class="pill">${esc(d)}</span>`).join('')}</div>${!selected&&p.status==='pending'?`<button class="btn btn-mint" style="width:100%;margin-top:13px" onclick="acceptProposal('${r.id}','${p.id}')">Accept proposal & create project</button>`:''}</div>`}).join(''):'<div class="empty" style="margin-top:12px">Waiting for proposals.</div>'}
+      ${r.proposals.length?r.proposals.map(p=>{const a=artisanById(p.artisanId); return `<div class="card-soft pad" style="margin-top:12px"><div class="between"><div class="row"><img class="avatar" ${mediaAttrs(a?.avatar,a?.avatarFallback||GUEST_USER.avatar)} alt=""><div><b>${esc(a?.name||'Unknown artisan')}</b><div class="small muted">${esc(a?.handle||'')}</div></div></div>${pill(p.status)}</div><div class="grid three" style="margin-top:12px"><div><div class="label">Quote</div><b>${money(p.quote)}</b></div><div><div class="label">Timeline</div><b>${esc(p.timeline)}</b></div><div><div class="label">Status</div><b>${selected?.id===p.id?'Selected':'Available'}</b></div></div><p class="body" style="margin-top:10px">${esc(p.message)}</p><div class="wrap" style="margin-top:10px">${p.deliverables.map(d=>`<span class="pill">${esc(d)}</span>`).join('')}</div>${!selected&&p.status==='pending'?`<button class="btn btn-mint" style="width:100%;margin-top:13px" onclick="acceptProposal('${r.id}','${p.id}')">Accept proposal & create project</button>`:''}</div>`}).join(''):'<div class="empty" style="margin-top:12px">Waiting for proposals.</div>'}
       </div>
     </div>
   </section>`;
@@ -561,7 +601,7 @@ function renderProjects(){
   const mine=state.projects.filter(p=>p.customerId===state.user.id);
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">PROJECTS</div></div><button class="btn" onclick="navigate('requests')">Requests</button></div>${mine.length?`<div class="grid two">${mine.map(p=>renderProjectCard(p,'customer')).join('')}</div>`:'<div class="empty">No projects yet.</div>'}</section>`;
 }
-function renderProjectCard(p,viewer){ const a=artisanById(p.artisanId);return `<article class="card pad"><div class="between"><div class="row"><img class="avatar" src="${esc(a?.avatar||'')}" alt=""><div><div class="display" style="font-size:28px;text-transform:uppercase">${esc(p.title)}</div><div class="small muted">${esc(a?.name||'')}</div></div></div>${pill(p.status)}</div><div style="margin-top:16px"><div class="between tiny"><span>Progress</span><span>${p.progress}%</span></div><div class="progress" style="margin-top:6px"><div style="width:${p.progress}%"></div></div></div><div class="grid three" style="margin-top:15px"><div><div class="label">Budget</div><b>${money(p.budget)}</b></div><div><div class="label">Current stage</div><b>${esc(p.milestones.find(m=>m.id===`M${p.currentMilestone}`)?.name||'—')}</b></div><div><div class="label">Due</div><b>${p.dueDate?dateOnly(p.dueDate):'—'}</b></div></div><button class="btn btn-sm btn-mint" style="margin-top:14px" onclick="navigate('${viewer==='customer'?'project':'artisan-project'}/${p.id}')">Open project →</button></article>`; }
+function renderProjectCard(p,viewer){ const a=artisanById(p.artisanId);return `<article class="card pad"><div class="between"><div class="row"><img class="avatar" ${mediaAttrs(a?.avatar,a?.avatarFallback||GUEST_USER.avatar)} alt=""><div><div class="display" style="font-size:28px;text-transform:uppercase">${esc(p.title)}</div><div class="small muted">${esc(a?.name||'')}</div></div></div>${pill(p.status)}</div><div style="margin-top:16px"><div class="between tiny"><span>Progress</span><span>${p.progress}%</span></div><div class="progress" style="margin-top:6px"><div style="width:${p.progress}%"></div></div></div><div class="grid three" style="margin-top:15px"><div><div class="label">Budget</div><b>${money(p.budget)}</b></div><div><div class="label">Current stage</div><b>${esc(p.milestones.find(m=>m.id===`M${p.currentMilestone}`)?.name||'—')}</b></div><div><div class="label">Due</div><b>${p.dueDate?dateOnly(p.dueDate):'—'}</b></div></div><button class="btn btn-sm btn-mint" style="margin-top:14px" onclick="navigate('${viewer==='customer'?'project':'artisan-project'}/${p.id}')">Open project →</button></article>`; }
 
 function renderProject(id){
   const p=projectById(id); if(!p){document.getElementById('app').innerHTML='<section class="page"><div class="empty">Project not found.</div></section>';return;}
@@ -600,7 +640,7 @@ async function markDirectPayment(e,projectId,milestoneId){
   e.preventDefault(); if(!requireRole('customer'))return; const p=projectById(projectId); const m=p?.milestones.find(x=>x.id===milestoneId); if(!p||!m)return;
   const calc=milestonePayable(p,m); const fd=new FormData(e.target); const ref=String(fd.get('transferReference')||'').trim(); const proofFile=fd.get('proof');
   if(!ref){toast('Enter the transfer reference.','warning');return;}
-  let proof=''; if(proofFile&&proofFile.size){if(proofFile.size>1800000){toast('Payment proof must be 1.8MB or smaller.','error');return;}proof=await readFileDataUrl(proofFile);}
+  let proof=null; if(proofFile&&proofFile.size){if(proofFile.size>5*1024*1024){toast('Payment proof must be 5MB or smaller.','error');return;}proof=await storeBinaryFile(proofFile,'payment-proof');}
   const record={milestoneId,amount:m.amount,customerPaid:calc.total,discount:calc.discount,voucherCode:calc.code,status:'customer_reported',paidAt:new Date().toISOString(),confirmedAt:null,transferReference:ref,proof};
   const existing=p.payments.find(x=>x.milestoneId===milestoneId); if(existing)Object.assign(existing,record);else p.payments.push(record);
   p.activity.unshift({text:`Customer reported direct payment for ${milestoneId}`,time:dateTime(new Date())}); addNotification({title:'Payment reported',body:`Customer reported a direct payment for ${m.name}.`,route:`artisan-project/${p.id}`}); p.appliedVoucher=null; save(); closeModal(); toast('Payment reported to the artisan.','success'); render();
@@ -623,172 +663,90 @@ function toast(message,type='success'){const el=document.createElement('div');el
 
 function renderAccount(){
   if(!isAuthenticated()){document.getElementById('app').innerHTML=`<section class="page"><div class="auth-grid"><div class="auth-brand"><div class="eyebrow">Account</div><div class="section-title" style="font-size:54px;margin-top:12px">WELCOME BACK.<br><span style="color:var(--mint)">BUILD WITH DIORALINK.</span></div><div class="hero-cta"><button class="btn btn-mint" onclick="openAuthModal('login')">Sign in</button><button class="btn" onclick="openAuthModal('register')">Register</button></div></div><div class="card pad"><div class="eyebrow">Access</div><div class="section-title" style="font-size:34px;margin-top:10px">ACCOUNT ACCESS</div><div class="wrap" style="margin-top:14px"><span class="pill">Customer</span><span class="pill">Artisan</span></div><div class="divider"></div><div class="small muted">Email, Google or Facebook</div></div></div></section>`;return;}
-  const isA=isArtisan();document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Account</div><div class="section-title">PROFILE & SETTINGS</div></div><div class="wrap"><span class="role-badge">${isA?'Artisan':'Customer'}</span><button class="btn btn-danger" onclick="logout()">Logout</button></div></div><div class="grid two"><form class="card pad" onsubmit="saveProfile(event)"><div class="avatar-editor"><img id="profile-avatar-preview" class="avatar" src="${esc(state.user.avatar||GUEST_USER.avatar)}"><div><div class="display" style="font-size:29px;text-transform:uppercase">${esc(state.user.name)}</div><div class="small muted">${esc(state.user.email)} · ${esc(state.user.provider||'email')}</div><label class="file-input-label" style="margin-top:8px"><i data-lucide="camera" style="width:14px"></i> Change avatar<input id="profile-avatar-file" name="avatarFile" type="file" accept="image/*" style="display:none" onchange="previewAvatarFile(this)"></label></div></div><div class="grid two" style="margin-top:16px"><div><div class="label">Name</div><input class="field" name="name" value="${esc(state.user.name)}" required></div><div><div class="label">Phone</div><input class="field" name="phone" value="${esc(state.user.phone||'')}"></div></div><div style="margin-top:12px"><div class="label">City</div><input class="field" name="city" value="${esc(state.user.city||'')}"></div><div style="margin-top:12px"><div class="label">Bio</div><textarea class="field" name="bio">${esc(state.user.bio||'')}</textarea></div><button class="btn btn-mint" style="margin-top:14px">Save changes</button></form><div class="card pad"><div class="eyebrow">Security</div><div class="section-title" style="font-size:31px">ACCOUNT SECURITY</div><div class="grid two" style="margin-top:14px"><div class="card-soft pad"><div class="label">Role</div><b>${isA?'Artisan':'Customer'}</b></div><div class="card-soft pad"><div class="label">Provider</div><b>${esc(state.user.provider||'email')}</b></div></div><div class="divider"></div><button class="btn" style="width:100%" onclick="openChangePassword()">Change password</button><button class="btn btn-danger" style="width:100%;margin-top:8px" onclick="logout()">Log out</button></div></div></section>`;lucide.createIcons();
+  const isA=isArtisan();document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Account</div><div class="section-title">PROFILE & SETTINGS</div></div><div class="wrap"><span class="role-badge">${isA?'Artisan':'Customer'}</span><button class="btn btn-danger" onclick="logout()">Logout</button></div></div><div class="grid two"><form class="card pad" onsubmit="saveProfile(event)"><div class="avatar-editor"><img id="profile-avatar-preview" class="avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}><div><div class="display" style="font-size:29px;text-transform:uppercase">${esc(state.user.name)}</div><div class="small muted">${esc(state.user.email)} · ${esc(state.user.provider||'email')}</div><label class="file-input-label" style="margin-top:8px"><i data-lucide="camera" style="width:14px"></i> Change avatar<input id="profile-avatar-file" name="avatarFile" type="file" accept="image/*" style="display:none" onchange="previewAvatarFile(this)"></label></div></div><div class="grid two" style="margin-top:16px"><div><div class="label">Name</div><input class="field" name="name" value="${esc(state.user.name)}" required></div><div><div class="label">Phone</div><input class="field" name="phone" value="${esc(state.user.phone||'')}"></div></div><div style="margin-top:12px"><div class="label">City</div><input class="field" name="city" value="${esc(state.user.city||'')}"></div><div style="margin-top:12px"><div class="label">Bio</div><textarea class="field" name="bio">${esc(state.user.bio||'')}</textarea></div><button class="btn btn-mint" style="margin-top:14px">Save changes</button></form><div class="card pad"><div class="eyebrow">Security</div><div class="section-title" style="font-size:31px">ACCOUNT SECURITY</div><div class="grid two" style="margin-top:14px"><div class="card-soft pad"><div class="label">Role</div><b>${isA?'Artisan':'Customer'}</b></div><div class="card-soft pad"><div class="label">Provider</div><b>${esc(state.user.provider||'email')}</b></div></div><div class="divider"></div><button class="btn" style="width:100%" onclick="openChangePassword()">Change password</button><button class="btn btn-danger" style="width:100%;margin-top:8px" onclick="logout()">Log out</button></div></div></section>`;lucide.createIcons();
 }
 function previewAvatarFile(input){const f=input?.files?.[0];if(!f)return;if(f.size>3*1024*1024){toast('Avatar must be 3MB or smaller.','error');input.value='';return;}readFileDataUrl(f).then(url=>{const el=document.getElementById('profile-avatar-preview');if(el)el.src=url;});}
 async function compressAvatarFile(file){
   return new Promise((resolve,reject)=>{
-    const reader = new FileReader();
-
-    reader.onload = ()=>{
-      const img = new Image();
-
-      img.onload = ()=>{
-        const maxSize = 800;
-
-        let width = img.width;
-        let height = img.height;
-
-        if(width > maxSize || height > maxSize){
-          const scale = Math.min(maxSize / width, maxSize / height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const maxSize=800;
+        let width=img.width;
+        let height=img.height;
+        if(width>maxSize||height>maxSize){
+          const scale=Math.min(maxSize/width,maxSize/height);
+          width=Math.round(width*scale);
+          height=Math.round(height*scale);
         }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext("2d");
-
-        if(!ctx){
-          reject(new Error("Unable to process avatar image."));
-          return;
-        }
-
-        ctx.fillStyle = "#ffffff";
+        const canvas=document.createElement('canvas');
+        canvas.width=width;
+        canvas.height=height;
+        const ctx=canvas.getContext('2d');
+        if(!ctx){reject(new Error('Unable to process avatar image.'));return;}
+        ctx.fillStyle='#ffffff';
         ctx.fillRect(0,0,width,height);
         ctx.drawImage(img,0,0,width,height);
-
-        const result = canvas.toDataURL("image/jpeg",0.82);
-
-        resolve(result);
+        resolve(canvas.toDataURL('image/jpeg',0.82));
       };
-
-      img.onerror = ()=>{
-        reject(new Error("Unable to read avatar image."));
-      };
-
-      img.src = reader.result;
+      img.onerror=()=>reject(new Error('Unable to read avatar image.'));
+      img.src=reader.result;
     };
-
-    reader.onerror = ()=>{
-      reject(new Error("Unable to read avatar file."));
-    };
-
+    reader.onerror=()=>reject(new Error('Unable to read avatar file.'));
     reader.readAsDataURL(file);
   });
 }
 
 async function saveProfile(e){
   e.preventDefault();
-
-  if (!requireAuth()) return;
-
-  const fd = new FormData(e.target);
-  const submit = e.target.querySelector("button[type='submit']");
-
-  if (submit) {
-    submit.disabled = true;
-    submit.textContent = "Saving...";
-  }
-
-  try {
-    const name = String(fd.get("name") || "").trim();
-    const phone = String(fd.get("phone") || "").trim();
-    const city = String(fd.get("city") || "").trim();
-    const bio = String(fd.get("bio") || "").trim();
-
-    if (!name) {
-      throw new Error("Name is required.");
+  if(!requireAuth())return;
+  const fd=new FormData(e.target);
+  const submit=e.target.querySelector("button[type='submit']");
+  if(submit){submit.disabled=true;submit.textContent='Saving...';}
+  try{
+    const name=String(fd.get('name')||'').trim();
+    const phone=String(fd.get('phone')||'').trim();
+    const city=String(fd.get('city')||'').trim();
+    const bio=String(fd.get('bio')||'').trim();
+    if(!name)throw new Error('Name is required.');
+    let avatar=state.user.avatar||GUEST_USER.avatar;
+    const avatarFile=fd.get('avatarFile');
+    if(avatarFile&&avatarFile.size){
+      if(!avatarFile.type.startsWith('image/'))throw new Error('Avatar must be an image.');
+      if(avatarFile.size>3*1024*1024)throw new Error('Avatar must be 3MB or smaller.');
+      avatar=await compressAvatarFile(avatarFile);
     }
-
-    let avatar = state.user.avatar || GUEST_USER.avatar;
-
-    const avatarFile = fd.get("avatarFile");
-
-    if (avatarFile && avatarFile.size) {
-
-      if (!avatarFile.type.startsWith("image/")) {
-        throw new Error("Avatar must be an image.");
-      }
-
-      if (avatarFile.size > 3 * 1024 * 1024) {
-        throw new Error("Avatar must be 3MB or smaller.");
-      }
-
-      avatar = await compressAvatarFile(avatarFile);
-    }
-
-    const res = await fetch(apiURL("/api/auth/profile"), {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        name,
-        phone,
-        city,
-        bio,
-        avatar
-      })
+    const res=await fetch(apiURL('/api/auth/profile'),{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      credentials:'include',
+      body:JSON.stringify({name,phone,city,bio,avatar})
     });
-
-    const raw = await res.text();
-
-    let data = {};
-
-    try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch {
-      data = {};
+    const raw=await res.text();
+    let data={};
+    try{data=raw?JSON.parse(raw):{};}catch{}
+    if(!res.ok){
+      console.error('Profile API error:',res.status,raw);
+      throw new Error(data.message||`Profile update failed (HTTP ${res.status}).`);
     }
-
-    if (!res.ok) {
-      console.error("Profile API error:", res.status, raw);
-
-      throw new Error(
-        data.message ||
-        `Profile update failed (HTTP ${res.status}).`
-      );
-    }
-
-    const user = data.user || {};
-
-    state.user = {
-      ...state.user,
-      ...user,
-      authenticated: true
-    };
-
-    state.session = {
-      authenticated: true,
-      userId: state.user.id
-    };
-
+    const user=data.user||{};
+    state.user={...state.user,...user,authenticated:true};
+    state.session={authenticated:true,userId:state.user.id};
     save();
-
-    toast("Profile updated.", "success");
+    toast('Profile updated.','success');
     render();
-
-  } catch (error) {
-
-    console.error("saveProfile error:", error);
-
-    toast(
-      error.message || "Unable to update profile.",
-      "error"
-    );
-
-  } finally {
-
-    if (submit) {
-      submit.disabled = false;
-      submit.textContent = "Save changes";
-    }
+  }catch(error){
+    console.error('saveProfile error:',error);
+    toast(error.message||'Unable to update profile.','error');
+  }finally{
+    if(submit){submit.disabled=false;submit.textContent='Save changes';}
   }
 }
+function openAccountMenu(){if(!isAuthenticated()){openAuthModal('login');return;}navigate('account');}
+function openChangePassword(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><div class="eyebrow">Security</div><b>Change password</b></div><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><form onsubmit="changePassword(event)"><div class="label">Current password</div><input class="field" name="currentPassword" type="password" autocomplete="current-password" minlength="8" required><div style="margin-top:12px"><div class="label">New password</div><input class="field" name="newPassword" type="password" autocomplete="new-password" minlength="8" required></div><div style="margin-top:12px"><div class="label">Confirm new password</div><input class="field" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required></div><button id="change-password-submit" class="btn btn-mint" style="width:100%;margin-top:16px">Update password</button></form></div></div></div>`;lucide.createIcons();}
+async function changePassword(e){e.preventDefault();if(!requireAuth())return;const fd=new FormData(e.target);const current=String(fd.get('currentPassword')||'');const next=String(fd.get('newPassword')||'');const confirm=String(fd.get('confirmPassword')||'');if(next.length<8){toast('Password must be at least 8 characters.','warning');return;}if(next!==confirm){toast('New passwords do not match.','warning');return;}const submit=document.getElementById('change-password-submit');if(submit){submit.disabled=true;submit.textContent='Updating...';}try{if(CONFIG.demoMode){state.authPasswords=state.authPasswords||{};const key=state.user.email.toLowerCase();const existing=state.authPasswords[key];if(existing&&existing!==current)throw new Error('Current password is incorrect.');state.authPasswords[key]=next;save();closeModal();toast('Password updated.','success');return;}const res=await fetch(apiURL('/api/auth/change-password'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({currentPassword:current,newPassword:next})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.message||'Unable to update password.');closeModal();toast('Password updated.','success');}catch(error){toast(error.message||'Unable to update password.','warning');}finally{if(submit){submit.disabled=false;submit.textContent='Update password';}}}
+
 function openRoleSwitcher(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><b>Switch workspace</b><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><div class="role-cards"><button class="role-card ${isCustomer()?'selected':''}" onclick="switchRole('customer')"><b>Customer</b><span>Discover · Request · Project</span></button><button class="role-card ${isArtisan()?'selected':''}" onclick="switchRole('artisan')"><b>Artisan</b><span>Profile · Proposal · Delivery</span></button></div></div></div></div>`;lucide.createIcons();}
 
 function switchRole(role){state.user.role=role;state.session.userId=role==='customer'?'USR-CUSTOMER-01':'USR-ARTISAN-01';if(role==='artisan'){if(!state.artisanUsers)state.artisanUsers={};state.user={...state.user,id:'USR-ARTISAN-01',name:'Đào Studio Owner',email:'artisan@example.com',phone:'09xx xxx 111',city:'Hà Nội',role:'artisan',avatar:state.artisans[0].avatar,bio:state.artisans[0].bio,joined:'2025',artisanId:'A-001'};}else{state.user={...SEED.user,role:'customer',id:'USR-CUSTOMER-01'};}save();closeModal();navigate(role==='customer'?'home':'artisan-dashboard');toast('Workspace switched to '+role+'.','success');}
@@ -829,20 +787,20 @@ function submitMilestone(projectId,milestoneId){const p=projectById(projectId);c
 function addFile(e,projectId,uploader){e.preventDefault();const f=e.target.file.files[0];if(!f)return;const p=projectById(projectId);p.files.push({id:'FILE-'+Date.now(),name:f.name,size:f.size,uploader,time:new Date().toISOString()});p.activity.unshift({text:`File registered: ${f.name}`,time:dateTime(new Date())});save();toast('File uploaded.','success');render();}
 
 function renderArtisanPortfolio(){const aid=state.user.artisanId||'A-001';const a=artisanById(aid);const prof=a||{};document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Public profile</div><div class="section-title">MY PORTFOLIO</div></div><span class="role-badge">${prof.verified?'Verified':'Not verified'}</span></div>
-  <form class="grid two" onsubmit="saveArtisanProfile(event,'${aid}')"><div class="card pad"><div class="avatar-editor" style="margin-bottom:14px"><img id="artisan-avatar-preview" class="avatar" src="${esc(prof.avatar||state.user.avatar||GUEST_USER.avatar)}"><label class="file-input-label"><i data-lucide="camera" style="width:14px"></i> Change avatar<input name="avatarFile" type="file" accept="image/*" style="display:none" onchange="previewArtisanAvatar(this)"></label></div><div class="label">Display name</div><input class="field" name="name" value="${esc(prof.name||state.user.name)}" required><div style="margin-top:12px"><div class="label">Handle</div><input class="field" name="handle" value="${esc(prof.handle||'@yourstudio')}" required></div><div style="margin-top:12px"><div class="label">City</div><input class="field" name="city" value="${esc(prof.city||state.user.city||'')}" required></div><div style="margin-top:12px"><div class="label">Bio</div><textarea class="field" name="bio" required>${esc(prof.bio||'')}</textarea></div><div class="grid two" style="margin-top:12px"><div><div class="label">Starting price (VND)</div><input class="field" name="startingPrice" type="number" value="${prof.startingPrice||3000000}" min="0" step="50000" required></div><div><div class="label">Response time</div><input class="field" name="response" value="${esc(prof.response||'< 1d')}" required></div></div><div style="margin-top:12px"><div class="label">Specialties</div><input class="field" name="specialties" value="${esc((prof.specialties||[]).join(', '))}" required></div><div style="margin-top:12px"><div class="label">Cover image</div><input class="field" name="heroFile" type="file" accept="image/*"></div><button class="btn btn-mint" style="margin-top:16px">Save changes</button></div>
-    <div class="card pad"><div class="eyebrow">Preview</div><div class="card-soft" style="overflow:hidden;margin-top:10px"><img id="portfolio-preview-hero" src="${esc(prof.hero||'')}" style="width:100%;height:240px;object-fit:cover"><div class="pad"><div class="display" style="font-size:31px;text-transform:uppercase">${esc(prof.name||'Your Studio')}</div><div class="small muted">${esc(prof.handle||'@yourstudio')} · ${esc(prof.city||'')}</div><p class="body" style="margin-top:9px">${esc(prof.bio||'')}</p><div class="wrap" style="margin-top:10px">${(prof.specialties||[]).map(s=>`<span class="pill">${esc(s)}</span>`).join('')}</div></div></div><div style="margin-top:14px"><div class="between"><div><div class="eyebrow">Portfolio</div></div></div><input id="portfolio-upload" class="field" type="file" accept="image/*" style="margin-top:9px"><button type="button" class="btn btn-sm" style="margin-top:8px" onclick="addPortfolioImage('${aid}')">Add work</button><div class="grid three" style="margin-top:10px">${(prof.portfolio||[]).map((img,i)=>`<div class="card-soft" style="position:relative;overflow:hidden"><img src="${esc(img)}" style="width:100%;height:110px;object-fit:cover"><button type="button" class="icon-btn" style="position:absolute;right:5px;top:5px;width:30px;height:30px;background:rgba(4,17,23,.62)" onclick="removePortfolioImage('${aid}',${i})"><i data-lucide="trash-2" style="width:14px"></i></button></div>`).join('')}</div></div><div class="card pad" style="grid-column:1/-1;margin-top:2px"><div class="between"><div><div class="eyebrow">Payment details</div><div class="section-title" style="font-size:29px">DIRECT PAYMENTS</div></div><span class="pill pill-mint">VietQR</span></div><p class="body" style="margin-top:8px">Customers pay directly to your bank account. Add the QR code and transfer details you want displayed at checkout.</p><div class="grid three" style="margin-top:12px"><div><div class="label">Bank</div><input class="field" name="paymentBankName" value="${esc(prof.paymentProfile?.bankName||'')}" placeholder="Bank name"></div><div><div class="label">Account holder</div><input class="field" name="paymentAccountName" value="${esc(prof.paymentProfile?.accountName||prof.name||'')}" placeholder="Account holder"></div><div><div class="label">Account number</div><input class="field" name="paymentAccountNumber" value="${esc(prof.paymentProfile?.accountNumber||'')}" inputmode="numeric" placeholder="Account number"></div></div><div style="margin-top:12px"><div class="label">Personal QR image</div><input class="field" name="paymentQRFile" type="file" accept="image/png,image/jpeg,image/webp"><div class="small muted" style="margin-top:5px">Upload the QR image generated by your banking app.</div></div><div style="margin-top:12px"><div class="label">QR image URL</div><input class="field" name="paymentQRUrl" type="url" value="${esc(prof.paymentProfile?.qrImage?.startsWith('http')?prof.paymentProfile.qrImage:'')}" placeholder="https://..."></div>${prof.paymentProfile?.qrImage?`<div class="card-soft pad" style="margin-top:10px;display:flex;align-items:center;gap:14px"><img src="${esc(prof.paymentProfile.qrImage)}" alt="Payment QR" style="width:100px;height:100px;object-fit:contain;background:#fff;padding:6px"><div><b>QR connected</b><div class="small muted" style="margin-top:4px">Customers can scan this code at payment.</div><button type="button" class="btn btn-sm btn-danger" style="margin-top:8px" onclick="clearPaymentQR('${aid}')">Remove QR</button></div></div>`:''}<button type="button" class="btn btn-mint" style="margin-top:12px" onclick="savePaymentSettings('${aid}')">Save payment details</button></div>
+  <form class="grid two" onsubmit="saveArtisanProfile(event,'${aid}')"><div class="card pad"><div class="avatar-editor" style="margin-bottom:14px"><img id="artisan-avatar-preview" class="avatar" ${mediaAttrs(prof.avatar||state.user.avatar||GUEST_USER.avatar,prof.avatarFallback||state.user.avatarFallback||GUEST_USER.avatar)}><label class="file-input-label"><i data-lucide="camera" style="width:14px"></i> Change avatar<input name="avatarFile" type="file" accept="image/*" style="display:none" onchange="previewArtisanAvatar(this)"></label></div><div class="label">Display name</div><input class="field" name="name" value="${esc(prof.name||state.user.name)}" required><div style="margin-top:12px"><div class="label">Handle</div><input class="field" name="handle" value="${esc(prof.handle||'@yourstudio')}" required></div><div style="margin-top:12px"><div class="label">City</div><input class="field" name="city" value="${esc(prof.city||state.user.city||'')}" required></div><div style="margin-top:12px"><div class="label">Bio</div><textarea class="field" name="bio" required>${esc(prof.bio||'')}</textarea></div><div class="grid two" style="margin-top:12px"><div><div class="label">Starting price (VND)</div><input class="field" name="startingPrice" type="number" value="${prof.startingPrice||3000000}" min="0" step="50000" required></div><div><div class="label">Response time</div><input class="field" name="response" value="${esc(prof.response||'< 1d')}" required></div></div><div style="margin-top:12px"><div class="label">Specialties</div><input class="field" name="specialties" value="${esc((prof.specialties||[]).join(', '))}" required></div><div style="margin-top:12px"><div class="label">Cover image</div><input class="field" name="heroFile" type="file" accept="image/*"></div><button class="btn btn-mint" style="margin-top:16px">Save changes</button></div>
+    <div class="card pad"><div class="eyebrow">Preview</div><div class="card-soft" style="overflow:hidden;margin-top:10px"><img id="portfolio-preview-hero" ${mediaAttrs(prof.hero,prof.heroFallback||'')} style="width:100%;height:240px;object-fit:cover"><div class="pad"><div class="display" style="font-size:31px;text-transform:uppercase">${esc(prof.name||'Your Studio')}</div><div class="small muted">${esc(prof.handle||'@yourstudio')} · ${esc(prof.city||'')}</div><p class="body" style="margin-top:9px">${esc(prof.bio||'')}</p><div class="wrap" style="margin-top:10px">${(prof.specialties||[]).map(s=>`<span class="pill">${esc(s)}</span>`).join('')}</div></div></div><div style="margin-top:14px"><div class="between"><div><div class="eyebrow">Portfolio</div></div></div><input id="portfolio-upload" class="field" type="file" accept="image/*" style="margin-top:9px"><button type="button" class="btn btn-sm" style="margin-top:8px" onclick="addPortfolioImage('${aid}')">Add work</button><div class="grid three" style="margin-top:10px">${(prof.portfolio||[]).map((img,i)=>`<div class="card-soft" style="position:relative;overflow:hidden"><img ${mediaAttrs(img,prof.portfolioFallback?.[i]||'')} style="width:100%;height:110px;object-fit:cover"><button type="button" class="icon-btn" style="position:absolute;right:5px;top:5px;width:30px;height:30px;background:rgba(4,17,23,.62)" onclick="removePortfolioImage('${aid}',${i})"><i data-lucide="trash-2" style="width:14px"></i></button></div>`).join('')}</div></div><div class="card pad" style="grid-column:1/-1;margin-top:2px"><div class="between"><div><div class="eyebrow">Payment details</div><div class="section-title" style="font-size:29px">DIRECT PAYMENTS</div></div><span class="pill pill-mint">VietQR</span></div><p class="body" style="margin-top:8px">Customers pay directly to your bank account. Add the QR code and transfer details you want displayed at checkout.</p><div class="grid three" style="margin-top:12px"><div><div class="label">Bank</div><input class="field" name="paymentBankName" value="${esc(prof.paymentProfile?.bankName||'')}" placeholder="Bank name"></div><div><div class="label">Account holder</div><input class="field" name="paymentAccountName" value="${esc(prof.paymentProfile?.accountName||prof.name||'')}" placeholder="Account holder"></div><div><div class="label">Account number</div><input class="field" name="paymentAccountNumber" value="${esc(prof.paymentProfile?.accountNumber||'')}" inputmode="numeric" placeholder="Account number"></div></div><div style="margin-top:12px"><div class="label">Personal QR image</div><input class="field" name="paymentQRFile" type="file" accept="image/png,image/jpeg,image/webp"><div class="small muted" style="margin-top:5px">Upload the QR image generated by your banking app.</div></div><div style="margin-top:12px"><div class="label">QR image URL</div><input class="field" name="paymentQRUrl" type="url" value="${esc(prof.paymentProfile?.qrImage?.startsWith('http')?prof.paymentProfile.qrImage:'')}" placeholder="https://..."></div>${prof.paymentProfile?.qrImage?`<div class="card-soft pad" style="margin-top:10px;display:flex;align-items:center;gap:14px"><img ${mediaAttrs(prof.paymentProfile.qrImage,prof.paymentProfile.qrImageFallback||'')} alt="Payment QR" style="width:100px;height:100px;object-fit:contain;background:#fff;padding:6px"><div><b>QR connected</b><div class="small muted" style="margin-top:4px">Customers can scan this code at payment.</div><button type="button" class="btn btn-sm btn-danger" style="margin-top:8px" onclick="clearPaymentQR('${aid}')">Remove QR</button></div></div>`:''}<button type="button" class="btn btn-mint" style="margin-top:12px" onclick="savePaymentSettings('${aid}')">Save payment details</button></div>
   </form></section>`; const input=document.querySelector('[name="heroFile"]'); if(input) input.addEventListener('change', async()=>{const f=input.files[0];if(!f)return;if(f.size>1800000){toast('Ảnh cover tối đa 1.8MB trong Demo Mode.','error');input.value='';return;}const url=await readFileDataUrl(f);document.getElementById('portfolio-preview-hero').src=url;});}
-function previewArtisanAvatar(input){const f=input?.files?.[0];if(!f)return;if(f.size>3*1024*1024){toast('Avatar must be 3MB or smaller.','error');input.value='';return;}readFileDataUrl(f).then(url=>{const el=document.getElementById('artisan-avatar-preview');if(el)el.src=url;});}
-async function saveArtisanProfile(e,aid){e.preventDefault();const a=artisanById(aid);if(!a)return;const fd=new FormData(e.target);a.name=String(fd.get('name')).trim();a.handle=String(fd.get('handle')).trim();a.city=String(fd.get('city')).trim();a.bio=String(fd.get('bio')).trim();a.startingPrice=Number(fd.get('startingPrice'));a.response=String(fd.get('response')).trim();a.specialties=String(fd.get('specialties')).split(',').map(x=>x.trim()).filter(Boolean);const avatarFile=fd.get('avatarFile');const heroFile=fd.get('heroFile');try{if(avatarFile&&avatarFile.size){if(!avatarFile.type.startsWith('image/'))throw new Error('Avatar must be an image.');if(avatarFile.size>3*1024*1024)throw new Error('Avatar must be 3MB or smaller.');a.avatar=await readFileDataUrl(avatarFile);}if(heroFile&&heroFile.size){if(heroFile.size>1800000)throw new Error('Cover image must be 1.8MB or smaller.');a.hero=await readFileDataUrl(heroFile);}state.user.name=a.name;state.user.city=a.city;state.user.bio=a.bio;state.user.avatar=a.avatar||state.user.avatar;save();toast('Profile published.','success');render();}catch(err){toast(err.message||'Unable to update profile.','error');}}
+function previewArtisanAvatar(input){const f=input?.files?.[0];if(!f)return;if(f.size>5*1024*1024){toast('Avatar must be 5MB or smaller.','error');input.value='';return;}readFileDataUrl(f).then(url=>{const el=document.getElementById('artisan-avatar-preview');if(el)el.src=url;});}
+async function saveArtisanProfile(e,aid){e.preventDefault();const a=artisanById(aid);if(!a)return;const fd=new FormData(e.target);a.name=String(fd.get('name')).trim();a.handle=String(fd.get('handle')).trim();a.city=String(fd.get('city')).trim();a.bio=String(fd.get('bio')).trim();a.startingPrice=Number(fd.get('startingPrice'));a.response=String(fd.get('response')).trim();a.specialties=String(fd.get('specialties')).split(',').map(x=>x.trim()).filter(Boolean);const avatarFile=fd.get('avatarFile');const heroFile=fd.get('heroFile');try{if(avatarFile&&avatarFile.size){if(!avatarFile.type.startsWith('image/'))throw new Error('Avatar must be an image.');if(avatarFile.size>5*1024*1024)throw new Error('Avatar must be 5MB or smaller.');const oldAvatar=a.avatar;const rec=await storeBinaryFile(avatarFile,'artisan-avatar');a.avatar=`asset:${rec.id}`;a.avatarFallback=(typeof oldAvatar==='string'&&oldAvatar.startsWith('http'))?oldAvatar:GUEST_USER.avatar;}if(heroFile&&heroFile.size){if(heroFile.size>5*1024*1024)throw new Error('Cover image must be 5MB or smaller.');const oldHero=a.hero;const rec=await storeBinaryFile(heroFile,'artisan-hero');a.hero=`asset:${rec.id}`;a.heroFallback=(typeof oldHero==='string'&&oldHero.startsWith('http'))?oldHero:'';}state.user.name=a.name;state.user.city=a.city;state.user.bio=a.bio;state.user.avatar=a.avatar||state.user.avatar;state.user.avatarFallback=a.avatarFallback||state.user.avatarFallback||GUEST_USER.avatar;save();toast('Profile published.','success');render();}catch(err){toast(err.message||'Unable to update profile.','error');}}
 async function savePaymentSettings(aid){
   if(!requireRole('artisan'))return; const a=artisanById(aid); if(!a)return; const bank=document.querySelector('[name="paymentBankName"]')?.value.trim()||''; const holder=document.querySelector('[name="paymentAccountName"]')?.value.trim()||''; const number=document.querySelector('[name="paymentAccountNumber"]')?.value.trim()||''; const file=document.querySelector('[name="paymentQRFile"]')?.files?.[0]; const qrUrl=document.querySelector('[name="paymentQRUrl"]')?.value.trim()||'';
   if(!a.paymentProfile)a.paymentProfile={method:'vietqr',bankName:'',accountName:'',accountNumber:'',qrImage:''}; a.paymentProfile.bankName=bank;a.paymentProfile.accountName=holder;a.paymentProfile.accountNumber=number;
-  if(file){if(file.size>1800000){toast('QR image must be 1.8MB or smaller.','error');return;}a.paymentProfile.qrImage=await readFileDataUrl(file);}else if(qrUrl)a.paymentProfile.qrImage=qrUrl;
+  if(file){if(file.size>5*1024*1024){toast('QR image must be 5MB or smaller.','error');return;}const oldQR=a.paymentProfile.qrImage;const rec=await storeBinaryFile(file,'artisan-qr');a.paymentProfile.qrImage=`asset:${rec.id}`;a.paymentProfile.qrImageFallback=(typeof oldQR==='string'&&oldQR.startsWith('http'))?oldQR:'';}else if(qrUrl)a.paymentProfile.qrImage=qrUrl;a.paymentProfile.qrImageFallback=a.paymentProfile.qrImageFallback||'';
   save();toast('Payment details saved.','success');render();
 }
 function clearPaymentQR(aid){if(!requireRole('artisan'))return;const a=artisanById(aid);if(!a?.paymentProfile)return;a.paymentProfile.qrImage='';save();toast('Payment QR removed.','success');render();}
 function readFileDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file);});}
-async function addPortfolioImage(aid){const input=document.getElementById('portfolio-upload');const f=input?.files?.[0];const a=artisanById(aid);if(!f||!a)return;if(f.size>1800000){toast('Ảnh tối đa 1.8MB trong Demo Mode.','error');return;}const url=await readFileDataUrl(f);a.portfolio=a.portfolio||[];a.portfolio.push(url);save();toast('Portfolio updated.','success');render();}
+async function addPortfolioImage(aid){const input=document.getElementById('portfolio-upload');const f=input?.files?.[0];const a=artisanById(aid);if(!f||!a)return;if(f.size>5*1024*1024){toast('Portfolio image must be 5MB or smaller.','error');return;}const rec=await storeBinaryFile(f,'portfolio');a.portfolio=a.portfolio||[];a.portfolio.push(`asset:${rec.id}`);a.portfolioFallback=a.portfolioFallback||[];a.portfolioFallback.push('');save();toast('Portfolio updated.','success');render();}
 function removePortfolioImage(aid,index){const a=artisanById(aid);if(!a)return;a.portfolio.splice(index,1);save();toast('Portfolio updated.','success');render();}
 function renderArtisanEarnings(){const list=artisanProjects();const confirmed=list.flatMap(p=>p.payments||[]).filter(x=>x.status==='confirmed');const total=confirmed.reduce((s,x)=>s+(x.customerPaid||x.amount||0),0);const pending=list.flatMap(p=>p.milestones.map(m=>({m,pay:p.payments.find(x=>x.milestoneId===m.id)}))).filter(x=>x.m.status==='approved'&&x.pay?.status!=='confirmed').reduce((s,x)=>s+x.m.amount,0);document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Finance</div><div class="section-title">EARNINGS</div></div></div><div class="grid three"><div class="card metric"><div class="n">${money(total)}</div><div class="k">Released</div></div><div class="card metric"><div class="n">${money(pending)}</div><div class="k">Pending</div></div><div class="card metric"><div class="n">${list.length}</div><div class="k">Projects</div></div></div><div class="card pad" style="margin-top:16px"><div class="eyebrow">Transaction history</div><div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Project</th><th>Milestone</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>${list.flatMap(p=>p.milestones.map(m=>{const pay=p.payments.find(x=>x.milestoneId===m.id);return `<tr><td>${esc(p.title)}</td><td>${esc(m.name)}</td><td>${money(m.amount)}</td><td>${pill(pay?.status||'pending')}</td><td>${pay?.confirmedAt?dateOnly(pay.confirmedAt):'—'}</td></tr>`})).join('')}</tbody></table></div></div></section>`;}
 
@@ -880,15 +838,12 @@ async function restoreSession(){if(CONFIG.demoMode)return;try{const res=await fe
 async function logout(){try{if(!CONFIG.demoMode){const res=await fetch(apiURL('/api/auth/logout'),{method:'POST',credentials:'include'});if(!res.ok){const data=await res.json().catch(()=>({}));throw new Error(data.message||'Logout failed');}}setGuest();closeModal();toast('Signed out.','success');navigate('home');}catch(error){toast(error.message||'Không thể đăng xuất.','warning');}}
 function getVoucher(code){const normalized=String(code||'').trim().toUpperCase();return(state.vouchers||[]).find(v=>v.code===normalized);}
 function voucherDiscount(voucher,amount){if(!voucher)return 0;let discount=voucher.type==='percent'?Math.round(amount*voucher.value/100):Number(voucher.value||0);if(voucher.maxDiscount)discount=Math.min(discount,voucher.maxDiscount);return Math.max(0,Math.min(discount,amount));}
-function applyVoucher(projectId,milestoneId){if(!requireRole('customer'))return;const p=projectById(projectId);const input=document.getElementById(`voucher-${projectId}-${milestoneId}`);const m=p?.milestones.find(x=>x.id===milestoneId);const v=getVoucher(input?.value);if(!p||!m||!v){toast('M� voucher không hợp lệ.','error');return;}if(m.amount<v.minSpend){toast(`Voucher yêu cầu tối thiểu ${money(v.minSpend)}.` ,'warning');return;}const discount=voucherDiscount(v,m.amount);p.appliedVoucher={code:v.code,milestoneId,discount,appliedAt:new Date().toISOString()};p.activity.unshift({text:`Voucher ${v.code} applied to ${milestoneId}`,time:dateTime(new Date())});save();toast(`Voucher applied: -${money(discount)}.`,'success');render();}
+function applyVoucher(projectId,milestoneId){if(!requireRole('customer'))return;const p=projectById(projectId);const input=document.getElementById(`voucher-${projectId}-${milestoneId}`);const m=p?.milestones.find(x=>x.id===milestoneId);const v=getVoucher(input?.value);if(!p||!m||!v){toast('Mã voucher không hợp lệ.','error');return;}if(m.amount<v.minSpend){toast(`Voucher yêu cầu tối thiểu ${money(v.minSpend)}.` ,'warning');return;}const discount=voucherDiscount(v,m.amount);p.appliedVoucher={code:v.code,milestoneId,discount,appliedAt:new Date().toISOString()};p.activity.unshift({text:`Voucher ${v.code} applied to ${milestoneId}`,time:dateTime(new Date())});save();toast(`Voucher applied: -${money(discount)}.`,'success');render();}
 function removeVoucher(projectId){if(!requireRole('customer'))return;const p=projectById(projectId);if(!p)return;p.appliedVoucher=null;save();toast('Voucher removed.','success');render();}
 function milestonePayable(p,m){const v=p.appliedVoucher?.milestoneId===m.id?getVoucher(p.appliedVoucher.code):null;const discount=v?voucherDiscount(v,m.amount):0;return{discount,total:Math.max(0,m.amount-discount),code:v?.code||null};}
 function openVoucherInfo(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><div class="eyebrow">Promotions</div><b>Available vouchers</b></div><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body">${(state.vouchers||[]).map(v=>`<div class="card-soft pad" style="margin-bottom:9px"><div class="between"><b class="voucher-code">${esc(v.code)}</b><span class="pill pill-mint">Voucher</span></div><div class="small" style="margin-top:6px">${esc(v.description)}</div><div class="tiny muted" style="margin-top:5px">Minimum spend: ${money(v.minSpend)}</div></div>`).join('')}</div></div></div>`;lucide.createIcons();}
 
-restoreSession().finally(()=>render());
+migrateEmbeddedMedia().finally(()=>restoreSession()).finally(()=>render());
 </script>
 </body>
 </html>
-
-
-
