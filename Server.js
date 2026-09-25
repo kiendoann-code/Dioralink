@@ -22,19 +22,20 @@ app.set("trust proxy", 1);
 app.use(express.json({ limit: "6mb" }));
 app.use(cookieParser());
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || undefined,
-
-  ...(!process.env.DATABASE_URL
+const pool = new Pool(
+  process.env.DATABASE_URL
     ? {
+        connectionString: process.env.DATABASE_URL,
+      }
+    : {
         host: String(process.env.PGHOST || "localhost"),
         port: Number(process.env.PGPORT || 5432),
         database: String(process.env.PGDATABASE || "dioralink"),
         user: String(process.env.PGUSER || "postgres"),
         password: String(process.env.PGPASSWORD || ""),
       }
-    : {})
-});
+);
+
 
 const PUBLIC_DIR = path.join(__dirname, "Public");
 const INDEX_FILE = path.join(PUBLIC_DIR, "index.html");
@@ -641,6 +642,7 @@ async function start() {
 }
 
 start();
+
 
 
 
