@@ -152,6 +152,9 @@
     .toast.success{border-color:rgba(125,226,165,.28)}
     .toast.error{border-color:rgba(241,138,138,.28)}
     .footer{border-top:1px solid var(--line);padding:34px 20px 44px;color:#678080;font-size:9px;letter-spacing:.10em;text-transform:uppercase}.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:26px}.footer-title{color:#90A8A8;font-size:8px;letter-spacing:.16em;margin-bottom:9px}.footer-link{display:block;border:0;background:none;color:#678080;padding:4px 0;font-size:9px;letter-spacing:.10em;text-transform:uppercase;text-align:left}.footer-link:hover{color:var(--mint)}
+    .language-switch{display:inline-flex;align-items:center;gap:2px;padding:2px;border:1px solid var(--line);background:rgba(255,255,255,.02);border-radius:999px;margin-right:6px}
+    .language-switch button{border:0;background:transparent;color:#7f9a9c;padding:5px 7px;border-radius:999px;font-size:8px;font-weight:900;letter-spacing:.08em;cursor:pointer}
+    .language-switch button.active{background:var(--mint);color:#082530}
     .mobile-menu{display:none}
     .role-badge{padding:7px 9px;border:1px solid rgba(129,216,208,.2);background:rgba(129,216,208,.08);font-size:8px;text-transform:uppercase;letter-spacing:.14em;color:var(--mint)}
     .auth-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px}
@@ -360,7 +363,7 @@ function currentRoute(){ return routeParts()[0]; }
 function navigate(route){ location.hash=route; }
 function requireRole(role){ if(!requireAuth()) return false; if(currentRole()!==role){ toast('Khu vực này thuộc role '+(role==='customer'?'Customer':'Artisan')+'.','error'); navigate(role==='customer'?'home':'artisan-dashboard'); return false;} return true; }
 function roleNav(){ return isAuthenticated()?(isCustomer()?NAV_CUSTOMER:NAV_ARTISAN):NAV_PUBLIC; }
-function navButton(route,label,icon){ const active=currentRoute()===route; return `<button class="nav-btn ${active?'active':''}" onclick="navigate('${route}')"><i data-lucide="${icon}" style="width:14px;vertical-align:-3px;margin-right:5px"></i>${label}</button>`; }
+function navButton(route,label,icon){ const active=currentRoute()===route; return `<button class="nav-btn ${active?'active':''}" onclick="navigate('${route}')"><i data-lucide="${icon}" style="width:14px;vertical-align:-3px;margin-right:5px"></i>${t(label)}</button>`; }
 function renderTopNav(){
   const html=roleNav().map(x=>navButton(...x)).join('');
   document.getElementById('top-nav').innerHTML=html;
@@ -370,16 +373,137 @@ function refreshShell(){
   renderTopNav();
   const actions=document.getElementById('auth-header-actions');
   if(actions){
+    const langSwitch=`<span class="language-switch" aria-label="Language"><button type="button" class="${currentLanguage==='vi'?'active':''}" onclick="setLanguage('vi')">VI</button><button type="button" class="${currentLanguage==='en'?'active':''}" onclick="setLanguage('en')">EN</button></span>`;
     if(isAuthenticated()){
-      actions.innerHTML=`<button class="icon-btn" onclick="navigate('messages')" title="Messages"><i data-lucide="message-circle"></i></button><button class="icon-btn" onclick="openNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><span class="role-badge">${isCustomer()?'Customer':'Artisan'}</span><button class="icon-btn" onclick="openAccountMenu()" title="Account"><img id="header-avatar" class="avatar" alt="Avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}></button>`;
+      actions.innerHTML=langSwitch+`<button class="icon-btn" onclick="navigate('messages')" title="Messages"><i data-lucide="message-circle"></i></button><button class="icon-btn" onclick="openNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><span class="role-badge">${isCustomer()?'Customer':'Artisan'}</span><button class="icon-btn" onclick="openAccountMenu()" title="Account"><img id="header-avatar" class="avatar" alt="Avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}></button>`;
       const dot=document.getElementById('notif-dot'); if(dot) dot.hidden=!state.notifications.some(n=>!n.read);
     }else{
-      actions.innerHTML=`<button class="btn btn-sm" onclick="openAuthModal('login')">Sign in</button><button class="btn btn-sm btn-mint" onclick="openAuthModal('register')">Register</button>`;
+      actions.innerHTML=langSwitch+`<button class="btn btn-sm" onclick="openAuthModal('login')">Sign in</button><button class="btn btn-sm btn-mint" onclick="openAuthModal('register')">Register</button>`;
     }
   }
   if(window.lucide)lucide.createIcons(); hydrateMediaAssets();
 }
 function toggleMobileNav(){ mobileNavOpen=!mobileNavOpen; document.getElementById('mobile-nav').style.display=mobileNavOpen?'block':'none'; }
+const I18N_STORAGE_KEY='dioralink_language';
+let currentLanguage=(localStorage.getItem(I18N_STORAGE_KEY)==='vi'?'vi':'en');
+const I18N={
+  en:{},
+  vi:{
+    'Miniature commission platform':'Nền tảng đặt làm mô hình thu nhỏ',
+    'Custom miniature & diorama commissions.':'Đặt làm mô hình thu nhỏ & diorama theo yêu cầu.',
+    'Explore':'Khám phá','Creators':'Nghệ nhân','Trust':'Tin cậy','Account':'Tài khoản','Sign in':'Đăng nhập','Register':'Đăng ký',
+    'Support':'Hỗ trợ','Help center':'Trung tâm trợ giúp','Terms':'Điều khoản','Privacy':'Bảo mật','All rights reserved.':'Bảo lưu mọi quyền.',
+    'Home':'Trang chủ','Dashboard':'Bảng điều khiển','New Commission':'Đơn đặt mới','Requests':'Yêu cầu','Projects':'Dự án','Messages':'Tin nhắn','Saved':'Đã lưu',
+    'Creators':'Nghệ nhân','Proposal received':'Đã nhận đề xuất','In production':'Đang sản xuất','Payment reported':'Đã báo thanh toán','Paid directly':'Đã thanh toán trực tiếp',
+    'Awaiting payment':'Chờ thanh toán','Stopped by customer':'Khách hàng dừng dự án','Verified':'Đã xác minh','Discovery':'Khám phá','Featured artisans':'Nghệ nhân nổi bật',
+    'DISCOVER CRAFT':'KHÁM PHÁ TAY NGHỀ','View all':'Xem tất cả','View profile':'Xem hồ sơ','from':'từ','Save creator':'Lưu nghệ nhân','Saved creator':'Đã lưu nghệ nhân',
+    'EXPLORE CREATORS':'KHÁM PHÁ NGHỆ NHÂN','Search':'Tìm kiếm','Style':'Phong cách','Budget':'Ngân sách','Creator / specialty':'Nghệ nhân / chuyên môn',
+    'No messages yet.':'Chưa có tin nhắn.','No conversations.':'Chưa có cuộc trò chuyện nào.','No notifications.':'Chưa có thông báo.',
+    'Account':'Tài khoản','PROFILE & SETTINGS':'HỒ SƠ & CÀI ĐẶT','Change avatar':'Đổi ảnh đại diện','Name':'Họ tên','Phone':'Số điện thoại','City':'Thành phố','Bio':'Giới thiệu',
+    'Save changes':'Lưu thay đổi','Security':'Bảo mật','ACCOUNT SECURITY':'BẢO MẬT TÀI KHOẢN','Role':'Vai trò','Provider':'Phương thức đăng nhập','Change password':'Đổi mật khẩu','Log out':'Đăng xuất','Logout':'Đăng xuất',
+    'Customer':'Khách hàng','Artisan':'Nghệ nhân','Create account':'Tạo tài khoản','Join DioraLink':'Tham gia DioraLink','Welcome back':'Chào mừng trở lại','Account type':'Loại tài khoản','Sign in as':'Đăng nhập với vai trò',
+    'Start a Commission':'Bắt đầu đặt làm','Request Inbox':'Hộp thư yêu cầu','YOUR PROPOSAL':'ĐỀ XUẤT CỦA BẠN','CREATE PROPOSAL':'TẠO ĐỀ XUẤT',
+    'Publish request':'Đăng yêu cầu','Request published':'Đã đăng yêu cầu','Commission request published.':'Đã đăng yêu cầu đặt làm.','Specific artisan':'Nghệ nhân cụ thể','Open matching':'Tìm nghệ nhân phù hợp',
+    'Open matching to qualified artisans':'Mở yêu cầu cho các nghệ nhân phù hợp','New Commission':'Đơn đặt mới','Project created':'Đã tạo dự án','Project stopped':'Đã dừng dự án',
+    'No projects yet.':'Chưa có dự án nào.','No projects assigned yet.':'Chưa có dự án nào được giao.','Project not found.':'Không tìm thấy dự án.','Project unavailable.':'Không thể mở dự án.',
+    'Progress':'Tiến độ','Current stage':'Giai đoạn hiện tại','Due':'Hạn hoàn thành','Due date not set':'Chưa đặt hạn hoàn thành','Open project →':'Mở dự án →','Files & activity':'Tệp & hoạt động',
+    'No files yet.':'Chưa có tệp.','No files':'Không có tệp','Upload file':'Tải tệp lên','Write a message or attach a file.':'Viết tin nhắn hoặc đính kèm tệp.',
+    'Each attachment must be 20MB or smaller.':'Mỗi tệp đính kèm không được vượt quá 20MB.','File uploaded.':'Đã tải tệp lên.','Unable to send attachment.':'Không thể gửi tệp đính kèm.',
+    'VOUCHER CODE':'MÃ VOUCHER','Voucher code':'Mã voucher','Voucher removed.':'Đã xoá voucher.','Mã voucher không hợp lệ.':'Mã voucher không hợp lệ.',
+    'Terms of service':'Điều khoản dịch vụ','Use of DioraLink is subject to the project scope, payment terms and platform rules agreed by the parties.':'Việc sử dụng DioraLink tuân theo phạm vi dự án, điều khoản thanh toán và quy tắc nền tảng do các bên thỏa thuận.',
+    'Password reset link sent.':'Đã gửi liên kết đặt lại mật khẩu.','Unable to send reset link.':'Không thể gửi liên kết đặt lại mật khẩu.',
+    'Signed in.':'Đăng nhập thành công.','Signed out.':'Đã đăng xuất.','Signed out on this device.':'Đã đăng xuất trên thiết bị này.',
+    'Invalid email or password.':'Email hoặc mật khẩu không chính xác.','Password must be at least 8 characters.':'Mật khẩu phải có ít nhất 8 ký tự.',
+    'New passwords do not match.':'Mật khẩu mới không khớp.','Current password is incorrect.':'Mật khẩu hiện tại không chính xác.','Password updated.':'Đã cập nhật mật khẩu.',
+    'Account created.':'Đã tạo tài khoản.','Unable to create account.':'Không thể tạo tài khoản.','Đăng ký thất bại.':'Đăng ký thất bại.','Đăng nhập thất bại.':'Đăng nhập thất bại.',
+    'Signed in with Google.':'Đã đăng nhập bằng Google.','Signed in with Facebook.':'Đã đăng nhập bằng Facebook.','Google authentication failed':'Xác thực Google thất bại','Facebook authentication failed':'Xác thực Facebook thất bại',
+    'Session restore failed:':'Không thể khôi phục phiên đăng nhập:','Logout request failed.':'Yêu cầu đăng xuất thất bại.','Storage is full. Uploaded media is stored separately; please reload the page and try again.':'Bộ nhớ đầy. Tệp phương tiện đã tải lên được lưu riêng; hãy tải lại trang và thử lại.',
+    'Please confirm the no-refund warning.':'Vui lòng xác nhận cảnh báo không hoàn tiền.','Project stopped. Paid amounts remain non-refundable.':'Đã dừng dự án. Các khoản đã thanh toán không được hoàn lại.',
+    'Milestone started.':'Đã bắt đầu milestone.','Milestone submitted':'Đã gửi milestone','Sent for review.':'Đã gửi để nghiệm thu.','Milestone approved':'Milestone đã được duyệt',
+    'Confirm the previous milestone payment before starting this stage.':'Hãy xác nhận thanh toán milestone trước trước khi bắt đầu giai đoạn này.','Add progress evidence before submitting.':'Hãy thêm bằng chứng tiến độ trước khi gửi.',
+    'DIRECT PAYMENTS':'THANH TOÁN TRỰC TIẾP','Payment details':'Thông tin thanh toán','Payment QR':'QR thanh toán','Payment QR removed.':'Đã xoá QR thanh toán.','Payment details saved.':'Đã lưu thông tin thanh toán.',
+    'Bank name':'Tên ngân hàng','Account holder':'Chủ tài khoản','Account number':'Số tài khoản','Personal QR image':'Ảnh QR cá nhân',
+    'Customers pay directly to your bank account. Add the QR code and transfer details you want displayed at checkout.':'Khách hàng thanh toán trực tiếp vào tài khoản ngân hàng của bạn. Hãy thêm mã QR và thông tin chuyển khoản hiển thị khi thanh toán.',
+    'Portfolio updated.':'Đã cập nhật portfolio.','Profile published.':'Đã công khai hồ sơ.','Not verified':'Chưa xác minh','Portfolio':'Portfolio','Add work':'Thêm tác phẩm','Remove':'Xoá',
+    'Your Studio':'Studio của bạn','Response time':'Thời gian phản hồi','Earnings':'Thu nhập','Proposals':'Đề xuất',
+    'Proposal already sent.':'Đã gửi đề xuất trước đó.','Select at least one deliverable.':'Hãy chọn ít nhất một hạng mục bàn giao.','Proposal sent':'Đã gửi đề xuất','Proposal sent.':'Đã gửi đề xuất.',
+    'Waiting for proposals.':'Đang chờ các đề xuất.','Waiting for proposals':'Đang chờ các đề xuất.','No matching requests.':'Không có yêu cầu phù hợp.',
+    'No proposals yet.':'Chưa có đề xuất nào.','No projects assigned yet.':'Chưa có dự án nào được giao.','Basic identity / profile completeness':'Thông tin cơ bản / độ hoàn thiện hồ sơ',
+    'Public project history and selected works':'Lịch sử dự án công khai và tác phẩm tiêu biểu','Customer feedback linked to completed work':'Phản hồi khách hàng gắn với dự án đã hoàn thành',
+    'Direct request for specific artisan':'Yêu cầu trực tiếp tới nghệ nhân cụ thể','Open matching request':'Mở yêu cầu tìm nghệ nhân phù hợp',
+    'Start a Commission':'Bắt đầu đặt làm','Open project →':'Mở dự án →','Back':'Quay lại','Keep project':'Giữ dự án','Stop project':'Dừng dự án',
+    'You are about to stop production at this stage. The project will not continue to later milestones.':'Bạn sắp dừng sản xuất tại giai đoạn này. Dự án sẽ không tiếp tục sang các milestone sau.',
+    'Important:':'Quan trọng:','payments already made or transferred directly to the artisan are non-refundable.':'các khoản đã thanh toán hoặc chuyển trực tiếp cho nghệ nhân sẽ không được hoàn lại.',
+    'I understand that stopping the project does not create a refund.':'Tôi hiểu rằng việc dừng dự án không tạo quyền hoàn tiền.',
+    'Pay direct to artisan ·':'Thanh toán trực tiếp cho nghệ nhân ·','Paid directly to artisan':'Đã thanh toán trực tiếp cho nghệ nhân','Payment reported · awaiting artisan confirmation.':'Đã báo thanh toán · đang chờ nghệ nhân xác nhận.',
+    'Artisan has not configured a payment method yet.':'Nghệ nhân chưa cấu hình phương thức thanh toán.','Enter the transfer reference.':'Nhập mã tham chiếu giao dịch.','Payment proof must be 5MB or smaller.':'Ảnh chứng từ thanh toán không được vượt quá 5MB.',
+    'Payment reported to the artisan.':'Đã báo thanh toán cho nghệ nhân.','Payment confirmed':'Đã xác nhận thanh toán','Payment confirmed.':'Đã xác nhận thanh toán.','No payment report to confirm.':'Không có báo cáo thanh toán để xác nhận.',
+    'Vui lòng đăng nhập để tiếp tục.':'Vui lòng đăng nhập để tiếp tục.','Khu vực này thuộc role ':'Khu vực này thuộc vai trò ',
+    'Request not found.':'Không tìm thấy yêu cầu.','Unknown artisan':'Không xác định được nghệ nhân','Artisan not found.':'Không tìm thấy nghệ nhân.',
+    'Proposal accepted → Project created':'Đã chấp nhận đề xuất → Đã tạo dự án','Proposal accepted. Project created.':'Đã chấp nhận đề xuất. Đã tạo dự án.',
+    'No matching requests.':'Không có yêu cầu phù hợp.','File storage is unavailable in this browser.':'Bộ nhớ tệp không khả dụng trên trình duyệt này.',
+    'Unable to open file storage.':'Không thể mở bộ nhớ tệp.','Unable to save file.':'Không thể lưu tệp.','File is no longer available.':'Tệp không còn khả dụng.','Unable to download file.':'Không thể tải tệp xuống.',
+    'Avatar must be 3MB or smaller.':'Ảnh đại diện không được vượt quá 3MB.','Avatar must be 5MB or smaller.':'Ảnh đại diện không được vượt quá 5MB.','Avatar must be an image.':'Ảnh đại diện phải là tệp hình ảnh.',
+    'Cover image must be 5MB or smaller.':'Ảnh cover không được vượt quá 5MB.','QR image must be 5MB or smaller.':'Ảnh QR không được vượt quá 5MB.','Portfolio image must be 5MB or smaller.':'Ảnh portfolio không được vượt quá 5MB.',
+    'Name is required.':'Họ tên là bắt buộc.','Unable to process avatar image.':'Không thể xử lý ảnh đại diện.','Unable to read avatar image.':'Không thể đọc ảnh đại diện.','Unable to read avatar file.':'Không thể đọc tệp ảnh đại diện.',
+    'Unable to update profile.':'Không thể cập nhật hồ sơ.','Profile updated.':'Đã cập nhật hồ sơ.','Update password':'Cập nhật mật khẩu','Unable to update password.':'Không thể cập nhật mật khẩu.',
+    'Workspace reset.':'Đã đặt lại workspace.','Workspace switched to ':'Đã chuyển workspace sang ',
+    'Mỗi ảnh không được vượt quá 8MB.':'Mỗi ảnh không được vượt quá 8MB.','Vui lòng gửi ít nhất một hình ảnh tham khảo.':'Vui lòng gửi ít nhất một hình ảnh tham khảo.',
+    'Chỉ chấp nhận file hình ảnh ở Reference images.':'Chỉ chấp nhận tệp hình ảnh ở Reference images.','Hãy chọn artisan cụ thể hoặc chuyển sang Open matching.':'Hãy chọn nghệ nhân cụ thể hoặc chuyển sang Tìm nghệ nhân phù hợp.',
+    'Gara Tí Hon':'Gara Tí Hon'
+  }
+};
+const I18N_EN=Object.fromEntries(Object.entries(I18N.vi).map(([en,vi])=>[vi,en]));
+function t(value){
+  const s=String(value??'');
+  if(currentLanguage==='en') return I18N_EN[s] ?? s;
+  return I18N.vi[s] ?? s;
+}
+function setLanguage(lang){
+  currentLanguage=lang==='vi'?'vi':'en';
+  try{localStorage.setItem(I18N_STORAGE_KEY,currentLanguage);}catch(e){}
+  document.documentElement.lang=currentLanguage;
+  refreshShell();
+  applyLanguage();
+  if(document.getElementById('app')?.innerHTML) applyLanguage();
+  toast(currentLanguage==='vi'?'Đã chuyển sang tiếng Việt.':'Switched to English.','success');
+}
+function applyLanguage(){
+  if(typeof document==='undefined') return;
+  const root=document.body;
+  const skip=new Set(['SCRIPT','STYLE','NOSCRIPT']);
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  const nodes=[];
+  let node;
+  while(node=walker.nextNode()){
+    if(skip.has(node.parentElement?.tagName)) continue;
+    const raw=node.nodeValue;
+    const trimmed=raw.trim();
+    if(!trimmed) continue;
+    nodes.push({node,raw,trimmed});
+  }
+  nodes.forEach(({node,raw,trimmed})=>{
+    const translated=t(trimmed);
+    if(translated!==trimmed){
+      node.nodeValue=raw.replace(trimmed,translated);
+    }
+  });
+  document.querySelectorAll('[placeholder],[title],[aria-label]').forEach(el=>{
+    for(const attr of ['placeholder','title','aria-label']){
+      if(el.hasAttribute(attr)){
+        const val=el.getAttribute(attr)||''; const translated=t(val); if(translated!==val) el.setAttribute(attr,translated);
+      }
+    }
+  });
+  document.documentElement.lang=currentLanguage;
+}
+const I18NObserver=new MutationObserver(()=>{ if(!window.__i18nApplying){ window.__i18nApplying=true; requestAnimationFrame(()=>{try{applyLanguage();}finally{window.__i18nApplying=false;}}); } });
+function initI18N(){
+  document.documentElement.lang=currentLanguage;
+  I18NObserver.observe(document.body,{childList:true,subtree:true});
+  applyLanguage();
+}
+
 window.addEventListener('hashchange', render);
 
 function render(){
@@ -394,6 +518,7 @@ function render(){
   (map[route]||renderHome)();
   refreshShell();
   window.scrollTo({top:0,behavior:'instant'});
+  applyLanguage();
 }
 
 function renderHome(){
@@ -847,44 +972,7 @@ function loginGoogle(){if(CONFIG.demoMode){authSocial('google');return;}const cl
 async function handleGoogleCredential(response){try{const result=await fetch(apiURL('/api/auth/google'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential:response.credential,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Google authentication failed');const u=data.session?.user||data.user||{};state.user={...state.user,...u,authenticated:true,provider:'google'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Signed in with Google.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Google authentication failed','warning');}}
 function loginFacebook(){if(CONFIG.demoMode){authSocial('facebook');return;}if(!CONFIG.facebookAppId||CONFIG.facebookAppId.includes('YOUR_FACEBOOK')){toast('Chưa cấu hình Facebook App ID.','warning');return;}if(!window.FB){toast('Facebook SDK chưa sẵn sàng.','warning');return;}FB.login(async response=>{if(!response?.authResponse){toast('Facebook login đã bị huỷ.','warning');return;}try{const result=await fetch(apiURL('/api/auth/facebook'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accessToken:response.authResponse.accessToken,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Facebook authentication failed');const u=data.session?.user||data.user||{};state.user={...state.user,...u,authenticated:true,provider:'facebook'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Signed in with Facebook.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Facebook authentication failed','warning');}}, {scope:'public_profile,email'});}
 async function restoreSession(){if(CONFIG.demoMode)return;try{const res=await fetch(apiURL('/api/auth/me'),{method:'GET',credentials:'include'});if(res.ok){const data=await res.json();if(data.user){state=normalizeState({...state,user:{...state.user,...data.user,authenticated:true},session:{authenticated:true,userId:data.user.id}});save();}}else if(res.status===401){setGuest();}}catch(e){console.warn('Session restore failed:',e.message);}}
-async function logout(){
-  let serverError = "";
-
-  try {
-    if (!CONFIG.demoMode) {
-      const res = await fetch(
-        apiURL("/api/auth/logout"),
-        {
-          method: "POST",
-          credentials: "include"
-        }
-      );
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-
-        serverError =
-          data.message ||
-          `Logout API failed (HTTP ${res.status}).`;
-      }
-    }
-  } catch (error) {
-    serverError =
-      error?.message ||
-      "Logout request failed.";
-  } finally {
-    setGuest();
-    closeModal();
-    navigate("home");
-
-    toast(
-      serverError
-        ? "Signed out on this device."
-        : "Signed out.",
-      "success"
-    );
-  }
-}
+async function logout(){let serverError='';try{if(!CONFIG.demoMode){const res=await fetch(apiURL('/api/auth/logout'),{method:'POST',credentials:'include'});if(!res.ok){const data=await res.json().catch(()=>({}));serverError=data.message||`Logout failed (HTTP ${res.status}).`;}}}catch(error){serverError=error?.message||'Logout request failed.';}finally{setGuest();closeModal();navigate('home');toast(serverError?'Signed out on this device.':'Signed out.','success');}}
 function getVoucher(code){const normalized=String(code||'').trim().toUpperCase();return(state.vouchers||[]).find(v=>v.code===normalized);}
 function voucherDiscount(voucher,amount){if(!voucher)return 0;let discount=voucher.type==='percent'?Math.round(amount*voucher.value/100):Number(voucher.value||0);if(voucher.maxDiscount)discount=Math.min(discount,voucher.maxDiscount);return Math.max(0,Math.min(discount,amount));}
 function applyVoucher(projectId,milestoneId){if(!requireRole('customer'))return;const p=projectById(projectId);const input=document.getElementById(`voucher-${projectId}-${milestoneId}`);const m=p?.milestones.find(x=>x.id===milestoneId);const v=getVoucher(input?.value);if(!p||!m||!v){toast('Mã voucher không hợp lệ.','error');return;}if(m.amount<v.minSpend){toast(`Voucher yêu cầu tối thiểu ${money(v.minSpend)}.` ,'warning');return;}const discount=voucherDiscount(v,m.amount);p.appliedVoucher={code:v.code,milestoneId,discount,appliedAt:new Date().toISOString()};p.activity.unshift({text:`Voucher ${v.code} applied to ${milestoneId}`,time:dateTime(new Date())});save();toast(`Voucher applied: -${money(discount)}.`,'success');render();}
@@ -893,6 +981,8 @@ function milestonePayable(p,m){const v=p.appliedVoucher?.milestoneId===m.id?getV
 function openVoucherInfo(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><div class="eyebrow">Promotions</div><b>Available vouchers</b></div><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body">${(state.vouchers||[]).map(v=>`<div class="card-soft pad" style="margin-bottom:9px"><div class="between"><b class="voucher-code">${esc(v.code)}</b><span class="pill pill-mint">Voucher</span></div><div class="small" style="margin-top:6px">${esc(v.description)}</div><div class="tiny muted" style="margin-top:5px">Minimum spend: ${money(v.minSpend)}</div></div>`).join('')}</div></div></div>`;lucide.createIcons();}
 
 restoreSession().finally(()=>render()); migrateEmbeddedMedia().catch(e=>console.warn('Media migration skipped:',e.message));
+
+initI18N();
 </script>
 </body>
 </html>
