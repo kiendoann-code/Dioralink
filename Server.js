@@ -664,13 +664,32 @@ async function ensureFinanceSchema(){
       ON admin_notifications(admin_id,created_at DESC);
   `);
 
-  const adminEmail=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
-  const adminPassword=String(process.env.ADMIN_PASSWORD||'');
-  const adminName=String(process.env.ADMIN_NAME||'DioraLink Admin').trim() || 'DioraLink Admin';
+  const adminEmail=String(process.env.ADMIN_EMAIL||'kiendths150398@fpt.edu.vn').trim().toLowerCase();
+  const configuredPassword=String(process.env.ADMIN_PASSWORD||'');
+  let adminName=String(process.env.ADMIN_NAME||'DioraLink Admin').trim() || 'DioraLink Admin';
+  let passwordHash='';
 
+  if(configuredPassword){
+    passwordHash=await bcrypt.hash(configuredPassword,12);
+  }else{
+    const sourceUser=(await pool.query(
+      `SELECT name,password_hash
+       FROM users
+       WHERE LOWER(email)=LOWER($1)
+       LIMIT 1`,
+      [adminEmail]
+    )).rows[0];
 
+    if(sourceUser?.password_hash){
+      passwordHash=sourceUser.password_hash;
 
-  if(adminEmail && adminPassword){
+      if(!process.env.ADMIN_NAME && sourceUser.name){
+        adminName=String(sourceUser.name).trim() || adminName;
+      }
+    }
+  }
+
+  if(adminEmail && passwordHash){
     const existing=(await pool.query(
       `SELECT id,email,password_hash,display_name,active
        FROM platform_admins
@@ -680,35 +699,22 @@ async function ensureFinanceSchema(){
     )).rows[0];
 
     if(!existing){
-      const hash=await bcrypt.hash(adminPassword,12);
       await pool.query(
         `INSERT INTO platform_admins(email,password_hash,display_name,active)
          VALUES($1,$2,$3,TRUE)`,
-        [adminEmail,hash,adminName]
+        [adminEmail,passwordHash,adminName]
       );
     }else{
-      const passwordMatches=await bcrypt.compare(adminPassword,existing.password_hash);
-      const emailMatches=String(existing.email||'').trim().toLowerCase()===adminEmail;
-      const nameMatches=String(existing.display_name||'').trim()===adminName;
-      const needsPasswordUpdate=!passwordMatches;
-
-      let passwordHash=existing.password_hash;
-      if(needsPasswordUpdate){
-        passwordHash=await bcrypt.hash(adminPassword,12);
-      }
-
-      if(!emailMatches || !nameMatches || !existing.active || needsPasswordUpdate){
-        await pool.query(
-          `UPDATE platform_admins
-           SET email=$1,
-               password_hash=$2,
-               display_name=$3,
-               active=TRUE,
-               updated_at=NOW()
-           WHERE id=$4`,
-          [adminEmail,passwordHash,adminName,existing.id]
-        );
-      }
+      await pool.query(
+        `UPDATE platform_admins
+         SET email=$1,
+             password_hash=$2,
+             display_name=$3,
+             active=TRUE,
+             updated_at=NOW()
+         WHERE id=$4`,
+        [adminEmail,passwordHash,adminName,existing.id]
+      );
     }
   }
 }
@@ -769,51 +775,40 @@ app.post('/api/admin/login',asyncRoute(async(req,res)=>{
   const email=String(req.body?.email||'').trim().toLowerCase();
   const password=String(req.body?.password||'');
 
-  const configuredEmail=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
-  const configuredPassword=String(process.env.ADMIN_PASSWORD||'');
-  const configuredName=String(process.env.ADMIN_NAME||'DioraLink Admin').trim() || 'DioraLink Admin';
-
-  if(!configuredEmail || !configuredPassword){
-    return res.status(500).json({message:'Admin credentials are not configured on the server.'});
+  if(!email || !password){
+    return res.status(400).json({
+      message:'Admin email and password are required.'
+    });
   }
 
-  if(email!==configuredEmail || password!==configuredPassword){
-    return res.status(401).json({message:'Admin email or password is incorrect.'});
-  }
-
-  let admin=(await pool.query(
+  const admin=(await pool.query(
     `SELECT id,email,display_name,password_hash,active
      FROM platform_admins
      WHERE LOWER(email)=LOWER($1)
      LIMIT 1`,
-    [configuredEmail]
+    [email]
   )).rows[0];
 
-  const hash=await bcrypt.hash(configuredPassword,12);
-
-  if(!admin){
-    admin=(await pool.query(
-      `INSERT INTO platform_admins(email,password_hash,display_name,active)
-       VALUES($1,$2,$3,TRUE)
-       RETURNING id,email,display_name,password_hash,active`,
-      [configuredEmail,hash,configuredName]
-    )).rows[0];
-  }else{
-    admin=(await pool.query(
-      `UPDATE platform_admins
-       SET email=$1,
-           password_hash=$2,
-           display_name=$3,
-           active=TRUE,
-           updated_at=NOW()
-       WHERE id=$4
-       RETURNING id,email,display_name,password_hash,active`,
-      [configuredEmail,hash,configuredName,admin.id]
-    )).rows[0];
+  if(
+    !admin ||
+    !admin.active ||
+    !(await bcrypt.compare(password,admin.password_hash))
+  ){
+    return res.status(401).json({
+      message:'Admin email or password is incorrect.'
+    });
   }
 
   setFinanceAdminCookie(res,signFinanceAdmin(admin));
-  res.json({admin:{id:admin.id,email:admin.email,name:admin.display_name,role:'admin'}});
+
+  res.json({
+    admin:{
+      id:admin.id,
+      email:admin.email,
+      name:admin.display_name,
+      role:'admin'
+    }
+  });
 }));
 app.post('/api/admin/logout',(req,res)=>{
   res.clearCookie('dioralink_admin_session',{
