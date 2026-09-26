@@ -616,7 +616,7 @@ app.post("/api/auth/google", async (req, res) => {
       });
     }
 
-    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientId = process.env.GOOGLE_CLIENT_ID || "501903521909-m9tnb539pvjbfp331ndiogv0t9actauo.apps.googleusercontent.com";
 
     if (!clientId) {
       console.error("GOOGLE_CLIENT_ID is missing.");
@@ -1324,6 +1324,7 @@ app.listen(PORT, "0.0.0.0", () => {
 }
 
 start();
+
 
 
 
