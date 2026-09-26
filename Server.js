@@ -1,8 +1,9 @@
-const express = require("express");
+﻿const express = require("express");
 const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require('google-auth-library');
 const cookieParser = require("cookie-parser");
 const { Pool } = require("pg");
 require("dotenv").config();
@@ -26,6 +27,43 @@ app.set("trust proxy", 1);
 
 app.use(express.json({ limit: "6mb" }));
 app.use(cookieParser());
+/* =========================================================
+   AUTH â€” LOGOUT (EARLY ROUTE)
+   Must be registered before SPA/API 404 handlers.
+========================================================= */
+app.post("/api/auth/logout", (req, res) => {
+  try {
+    res.clearCookie("dioralink_session", {
+      httpOnly: true,
+      secure: NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/"
+    });
+
+    res.cookie("dioralink_session", "", {
+      httpOnly: true,
+      secure: NODE_ENV === "production",
+      sameSite: "lax",
+      expires: new Date(0),
+      maxAge: 0,
+      path: "/"
+    });
+
+    return res.status(200).json({
+      message: "Signed out successfully."
+    });
+
+  } catch (error) {
+
+    console.error("LOGOUT ERROR:", error);
+
+    return res.status(500).json({
+      message: "Logout failed."
+    });
+
+  }
+});
+
 
 const pool = new Pool(
   process.env.DATABASE_URL
@@ -569,9 +607,196 @@ app.post("/api/auth/forgot-password", async (req, res) => {
 ========================= */
 
 app.post("/api/auth/google", async (req, res) => {
-  res.status(501).json({
-    message: "Google authentication is not configured yet.",
-  });
+  try {
+    const { credential, role } = req.body || {};
+
+    if (!credential) {
+      return res.status(400).json({
+        message: "Google credential is required."
+      });
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+
+    if (!clientId) {
+      console.error("GOOGLE_CLIENT_ID is missing.");
+      return res.status(500).json({
+        message: "Google authentication is not configured on the server."
+      });
+    }
+
+    const googleClient = new OAuth2Client(clientId);
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: clientId
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload) {
+      return res.status(401).json({
+        message: "Invalid Google credential."
+      });
+    }
+
+    const email = String(payload.email || "").trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Google account email is missing."
+      });
+    }
+
+    if (payload.email_verified !== true) {
+      return res.status(403).json({
+        message: "Google email is not verified."
+      });
+    }
+
+    const googleName =
+      String(payload.name || "").trim() ||
+      email.split("@")[0];
+
+    const googleAvatar =
+      String(payload.picture || "").trim() || null;
+
+    let requestedRole = String(role || "customer")
+      .trim()
+      .toLowerCase();
+
+    if (requestedRole === "artist") {
+      requestedRole = "artisan";
+    }
+
+    if (!["customer", "artisan"].includes(requestedRole)) {
+      requestedRole = "customer";
+    }
+
+    const existingResult = await pool.query(
+      `
+      SELECT
+        id,
+        name,
+        email,
+        phone,
+        city,
+        role,
+        avatar,
+        bio,
+        provider,
+        created_at,
+        updated_at
+      FROM users
+      WHERE LOWER(email) = LOWER($1)
+      LIMIT 1
+      `,
+      [email]
+    );
+
+    let user;
+
+    if (existingResult.rows[0]) {
+      const existingUser = existingResult.rows[0];
+
+      const updateResult = await pool.query(
+        `
+        UPDATE users
+        SET
+          provider = 'google',
+          avatar = COALESCE(avatar, $1),
+          updated_at = NOW()
+        WHERE id = $2
+        RETURNING
+          id,
+          name,
+          email,
+          phone,
+          city,
+          role,
+          avatar,
+          bio,
+          provider,
+          created_at,
+          updated_at
+        `,
+        [googleAvatar, existingUser.id]
+      );
+
+      user = updateResult.rows[0];
+    } else {
+      const insertResult = await pool.query(
+        `
+        INSERT INTO users (
+          name,
+          email,
+          role,
+          avatar,
+          provider
+        )
+        VALUES ($1, $2, $3, $4, 'google')
+        RETURNING
+          id,
+          name,
+          email,
+          phone,
+          city,
+          role,
+          avatar,
+          bio,
+          provider,
+          created_at,
+          updated_at
+        `,
+        [
+          googleName,
+          email,
+          requestedRole,
+          googleAvatar
+        ]
+      );
+
+      user = insertResult.rows[0];
+    }
+
+    setSessionCookie(res, user);
+
+    return res.status(200).json({
+      success: true,
+      message: "Signed in with Google successfully.",
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || "",
+        city: user.city || "",
+        role: user.role,
+        avatar: user.avatar || "",
+        bio: user.bio || "",
+        provider: "google",
+        authenticated: true
+      },
+      session: {
+        authenticated: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar || "",
+          provider: "google",
+          authenticated: true
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error("Google authentication error:", error);
+
+    return res.status(401).json({
+      message: error?.message || "Google authentication failed."
+    });
+  }
 });
 
 /* =========================
@@ -1002,6 +1227,20 @@ app.get(/^\/(?!api\/).*/, (req, res) => {
    API 404
 ========================= */
 
+app.post("/api/auth/logout", (req, res) => {
+  try {
+    clearSessionCookie(res);
+
+    res.status(200).json({
+      message: "Signed out successfully."
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({
+      message: "Logout failed."
+    });
+  }
+});
 app.use("/api", (req, res) => {
   res.status(404).json({
     message: "API endpoint not found.",
@@ -1051,6 +1290,15 @@ async function start() {
       secure: process.env.NODE_ENV === "production",
       path: "/"
     });
+    // Hard-delete the session cookie as well.
+    res.cookie("dioralink_session","",{
+      httpOnly:true,
+      secure:NODE_ENV==="production",
+      sameSite:"lax",
+      expires:new Date(0),
+      maxAge:0,
+      path:"/"
+    });
 
     return res.json({
       success: true,
@@ -1076,6 +1324,7 @@ app.listen(PORT, "0.0.0.0", () => {
 }
 
 start();
+
 
 
 
