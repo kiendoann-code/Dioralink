@@ -668,11 +668,7 @@ async function ensureFinanceSchema(){
   const adminPassword=String(process.env.ADMIN_PASSWORD||'');
   const adminName=String(process.env.ADMIN_NAME||'DioraLink Admin').trim() || 'DioraLink Admin';
 
-  console.log(
-    '[Finance admin bootstrap] emailConfigured=' + Boolean(adminEmail) +
-    ' passwordConfigured=' + Boolean(adminPassword) +
-    ' nameConfigured=' + Boolean(process.env.ADMIN_NAME)
-  );
+
 
   if(adminEmail && adminPassword){
     const existing=(await pool.query(
@@ -769,34 +765,56 @@ async function requireFinanceAdmin(req,res,next){
 
 app.post('/api/admin/login',asyncRoute(async(req,res)=>{
   await ensureFinanceSchema();
+
   const email=String(req.body?.email||'').trim().toLowerCase();
   const password=String(req.body?.password||'');
 
-  const admin=(await pool.query(
+  const configuredEmail=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
+  const configuredPassword=String(process.env.ADMIN_PASSWORD||'');
+  const configuredName=String(process.env.ADMIN_NAME||'DioraLink Admin').trim() || 'DioraLink Admin';
+
+  if(!configuredEmail || !configuredPassword){
+    return res.status(500).json({message:'Admin credentials are not configured on the server.'});
+  }
+
+  if(email!==configuredEmail || password!==configuredPassword){
+    return res.status(401).json({message:'Admin email or password is incorrect.'});
+  }
+
+  let admin=(await pool.query(
     `SELECT id,email,display_name,password_hash,active
      FROM platform_admins
      WHERE LOWER(email)=LOWER($1)
      LIMIT 1`,
-    [email]
+    [configuredEmail]
   )).rows[0];
 
-  const passwordMatches=admin ? await bcrypt.compare(password,admin.password_hash) : false;
+  const hash=await bcrypt.hash(configuredPassword,12);
 
-  console.log(
-    '[Admin login diagnostic] email=' + email +
-    ' found=' + Boolean(admin) +
-    ' active=' + Boolean(admin?.active) +
-    ' passwordMatch=' + passwordMatches
-  );
-
-  if(!admin || !admin.active || !passwordMatches){
-    return res.status(401).json({message:'Admin email or password is incorrect.'});
+  if(!admin){
+    admin=(await pool.query(
+      `INSERT INTO platform_admins(email,password_hash,display_name,active)
+       VALUES($1,$2,$3,TRUE)
+       RETURNING id,email,display_name,password_hash,active`,
+      [configuredEmail,hash,configuredName]
+    )).rows[0];
+  }else{
+    admin=(await pool.query(
+      `UPDATE platform_admins
+       SET email=$1,
+           password_hash=$2,
+           display_name=$3,
+           active=TRUE,
+           updated_at=NOW()
+       WHERE id=$4
+       RETURNING id,email,display_name,password_hash,active`,
+      [configuredEmail,hash,configuredName,admin.id]
+    )).rows[0];
   }
 
   setFinanceAdminCookie(res,signFinanceAdmin(admin));
   res.json({admin:{id:admin.id,email:admin.email,name:admin.display_name,role:'admin'}});
 }));
-
 app.post('/api/admin/logout',(req,res)=>{
   res.clearCookie('dioralink_admin_session',{
     httpOnly:true,
