@@ -235,7 +235,7 @@
     <div><div class="brand-name">DIORALINK</div><div class="small muted" style="margin-top:7px;max-width:340px;line-height:1.6">Custom miniature & diorama commissions.</div></div>
     <div><div class="footer-title">Explore</div><button class="footer-link" onclick="navigate('explore')">Creators</button><button class="footer-link" onclick="navigate('trust')">Trust</button></div>
     <div><div class="footer-title">Account</div><button class="footer-link" onclick="openAuthModal('login')">Sign in</button><button class="footer-link" onclick="openAuthModal('register')">Register</button></div>
-    <div><div class="footer-title">Support</div><button class="footer-link" onclick="openSupportModal()">Help center</button><button class="footer-link" onclick="openLegalModal('terms')">Terms</button><button class="footer-link" onclick="openLegalModal('privacy')">Privacy</button></div>
+    <div><div class="footer-title">Support</div><button class="footer-link" onclick="openSupportModal()">Help center</button><button class="footer-link" onclick="openLegalModal('terms')">Terms</button><button class="footer-link" onclick="openLegalModal('privacy')">Privacy</button><button class="footer-link" onclick="openAdminLogin()">Admin</button></div>
   </div>
   <div class="shell" style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><span>© 2026 DioraLink</span><span>All rights reserved.</span></div>
 </footer>
@@ -345,9 +345,11 @@ function artisanById(id){ return state.artisans.find(a=>a.id===id); }
 function requestById(id){ return state.requests.find(r=>r.id===id); }
 function projectById(id){ return state.projects.find(p=>p.id===id); }
 function customerById(id){ return id===SEED.user.id ? SEED.user : (id==='USR-CUSTOMER-01' ? {name:'Quỳnh Anh',avatar:SEED.user.avatar,email:'quynhanh@example.com'} : {name:'Customer',avatar:'',email:''}); }
-function currentRole(){ return state.user.role; }
+function isAdmin(){ return state.user?.role==='admin' && state.session?.authenticated===true; }
+function currentRole(){ return state.user?.role||'guest'; }
 function isCustomer(){ return currentRole()==='customer'; }
 function isArtisan(){ return currentRole()==='artisan'; }
+function requireAdmin(){ if(isAdmin()) return true; openAdminLogin(); return false; }
 function statusLabel(s){ return ({proposal_received:'Proposal received',pending:'Pending',in_production:'In production',completed:'Completed',submitted:'Submitted',approved:'Approved',released:'Released',customer_reported:'Payment reported',confirmed:'Paid directly',awaiting_payment:'Awaiting payment',draft:'Draft',cancelled:'Cancelled',cancelled_by_customer:'Stopped by customer'})[s]||s; }
 function pill(s){
   const cls=(s==='approved'||s==='released'||s==='confirmed'||s==='completed')?'pill-success':(s==='submitted'||s==='proposal_received'||s==='in_production'||s==='customer_reported')?'pill-mint':(s==='awaiting_payment'||s==='pending')?'pill-warning':'pill';
@@ -363,12 +365,15 @@ const NAV_CUSTOMER=[
 const NAV_ARTISAN=[
   ['artisan-dashboard','Dashboard','layout-dashboard'],['artisan-requests','Requests','inbox'],['artisan-proposals','Proposals','send'],['artisan-projects','Projects','layers'],['messages','Messages','message-circle'],['artisan-portfolio','Portfolio','images'],['artisan-earnings','Earnings','wallet-cards'],['account','Account','user']
 ];
+const NAV_ADMIN=[
+  ['admin-dashboard','Finance','wallet-cards'],['admin-commissions','Commissions','receipt-text'],['admin-notifications','Notifications','bell']
+];
 
 function routeParts(){ const x=location.hash.replace(/^#/,'').trim()||'home'; return x.split('/'); }
 function currentRoute(){ return routeParts()[0]; }
 function navigate(route){ location.hash=route; }
 function requireRole(role){ if(!requireAuth()) return false; if(currentRole()!==role){ toast('Khu vực này thuộc role '+(role==='customer'?'Customer':'Artisan')+'.','error'); navigate(role==='customer'?'home':'artisan-dashboard'); return false;} return true; }
-function roleNav(){ return isAuthenticated()?(isCustomer()?NAV_CUSTOMER:NAV_ARTISAN):NAV_PUBLIC; }
+function roleNav(){ return isAdmin()?NAV_ADMIN:(isAuthenticated()?(isCustomer()?NAV_CUSTOMER:NAV_ARTISAN):NAV_PUBLIC); }
 function navButton(route,label,icon){ const active=currentRoute()===route; return `<button class="nav-btn ${active?'active':''}" onclick="navigate('${route}')"><i data-lucide="${icon}" style="width:14px;vertical-align:-3px;margin-right:5px"></i>${t(label)}</button>`; }
 function renderTopNav(){
   const html=roleNav().map(x=>navButton(...x)).join('');
@@ -380,7 +385,9 @@ function refreshShell(){
   const actions=document.getElementById('auth-header-actions');
   if(actions){
     const langSwitch=`<span class="language-switch" aria-label="Language"><button type="button" class="${currentLanguage==='vi'?'active':''}" onclick="setLanguage('vi')">VI</button><button type="button" class="${currentLanguage==='en'?'active':''}" onclick="setLanguage('en')">EN</button></span>`;
-    if(isAuthenticated()){
+    if(isAdmin()){
+      actions.innerHTML=langSwitch+`<button class="icon-btn" onclick="openAdminNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><span class="role-badge">Admin</span><button class="btn btn-sm btn-danger" onclick="adminLogout()">Logout</button>`;
+    }else if(isAuthenticated()){
       actions.innerHTML=langSwitch+`<button class="icon-btn" onclick="navigate('messages')" title="Messages"><i data-lucide="message-circle"></i></button><button class="icon-btn" onclick="openNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><span class="role-badge">${isCustomer()?'Customer':'Artisan'}</span><button class="icon-btn" onclick="openAccountMenu()" title="Account"><img id="header-avatar" class="avatar" alt="Avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}></button>`;
       const dot=document.getElementById('notif-dot'); if(dot) dot.hidden=!state.notifications.some(n=>!n.read);
     }else{
@@ -456,7 +463,8 @@ const I18N={
     'Workspace reset.':'Đã đặt lại workspace.','Workspace switched to ':'Đã chuyển workspace sang ',
     'Mỗi ảnh không được vượt quá 8MB.':'Mỗi ảnh không được vượt quá 8MB.','Vui lòng gửi ít nhất một hình ảnh tham khảo.':'Vui lòng gửi ít nhất một hình ảnh tham khảo.',
     'Chỉ chấp nhận file hình ảnh ở Reference images.':'Chỉ chấp nhận tệp hình ảnh ở Reference images.','Hãy chọn artisan cụ thể hoặc chuyển sang Open matching.':'Hãy chọn nghệ nhân cụ thể hoặc chuyển sang Tìm nghệ nhân phù hợp.',
-    'Gara Tí Hon':'Gara Tí Hon'
+    'Gara Tí Hon':'Gara Tí Hon',
+    'Finance':'Tài chính','Commissions':'Hoa hồng','Notifications':'Thông báo','Admin':'Quản trị','Admin sign in':'Đăng nhập quản trị','Admin email':'Email quản trị','Admin password':'Mật khẩu quản trị','Sign in to Admin':'Đăng nhập Admin','Admin signed in.':'Đã đăng nhập Admin.','Admin signed out.':'Đã đăng xuất Admin.','PLATFORM FINANCE':'TÀI CHÍNH NỀN TẢNG','Gross transaction value':'Tổng giá trị giao dịch','Platform commission':'Hoa hồng nền tảng','Commission unpaid':'Hoa hồng chưa thu','Commission collected':'Hoa hồng đã thu','Latest transactions':'Giao dịch gần đây','COMMISSION LEDGER':'SỔ HOA HỒNG','View all':'Xem tất cả','Artist net':'Nghệ nhân thực nhận','Collected':'Đã thu','Unpaid':'Chưa thu','Mark collected':'Đánh dấu đã thu','No commission records yet.':'Chưa có giao dịch hoa hồng.','NOTIFICATIONS':'THÔNG BÁO','Loading finance...':'Đang tải tài chính...','Loading...':'Đang tải...','Platform commission marked as collected.':'Đã đánh dấu hoa hồng nền tảng đã thu.','Could not record platform commission.':'Không thể ghi nhận hoa hồng nền tảng.','Payment confirmed. Platform fee ':'Đã xác nhận thanh toán. Phí nền tảng ',
   }
 };
 const I18N_EN=Object.fromEntries(Object.entries(I18N.vi).map(([en,vi])=>[vi,en]));
@@ -519,8 +527,11 @@ function render(){
   if(protectedCustomer.includes(route) && !requireRole('customer')) return;
   const protectedArtisan=['artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings'];
   if(protectedArtisan.includes(route) && !requireRole('artisan')) return;
+  const protectedAdmin=['admin-dashboard','admin-commissions','admin-notifications'];
+  if(protectedAdmin.includes(route) && !requireAdmin()) return;
   const map={home:renderHome,'customer-dashboard':renderCustomerDashboard,explore:renderExplore,creator:()=>renderCreator(param),commission:renderCommission,requests:renderRequests,request:()=>renderRequest(param),projects:renderProjects,project:()=>renderProject(param),messages:renderMessages,saved:renderSaved,account:renderAccount,trust:renderTrust,
-    'artisan-dashboard':renderArtisanDashboard,'artisan-requests':renderArtisanRequests,'artisan-request':()=>renderArtisanRequest(param),'artisan-proposals':renderArtisanProposals,'artisan-projects':renderArtisanProjects,'artisan-project':()=>renderArtisanProject(param),'artisan-portfolio':renderArtisanPortfolio,'artisan-earnings':renderArtisanEarnings};
+    'artisan-dashboard':renderArtisanDashboard,'artisan-requests':renderArtisanRequests,'artisan-request':()=>renderArtisanRequest(param),'artisan-proposals':renderArtisanProposals,'artisan-projects':renderArtisanProjects,'artisan-project':()=>renderArtisanProject(param),'artisan-portfolio':renderArtisanPortfolio,'artisan-earnings':renderArtisanEarnings,
+    'admin-dashboard':renderAdminDashboard,'admin-commissions':renderAdminCommissions,'admin-notifications':renderAdminNotifications};
   (map[route]||renderHome)();
   refreshShell();
   window.scrollTo({top:0,behavior:'instant'});
@@ -788,9 +799,102 @@ async function markDirectPayment(e,projectId,milestoneId){
   const existing=p.payments.find(x=>x.milestoneId===milestoneId); if(existing)Object.assign(existing,record);else p.payments.push(record);
   p.activity.unshift({text:`Customer reported direct payment for ${milestoneId}`,time:dateTime(new Date())}); addNotification({title:'Payment reported',body:`Customer reported a direct payment for ${m.name}.`,route:`artisan-project/${p.id}`}); p.appliedVoucher=null; save(); closeModal(); toast('Payment reported to the artisan.','success'); render();
 }
-function confirmDirectPayment(projectId,milestoneId){
-  if(!requireRole('artisan'))return; const p=projectById(projectId); const m=p?.milestones.find(x=>x.id===milestoneId); if(!p||!m)return; const pay=p.payments.find(x=>x.milestoneId===milestoneId); if(!pay||pay.status!=='customer_reported'){toast('No payment report to confirm.','warning');return;}
-  pay.status='confirmed';pay.confirmedAt=new Date().toISOString(); p.activity.unshift({text:`Artisan confirmed direct payment for ${milestoneId}`,time:dateTime(new Date())}); addNotification({title:'Payment confirmed',body:`${m.name} payment was confirmed by the artisan.`,route:`project/${p.id}`}); save(); toast('Payment confirmed.','success'); render();
+async function confirmDirectPayment(projectId,milestoneId){
+  if(!requireRole('artisan'))return;
+  const p=projectById(projectId);
+  const m=p?.milestones.find(x=>x.id===milestoneId);
+  if(!p||!m)return;
+  const pay=p.payments.find(x=>x.milestoneId===milestoneId);
+  if(!pay||pay.status!=='customer_reported'){toast('No payment report to confirm.','warning');return;}
+  try{
+    const res=await fetch(apiURL('/api/finance/commission/confirm'),{
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        projectRef:p.id,
+        milestoneRef:m.id,
+        projectTitle:p.title||'',
+        milestoneName:m.name||'',
+        customerRef:p.customerId||'',
+        grossAmount:Number(m.amount||0),
+        discount:Number(pay.discount||0),
+        netAmount:Number(pay.customerPaid||pay.amount||0),
+        transferReference:pay.transferReference||''
+      })
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(data.message||'Could not record platform commission.');
+    pay.status='confirmed';
+    pay.confirmedAt=data.confirmedAt||new Date().toISOString();
+    pay.platformCommission=Number(data.commission?.platformFee||0);
+    pay.commissionRate=Number(data.commission?.rate||0);
+    pay.artistNet=Number(data.commission?.artistNet||0);
+    p.activity.unshift({text:`Artisan confirmed direct payment for ${milestoneId}`,time:dateTime(new Date())});
+    addNotification({title:'Payment confirmed',body:`${m.name} payment was confirmed. Platform commission recorded.`,route:`project/${p.id}`});
+    save();
+    toast(`Payment confirmed. Platform fee ${money(pay.platformCommission)}.`,`success`);
+    render();
+  }catch(error){
+    toast(error?.message||'Unable to confirm payment.','error');
+  }
+}
+function adminApi(path,options={}){return fetch(apiURL(path),{credentials:'include',...options});}
+async function openAdminLogin(){
+  document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><div class="eyebrow">DioraLink</div><b>Admin sign in</b></div><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><form onsubmit="adminLogin(event)"><div class="label">Admin email</div><input id="admin-email" class="field" type="email" required autocomplete="username"><div style="margin-top:10px"><div class="label">Admin password</div><input id="admin-password" class="field" type="password" required autocomplete="current-password"></div><button id="admin-login-submit" class="btn btn-mint" style="width:100%;margin-top:14px">Sign in to Admin</button></form></div></div></div>`;lucide.createIcons();
+}
+async function adminLogin(e){
+  e.preventDefault();
+  const submit=document.getElementById('admin-login-submit'); if(submit)submit.disabled=true;
+  try{
+    const email=document.getElementById('admin-email')?.value.trim().toLowerCase();
+    const password=document.getElementById('admin-password')?.value||'';
+    const res=await adminApi('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(data.message||'Admin login failed.');
+    state=normalizeState({...state,user:{id:data.admin.id,name:data.admin.name,email:data.admin.email,role:'admin',avatar:'',bio:'',authenticated:true,provider:'admin'},session:{authenticated:true,userId:data.admin.id}});
+    save();closeModal();toast('Admin signed in.','success');navigate('admin-dashboard');
+  }catch(error){toast(error?.message||'Admin login failed.','error');}finally{if(submit)submit.disabled=false;}
+}
+async function adminLogout(){
+  try{await adminApi('/api/admin/logout',{method:'POST'});}catch(e){}
+  setGuest();closeModal();navigate('home');toast('Admin signed out.','success');
+}
+async function loadAdminFinance(){
+  const res=await adminApi('/api/admin/finance');
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.message||'Unable to load finance dashboard.');
+  return data;
+}
+function adminStatus(status){
+  return `<span class="pill ${status==='collected'?'pill-success':'pill-warning'}">${esc(status==='collected'?'Collected':'Unpaid')}</span>`;
+}
+async function renderAdminDashboard(){
+  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Admin</div><div class="section-title">PLATFORM FINANCE</div></div><button class="btn btn-sm" onclick="renderAdminDashboard()">Refresh</button></div><div id="admin-finance-content"><div class="empty">Loading finance...</div></div></section>`;
+  try{const data=await loadAdminFinance();const c=data.summary||{};document.getElementById('admin-finance-content').innerHTML=`<div class="grid four"><div class="card metric"><div class="n">${money(c.gross||0)}</div><div class="k">Gross transaction value</div></div><div class="card metric"><div class="n">${money(c.platformFee||0)}</div><div class="k">Platform commission</div></div><div class="card metric"><div class="n">${money(c.unpaid||0)}</div><div class="k">Commission unpaid</div></div><div class="card metric"><div class="n">${money(c.collected||0)}</div><div class="k">Commission collected</div></div></div><div class="card pad" style="margin-top:16px"><div class="between"><div><div class="eyebrow">Latest transactions</div><div class="section-title" style="font-size:29px">COMMISSION LEDGER</div></div><button class="btn btn-sm btn-mint" onclick="navigate('admin-commissions')">View all</button></div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Artist</th><th>Project</th><th>Gross</th><th>Rate</th><th>Platform fee</th><th>Confirmed</th><th>Status</th></tr></thead><tbody>${(data.commissions||[]).slice(0,10).map(x=>`<tr><td>${esc(x.artist_name||'—')}</td><td>${esc(x.project_title||x.project_ref||'—')}</td><td>${money(x.gross_amount)}</td><td>${Number(x.commission_rate||0)}%</td><td>${money(x.platform_fee)}</td><td>${x.confirmed_at?dateTime(x.confirmed_at):'—'}</td><td>${adminStatus(x.status)}</td></tr>`).join('')||'<tr><td colspan="7">No commission records yet.</td></tr>'}</tbody></table></div></div></div>`;}catch(e){document.getElementById('admin-finance-content').innerHTML=`<div class="empty">${esc(e.message||'Unable to load finance.')}</div>`;}
+}
+async function renderAdminCommissions(){
+  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Admin</div><div class="section-title">COMMISSIONS</div></div><button class="btn btn-sm" onclick="renderAdminCommissions()">Refresh</button></div><div id="admin-commission-content"><div class="empty">Loading...</div></div></section>`;
+  try{const data=await loadAdminFinance();document.getElementById('admin-commission-content').innerHTML=`<div class="card pad"><div class="table-wrap"><table><thead><tr><th>Artist</th><th>Project / Milestone</th><th>Customer paid</th><th>Commission</th><th>Artist net</th><th>Confirmed at</th><th>Status</th><th></th></tr></thead><tbody>${(data.commissions||[]).map(x=>`<tr><td>${esc(x.artist_name||'—')}<div class="tiny muted">${esc(x.artisan_user_id||'')}</div></td><td>${esc(x.project_title||x.project_ref||'—')}<div class="tiny muted">${esc(x.milestone_name||x.milestone_ref||'')}</div></td><td>${money(x.net_amount)}</td><td>${Number(x.commission_rate||0)}% · ${money(x.platform_fee)}</td><td>${money(x.artist_net)}</td><td>${x.confirmed_at?dateTime(x.confirmed_at):'—'}</td><td>${adminStatus(x.status)}</td><td>${x.status==='unpaid'?`<button class="btn btn-sm btn-mint" onclick="adminMarkCollected('${x.id}')">Mark collected</button>`:'<span class="tiny muted">Collected</span>'}</td></tr>`).join('')||'<tr><td colspan="8">No commission records yet.</td></tr>'}</tbody></table></div></div>`;}catch(e){document.getElementById('admin-commission-content').innerHTML=`<div class="empty">${esc(e.message||'Unable to load commissions.')}</div>`;}
+}
+async function adminMarkCollected(id){
+  if(!isAdmin())return;
+  try{const res=await adminApi(`/api/admin/commissions/${id}/collect`,{method:'POST'});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.message||'Unable to mark collected.');toast('Platform commission marked as collected.','success');renderAdminCommissions();}catch(e){toast(e.message||'Unable to update commission.','error');}
+}
+async function loadAdminNotifications(){
+  const res=await adminApi('/api/admin/notifications');
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.message||'Unable to load notifications.');
+  return data.notifications||[];
+}
+async function renderAdminNotifications(){
+  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Admin</div><div class="section-title">NOTIFICATIONS</div></div><button class="btn btn-sm" onclick="renderAdminNotifications()">Refresh</button></div><div id="admin-notification-content"><div class="empty">Loading...</div></div></section>`;
+  try{const list=await loadAdminNotifications();document.getElementById('admin-notification-content').innerHTML=`<div class="card pad">${list.map(n=>`<button class="card-soft pad" style="display:block;width:100%;text-align:left;margin-bottom:8px;${n.read_at?'opacity:.65':''}" onclick="openAdminNotification('${n.id}','${esc(n.route||'')}')"><div class="between"><b class="small">${esc(n.title)}</b><span class="tiny muted">${n.created_at?dateTime(n.created_at):''}</span></div><div class="small muted" style="margin-top:5px">${esc(n.body)}</div></button>`).join('')||'<div class="empty">No admin notifications.</div>'}</div>`;}catch(e){document.getElementById('admin-notification-content').innerHTML=`<div class="empty">${esc(e.message||'Unable to load notifications.')}</div>`;}
+}
+async function openAdminNotifications(){if(!isAdmin()){openAdminLogin();return;}await renderAdminNotifications();navigate('admin-notifications');}
+async function openAdminNotification(id,route){
+  try{await adminApi(`/api/admin/notifications/${id}/read`,{method:'POST'});}catch(e){}
+  if(route)navigate(route);else renderAdminNotifications();
 }
 function copyText(value){navigator.clipboard?.writeText(String(value)).then(()=>toast('Copied.','success')).catch(()=>toast(String(value),'success'));}
 function payMilestone(projectId,milestoneId){openDirectPayment(projectId,milestoneId);}
@@ -977,8 +1081,28 @@ async function submitPasswordReset(e){e.preventDefault();const email=e.target.em
 function loginGoogle(){if(CONFIG.demoMode){authSocial('google');return;}const clientId=CONFIG.googleClientId;if(!clientId||clientId.includes('YOUR_GOOGLE')){toast('Chưa cấu hình Google Client ID.','warning');return;}if(!window.google?.accounts?.id){toast('Google Identity Services chưa sẵn sàng.','warning');return;}window.google.accounts.id.initialize({client_id:clientId,callback:handleGoogleCredential});window.google.accounts.id.prompt();}
 async function handleGoogleCredential(response){try{const result=await fetch(apiURL('/api/auth/google'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential:response.credential,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Google authentication failed');const u=data.session?.user||data.user||{};state.user={...state.user,...u,authenticated:true,provider:'google'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Signed in with Google.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Google authentication failed','warning');}}
 function loginFacebook(){if(CONFIG.demoMode){authSocial('facebook');return;}if(!CONFIG.facebookAppId||CONFIG.facebookAppId.includes('YOUR_FACEBOOK')){toast('Chưa cấu hình Facebook App ID.','warning');return;}if(!window.FB){toast('Facebook SDK chưa sẵn sàng.','warning');return;}FB.login(async response=>{if(!response?.authResponse){toast('Facebook login đã bị huỷ.','warning');return;}try{const result=await fetch(apiURL('/api/auth/facebook'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accessToken:response.authResponse.accessToken,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Facebook authentication failed');const u=data.session?.user||data.user||{};state.user={...state.user,...u,authenticated:true,provider:'facebook'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Signed in with Facebook.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Facebook authentication failed','warning');}}, {scope:'public_profile,email'});}
-async function restoreSession(){if(CONFIG.demoMode)return;try{const res=await fetch(apiURL('/api/auth/me'),{method:'GET',credentials:'include'});if(res.ok){const data=await res.json();if(data.user){state=normalizeState({...state,user:{...state.user,...data.user,authenticated:true},session:{authenticated:true,userId:data.user.id}});save();}}else if(res.status===401){setGuest();}}catch(e){console.warn('Session restore failed:',e.message);}}
-async function logout(){let serverError='';try{if(!CONFIG.demoMode){const res=await fetch(apiURL('/api/auth/logout'),{method:'POST',credentials:'include'});if(!res.ok){const data=await res.json().catch(()=>({}));serverError=data.message||`Logout failed (HTTP ${res.status}).`;}}}catch(error){serverError=error?.message||'Logout request failed.';}finally{setGuest();closeModal();navigate('home');toast(serverError?'Signed out on this device.':'Signed out.','success');}}
+async function restoreSession(){
+  if(CONFIG.demoMode)return;
+  try{
+    const res=await fetch(apiURL('/api/auth/me'),{method:'GET',credentials:'include'});
+    if(res.ok){
+      const data=await res.json();
+      if(data.user){state=normalizeState({...state,user:{...state.user,...data.user,authenticated:true},session:{authenticated:true,userId:data.user.id}});save();return;}
+    }
+  }catch(e){console.warn('Session restore failed:',e.message);}
+  try{
+    const res=await fetch(apiURL('/api/admin/me'),{method:'GET',credentials:'include'});
+    if(res.ok){
+      const data=await res.json();
+      if(data.admin){state=normalizeState({...state,user:{id:data.admin.id,name:data.admin.name,email:data.admin.email,role:'admin',avatar:'',bio:'',authenticated:true,provider:'admin'},session:{authenticated:true,userId:data.admin.id}});save();return;}
+    }
+  }catch(e){console.warn('Admin session restore failed:',e.message);}
+  if(!isAuthenticated())setGuest();
+}
+async function logout(){
+  if(isAdmin()){return adminLogout();}
+  let serverError='';try{if(!CONFIG.demoMode){const res=await fetch(apiURL('/api/auth/logout'),{method:'POST',credentials:'include'});if(!res.ok){const data=await res.json().catch(()=>({}));serverError=data.message||`Logout failed (HTTP ${res.status}).`;}}}catch(error){serverError=error?.message||'Logout request failed.';}finally{setGuest();closeModal();navigate('home');toast(serverError?'Signed out on this device.':'Signed out.','success');}
+}
 function getVoucher(code){const normalized=String(code||'').trim().toUpperCase();return(state.vouchers||[]).find(v=>v.code===normalized);}
 function voucherDiscount(voucher,amount){if(!voucher)return 0;let discount=voucher.type==='percent'?Math.round(amount*voucher.value/100):Number(voucher.value||0);if(voucher.maxDiscount)discount=Math.min(discount,voucher.maxDiscount);return Math.max(0,Math.min(discount,amount));}
 function applyVoucher(projectId,milestoneId){if(!requireRole('customer'))return;const p=projectById(projectId);const input=document.getElementById(`voucher-${projectId}-${milestoneId}`);const m=p?.milestones.find(x=>x.id===milestoneId);const v=getVoucher(input?.value);if(!p||!m||!v){toast('Mã voucher không hợp lệ.','error');return;}if(m.amount<v.minSpend){toast(`Voucher yêu cầu tối thiểu ${money(v.minSpend)}.` ,'warning');return;}const discount=voucherDiscount(v,m.amount);p.appliedVoucher={code:v.code,milestoneId,discount,appliedAt:new Date().toISOString()};p.activity.unshift({text:`Voucher ${v.code} applied to ${milestoneId}`,time:dateTime(new Date())});save();toast(`Voucher applied: -${money(discount)}.`,'success');render();}

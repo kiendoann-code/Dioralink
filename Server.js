@@ -8,6 +8,11 @@ const { Pool } = require("pg");
 require("dotenv").config();
 
 const app = express();
+const asyncRoute = (handler) => {
+  return (req, res, next) => {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  };
+};
 
 const PORT = Number(process.env.PORT || 3000);
 const NODE_ENV = process.env.NODE_ENV || "development";
@@ -583,7 +588,357 @@ app.post("/api/auth/facebook", async (req, res) => {
    STATIC FRONTEND
 ========================= */
 
-app.use(express.static(PUBLIC_DIR));
+
+/* ====================== PLATFORM COMMISSION V2 ====================== */
+function financeText(value,max=200){
+  return String(value ?? '').trim().slice(0,max);
+}
+
+function financeMoney(value){
+  const n=Number(value);
+  if(!Number.isFinite(n) || n <= 0){
+    throw Object.assign(new Error('Invalid amount.'),{status:400});
+  }
+  return Math.round(n);
+}
+
+function financeCommissionRate(grossAmount){
+  const amount=Number(grossAmount||0);
+  if(amount < 2000000) return 0.10;
+  if(amount <= 5000000) return 0.08;
+  if(amount <= 10000000) return 0.07;
+  return 0.05;
+}
+
+async function ensureFinanceSchema(){
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS platform_admins (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT 'DioraLink Admin',
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS platform_commissions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      artisan_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      customer_ref TEXT DEFAULT '',
+      project_ref TEXT NOT NULL,
+      project_title TEXT DEFAULT '',
+      milestone_ref TEXT NOT NULL,
+      milestone_name TEXT DEFAULT '',
+      gross_amount NUMERIC(14,2) NOT NULL,
+      discount_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      net_amount NUMERIC(14,2) NOT NULL,
+      commission_rate NUMERIC(6,4) NOT NULL,
+      platform_fee NUMERIC(14,2) NOT NULL,
+      artist_net NUMERIC(14,2) NOT NULL,
+      transfer_reference TEXT DEFAULT '',
+      confirmed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      status TEXT NOT NULL DEFAULT 'unpaid' CHECK(status IN ('unpaid','collected')),
+      collected_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(artisan_user_id,project_ref,milestone_ref)
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_notifications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      admin_id UUID NOT NULL REFERENCES platform_admins(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      route TEXT DEFAULT '',
+      related_commission_id UUID REFERENCES platform_commissions(id) ON DELETE SET NULL,
+      read_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_platform_commissions_artisan
+      ON platform_commissions(artisan_user_id,confirmed_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_platform_commissions_status
+      ON platform_commissions(status,confirmed_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_admin_notifications_admin
+      ON admin_notifications(admin_id,created_at DESC);
+  `);
+
+  const adminEmail=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
+  const adminPassword=String(process.env.ADMIN_PASSWORD||'');
+  const adminName=String(process.env.ADMIN_NAME||'DioraLink Admin').trim() || 'DioraLink Admin';
+
+  if(adminEmail && adminPassword){
+    const existing=(await pool.query(
+      `SELECT id FROM platform_admins WHERE LOWER(email)=LOWER($1) LIMIT 1`,
+      [adminEmail]
+    )).rows[0];
+
+    if(!existing){
+      const hash=await bcrypt.hash(adminPassword,12);
+      await pool.query(
+        `INSERT INTO platform_admins(email,password_hash,display_name,active)
+         VALUES($1,$2,$3,TRUE)`,
+        [adminEmail,hash,adminName]
+      );
+    }
+  }
+}
+
+function financeAdminSecret(){
+  const secret=process.env.JWT_SECRET || process.env.SESSION_SECRET || '';
+  if(!secret) throw new Error('JWT_SECRET or SESSION_SECRET is missing.');
+  return secret;
+}
+
+function signFinanceAdmin(admin){
+  return jwt.sign({sub:admin.id,type:'admin'},financeAdminSecret(),{expiresIn:'7d'});
+}
+
+function setFinanceAdminCookie(res,token){
+  res.cookie('dioralink_admin_session',token,{
+    httpOnly:true,
+    sameSite:'lax',
+    secure:process.env.NODE_ENV==='production',
+    maxAge:7*24*60*60*1000,
+    path:'/'
+  });
+}
+
+async function getFinanceAdmin(req){
+  const token=req.cookies.dioralink_admin_session;
+  if(!token) return null;
+  try{
+    const payload=jwt.verify(token,financeAdminSecret());
+    if(payload?.type!=='admin') return null;
+    return (await pool.query(
+      `SELECT id,email,display_name,active
+       FROM platform_admins
+       WHERE id=$1 AND active=TRUE
+       LIMIT 1`,
+      [payload.sub]
+    )).rows[0] || null;
+  }catch{
+    return null;
+  }
+}
+
+async function requireFinanceAdmin(req,res,next){
+  try{
+    const admin=await getFinanceAdmin(req);
+    if(!admin) return res.status(401).json({message:'Admin authentication required.'});
+    req.admin=admin;
+    next();
+  }catch(error){
+    console.error('Admin auth error:',error);
+    res.status(500).json({message:'Admin authentication failed.'});
+  }
+}
+
+app.post('/api/admin/login',asyncRoute(async(req,res)=>{
+  await ensureFinanceSchema();
+  const email=String(req.body?.email||'').trim().toLowerCase();
+  const password=String(req.body?.password||'');
+
+  const admin=(await pool.query(
+    `SELECT id,email,display_name,password_hash,active
+     FROM platform_admins
+     WHERE LOWER(email)=LOWER($1)
+     LIMIT 1`,
+    [email]
+  )).rows[0];
+
+  if(!admin || !admin.active || !(await bcrypt.compare(password,admin.password_hash))){
+    return res.status(401).json({message:'Admin email or password is incorrect.'});
+  }
+
+  setFinanceAdminCookie(res,signFinanceAdmin(admin));
+  res.json({admin:{id:admin.id,email:admin.email,name:admin.display_name,role:'admin'}});
+}));
+
+app.post('/api/admin/logout',(req,res)=>{
+  res.clearCookie('dioralink_admin_session',{
+    httpOnly:true,
+    sameSite:'lax',
+    secure:process.env.NODE_ENV==='production',
+    path:'/'
+  });
+  res.json({message:'Admin logged out.'});
+});
+
+app.get('/api/admin/me',requireFinanceAdmin,(req,res)=>{
+  res.json({admin:{id:req.admin.id,email:req.admin.email,name:req.admin.display_name,role:'admin'}});
+});
+
+/* Artist confirms that the direct bank transfer has arrived.
+   This records DioraLink's commission; it does not pull money from the bank. */
+app.post('/api/finance/commission/confirm',requireAuth,(req,res,next)=>{
+  if(req.user?.role!=='artisan') return res.status(403).json({message:'Forbidden for this role.'});
+  return Promise.resolve((async()=>{
+    await ensureFinanceSchema();
+
+    const projectRef=financeText(req.body?.projectRef,120);
+    const milestoneRef=financeText(req.body?.milestoneRef,80);
+    const projectTitle=financeText(req.body?.projectTitle,200);
+    const milestoneName=financeText(req.body?.milestoneName,200);
+    const customerRef=financeText(req.body?.customerRef,120);
+    const grossAmount=financeMoney(req.body?.grossAmount);
+    const discountAmount=Math.max(0,Number(req.body?.discount||0));
+    const netAmount=financeMoney(req.body?.netAmount);
+    const transferReference=financeText(req.body?.transferReference,120);
+
+    if(!projectRef || !milestoneRef){
+      return res.status(400).json({message:'Project and milestone are required.'});
+    }
+    if(netAmount>grossAmount){
+      return res.status(400).json({message:'Customer payment cannot exceed gross amount.'});
+    }
+
+    const existing=(await pool.query(
+      `SELECT * FROM platform_commissions
+       WHERE artisan_user_id=$1 AND project_ref=$2 AND milestone_ref=$3
+       LIMIT 1`,
+      [req.user.id,projectRef,milestoneRef]
+    )).rows[0];
+
+    if(existing){
+      return res.json({
+        alreadyRecorded:true,
+        confirmedAt:existing.confirmed_at,
+        commission:{
+          rate:Number(existing.commission_rate)*100,
+          platformFee:Number(existing.platform_fee),
+          artistNet:Number(existing.artist_net),
+          status:existing.status
+        }
+      });
+    }
+
+    const rate=financeCommissionRate(grossAmount);
+    const platformFee=Math.round(grossAmount*rate);
+    const artistNet=Math.max(0,Math.round(netAmount-platformFee));
+
+    const client=await pool.connect();
+    try{
+      await client.query('BEGIN');
+
+      const inserted=(await client.query(
+        `INSERT INTO platform_commissions(
+          artisan_user_id,customer_ref,project_ref,project_title,milestone_ref,milestone_name,
+          gross_amount,discount_amount,net_amount,commission_rate,platform_fee,artist_net,
+          transfer_reference,status,confirmed_at
+        )
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'unpaid',NOW())
+        RETURNING *`,
+        [
+          req.user.id,customerRef,projectRef,projectTitle,milestoneRef,milestoneName,
+          grossAmount,discountAmount,netAmount,rate,platformFee,artistNet,transferReference
+        ]
+      )).rows[0];
+
+      const admins=(await client.query(
+        `SELECT id FROM platform_admins WHERE active=TRUE ORDER BY created_at ASC`
+      )).rows;
+
+      for(const admin of admins){
+        await client.query(
+          `INSERT INTO admin_notifications(
+             admin_id,title,body,route,related_commission_id
+           ) VALUES($1,$2,$3,$4,$5)`,
+          [
+            admin.id,
+            'New platform commission',
+            `${req.user.name} confirmed ${grossAmount.toLocaleString('vi-VN')} VND received. Platform fee: ${platformFee.toLocaleString('vi-VN')} VND (${Math.round(rate*100)}%). Transfer: ${transferReference || 'not provided'}.`,
+            'admin-commissions',
+            inserted.id
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      return res.status(201).json({
+        message:'Platform commission recorded.',
+        confirmedAt:inserted.confirmed_at,
+        commission:{rate:rate*100,platformFee,artistNet,status:'unpaid'}
+      });
+    }catch(error){
+      await client.query('ROLLBACK');
+      throw error;
+    }finally{
+      client.release();
+    }
+  })()).catch(next);
+});
+
+app.get('/api/admin/finance',requireFinanceAdmin,asyncRoute(async(_req,res)=>{
+  await ensureFinanceSchema();
+  const summary=(await pool.query(`
+    SELECT
+      COALESCE(SUM(gross_amount),0) AS gross,
+      COALESCE(SUM(platform_fee),0) AS platform_fee,
+      COALESCE(SUM(platform_fee) FILTER (WHERE status='unpaid'),0) AS unpaid,
+      COALESCE(SUM(platform_fee) FILTER (WHERE status='collected'),0) AS collected
+    FROM platform_commissions
+  `)).rows[0];
+
+  const commissions=(await pool.query(`
+    SELECT pc.*,u.name AS artist_name,u.email AS artist_email
+    FROM platform_commissions pc
+    JOIN users u ON u.id=pc.artisan_user_id
+    ORDER BY pc.confirmed_at DESC
+    LIMIT 200
+  `)).rows;
+
+  res.json({
+    summary:{
+      gross:Number(summary.gross||0),
+      platformFee:Number(summary.platform_fee||0),
+      unpaid:Number(summary.unpaid||0),
+      collected:Number(summary.collected||0)
+    },
+    commissions
+  });
+}));
+
+app.get('/api/admin/notifications',requireFinanceAdmin,asyncRoute(async(req,res)=>{
+  await ensureFinanceSchema();
+  const notifications=(await pool.query(`
+    SELECT id,title,body,route,read_at,created_at
+    FROM admin_notifications
+    WHERE admin_id=$1
+    ORDER BY created_at DESC
+    LIMIT 100
+  `,[req.admin.id])).rows;
+  res.json({notifications});
+}));
+
+app.post('/api/admin/notifications/:id/read',requireFinanceAdmin,asyncRoute(async(req,res)=>{
+  await ensureFinanceSchema();
+  await pool.query(
+    `UPDATE admin_notifications
+     SET read_at=COALESCE(read_at,NOW())
+     WHERE id=$1 AND admin_id=$2`,
+    [req.params.id,req.admin.id]
+  );
+  res.json({message:'Notification marked as read.'});
+}));
+
+app.post('/api/admin/commissions/:id/collect',requireFinanceAdmin,asyncRoute(async(req,res)=>{
+  await ensureFinanceSchema();
+  const result=await pool.query(`
+    UPDATE platform_commissions
+    SET status='collected',
+        collected_at=COALESCE(collected_at,NOW()),
+        updated_at=NOW()
+    WHERE id=$1
+    RETURNING *
+  `,[req.params.id]);
+  if(!result.rows[0]) return res.status(404).json({message:'Commission not found.'});
+  res.json({commission:result.rows[0],message:'Commission marked as collected.'});
+}));
+
+/* ====================== END PLATFORM COMMISSION V2 ====================== */app.use(express.static(PUBLIC_DIR));
 
 app.get(/^\/(?!api\/).*/, (req, res) => {
   res.sendFile(INDEX_FILE);
