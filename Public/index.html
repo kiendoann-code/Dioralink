@@ -335,6 +335,103 @@ function authUserFromArtisan(a,provider="demo"){ return {id:"USR-ARTISAN-01",nam
 function setGuest(){ state.session={authenticated:false,userId:null}; state.user=clone(GUEST_USER); save(); }
 function isAuthenticated(){ return state.session?.authenticated===true && !!state.user?.id; }
 function requireAuth(){ if(isAuthenticated()) return true; toast("Vui lòng đăng nhập để tiếp tục.","warning"); openAuthModal("login"); return false; }
+function ensureCurrentArtisanProfile(){
+  if(!isArtisan() || !state.user?.id) return null;
+
+  const aid=`ART-${state.user.id}`;
+  const rawName=String(state.user.name||'New Artisan').trim() || 'New Artisan';
+
+  const handleBase=rawName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-zA-Z0-9]+/g,'')
+    .toLowerCase()
+    .slice(0,18) || 'artisan';
+
+  if(!Array.isArray(state.artisans)){
+    state.artisans=[];
+  }
+
+  let a=state.artisans.find(x=>x.id===aid);
+
+  if(!a){
+    a={
+      id:aid,
+      name:rawName,
+      handle:'@'+handleBase,
+      city:String(state.user.city||'').trim(),
+      verified:false,
+      online:true,
+      rating:0,
+      reviews:0,
+      completed:0,
+      startingPrice:3000000,
+      response:'< 1d',
+      specialties:[],
+      bio:String(state.user.bio||'').trim(),
+      avatar:state.user.avatar||GUEST_USER.avatar,
+      hero:state.user.avatar||GUEST_USER.avatar,
+      portfolio:[],
+      paymentProfile:{
+        method:'vietqr',
+        bankName:'',
+        accountName:rawName,
+        accountNumber:'',
+        qrImage:''
+      }
+    };
+
+    state.artisans.push(a);
+  }else{
+    a.name=rawName;
+    a.city=String(state.user.city||a.city||'').trim();
+    a.bio=String(state.user.bio||a.bio||'').trim();
+    a.avatar=state.user.avatar||a.avatar||GUEST_USER.avatar;
+    a.hero=a.hero||a.avatar||GUEST_USER.avatar;
+
+    if(!a.handle){
+      a.handle='@'+handleBase;
+    }
+
+    if(!Array.isArray(a.portfolio)){
+      a.portfolio=[];
+    }
+
+    if(!a.paymentProfile){
+      a.paymentProfile={
+        method:'vietqr',
+        bankName:'',
+        accountName:rawName,
+        accountNumber:'',
+        qrImage:''
+      };
+    }
+  }
+
+  state.user.artisanId=aid;
+  return a;
+}
+
+function applyAuthenticatedUser(u,provider='email'){
+  state.user={
+    ...state.user,
+    ...(u||{}),
+    authenticated:true,
+    provider:provider||u?.provider||'email'
+  };
+
+  state.session={
+    authenticated:true,
+    userId:state.user.id
+  };
+
+  if(state.user.role==='artisan'){
+    ensureCurrentArtisanProfile();
+  }
+
+  save();
+}
+
 function roleAfterLogin(role){ return role==='artisan'?'artisan-dashboard':'customer-dashboard'; }
 function resetDemo(){ localStorage.removeItem(CONFIG.storageKey); state=clone(SEED); navigate('home'); toast('Workspace reset.','success'); }
 function money(n){ return new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0}).format(Number(n||0)); }
@@ -628,7 +725,11 @@ function renderSaved(){
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">SAVED ARTISANS</div></div><button class="btn" onclick="navigate('explore')">Explore</button></div><div class="creator-grid">${list.length?list.map(renderCreatorCard).join(''):'<div class="empty" style="grid-column:1/-1">No saved artisans.</div>'}</div></section>`;
 }
 function renderMessages(){
-  const mine=state.projects.filter(p=>isCustomer()?p.customerId===state.user.id:p.artisanId===(state.user.artisanId||'A-001'));
+  const mine=state.projects.filter(
+  p=>isCustomer()
+    ?p.customerId===state.user.id
+    :(state.user?.artisanId ? p.artisanId===state.user.artisanId : false)
+);
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Inbox</div><div class="section-title">MESSAGES</div></div></div><div class="grid" style="gap:10px;max-width:900px">${mine.length?mine.map(p=>{const a=artisanById(p.artisanId), c=customerById(p.customerId), last=p.messages?.[p.messages.length-1];return `<button class="card pad" style="width:100%;text-align:left;color:inherit" onclick="navigate('${isCustomer()?'project':'artisan-project'}/${p.id}')"><div class="between"><div class="row"><img class="avatar-lg" ${mediaAttrs(isCustomer()?a?.avatar:state.user.avatar,isCustomer()?(a?.avatarFallback||GUEST_USER.avatar):(state.user.avatarFallback||GUEST_USER.avatar))}><div><b>${esc(p.title)}</b><div class="small muted">${esc(isCustomer()?a?.name:(c?.name||'Customer'))}</div></div></div>${pill(p.status)}</div><div class="small" style="margin-top:12px">${esc(last?.text||'No messages yet.')}</div><div class="tiny muted" style="margin-top:5px">${esc(last?.time||'')}</div></button>`}).join(''):'<div class="empty">No conversations.</div>'}</div></section>`;
 }
 function renderCreator(id){
@@ -1001,8 +1102,22 @@ function switchRole(role){state.user.role=role;state.session.userId=role==='cust
 function renderTrust(){ document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Trust</div><div class="section-title">TRUST & VERIFICATION</div></div></div><div class="grid three">${[['Identity','Basic identity / profile completeness'],['Portfolio','Public project history and selected works'],['Reviews','Customer feedback linked to completed work']].map(x=>`<div class="card pad"><div class="eyebrow">${x[0]}</div><div class="display" style="font-size:30px;text-transform:uppercase;margin-top:7px">${x[0]}</div><p class="body" style="margin-top:7px">${x[1]}</p></div>`).join('')}</div></section>`; }
 
 
-function artisanProjects(){return state.projects.filter(p=>p.artisanId===(state.user.artisanId||'A-001'));}
-function matchingRequests(){const aid=state.user.artisanId||'A-001';return state.requests.filter(r=>!r.selectedProposal && !r.proposals.some(p=>p.artisanId===aid) && (r.creatorMode==='matching'||r.preferredArtisanId===aid));}
+function artisanProjects(){
+  const aid=state.user?.artisanId;
+  if(!aid) return [];
+  return state.projects.filter(p=>p.artisanId===aid);
+}
+function matchingRequests(){
+  const aid=state.user?.artisanId;
+  if(!aid) return [];
+
+  return state.requests.filter(
+    r =>
+      !r.selectedProposal &&
+      !r.proposals.some(p=>p.artisanId===aid) &&
+      (r.creatorMode==='matching'||r.preferredArtisanId===aid)
+  );
+}
 function renderArtisanDashboard(){
   const aid=state.user.artisanId||'A-001'; const a=artisanById(aid); const reqs=matchingRequests();const props=state.requests.flatMap(r=>r.proposals||[]).filter(p=>p.artisanId===aid);const projs=artisanProjects();const earnings=projs.flatMap(p=>p.payments||[]).filter(x=>x.status==='confirmed').reduce((s,x)=>s+(x.customerPaid||x.amount||0),0); const payProfile=getArtisanPaymentProfile(aid); const paymentReady=!!(payProfile?.qrImage||payProfile?.accountNumber);
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Dashboard</div><div class="section-title">WELCOME, ${esc((a?.name||state.user.name).split(' ')[0])}</div></div><button class="btn btn-mint" onclick="navigate('artisan-portfolio')">Manage portfolio</button></div>${!paymentReady?`<div class="notice" style="margin-bottom:14px">Add your bank details or personal QR before accepting direct payments. <button class="link-btn" type="button" onclick="navigate('artisan-portfolio')">Set up payments</button></div>`:''}
@@ -1070,34 +1185,215 @@ function renderAuthModal(){
 }
 
 function authSocial(provider){const role=authMode==='register'?authRegisterRole:authLoginRole;if(CONFIG.demoMode){demoSignIn(role,provider,role==='artisan'?'artisan@example.com':'quynhanh@example.com',role==='artisan'?'Đào Studio Owner':'Quỳnh Anh');return;} if(provider==='google')return loginGoogle(); if(provider==='facebook')return loginFacebook();}
-async function loginEmail(event){event.preventDefault();const email=document.getElementById('login-email')?.value.trim().toLowerCase();const password=document.getElementById('login-password')?.value;if(!email||!password)return;const submit=document.getElementById('login-submit');if(submit){submit.disabled=true;submit.textContent='Signing in...';}try{if(CONFIG.demoMode){const saved=state.authPasswords?.[email];if(saved&&saved!==password)throw new Error('Invalid email or password.');demoSignIn(authLoginRole,'email',email,authLoginRole==='artisan'?'Đào Studio Owner':'Quỳnh Anh');return;}const res=await fetch(apiURL('/api/auth/login'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password,role:authLoginRole})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.message||'Đăng nhập thất bại.');const u=data.session?.user||data.user||{};if(u.role&&u.role!==authLoginRole)throw new Error(`This account is registered as ${u.role}.`);state.user={...state.user,...u,authenticated:true,provider:'email'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Signed in.','success');navigate(roleAfterLogin(state.user.role||authLoginRole));}catch(error){toast(error.message||'Không thể đăng nhập.','warning');}finally{if(submit){submit.disabled=false;submit.textContent=`Sign in as ${authLoginRole==='artisan'?'Artisan':'Customer'}`;}}}
-async function registerEmail(event){event.preventDefault();const name=document.getElementById('register-name')?.value.trim();const email=document.getElementById('register-email')?.value.trim().toLowerCase();const password=document.getElementById('register-password')?.value;const confirm=document.getElementById('register-password-confirm')?.value;if(!name||!email||!password||!confirm)return;if(password.length<8){toast('Mật khẩu phải có ít nhất 8 ký tự.','warning');return;}if(password!==confirm){toast('Mật khẩu xác nhận không khớp.','warning');return;}const submit=document.getElementById('register-submit');if(submit){submit.disabled=true;submit.textContent='Creating...';}try{if(CONFIG.demoMode){const id='USR-'+authRegisterRole.toUpperCase()+'-'+Date.now();if(authRegisterRole==='artisan'){const aid='A-'+String(state.artisans.length+1).padStart(3,'0');state.artisans.push({id:aid,name,handle:'@'+name.toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,18)||'newartisan',city:'',verified:false,online:true,rating:0,reviews:0,completed:0,startingPrice:3000000,response:'< 1d',specialties:['Miniature'],bio:'New DioraLink artisan.',avatar:GUEST_USER.avatar,hero:GUEST_USER.avatar,portfolio:[],paymentProfile:{method:'vietqr',bankName:'',accountName:'',accountNumber:'',qrImage:''}});state.user={id,name,email,phone:'',city:'',role:'artisan',avatar:GUEST_USER.avatar,bio:'New DioraLink artisan.',joined:String(new Date().getFullYear()),artisanId:aid,authenticated:true,provider:'email'};}else{state.user={...clone(GUEST_USER),id,name,email,role:'customer',avatar:SEED.user.avatar,bio:'',joined:String(new Date().getFullYear()),authenticated:true,provider:'email'};}state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Account created.','success');navigate(roleAfterLogin(state.user.role));return;}const res=await fetch(apiURL('/api/auth/register'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({name,email,password,role:authRegisterRole})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.message||'Đăng ký thất bại.');const u=data.session?.user||data.user||{};state.user={...state.user,...u,authenticated:true,provider:'email'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Account created.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Không thể tạo tài khoản.','warning');}finally{if(submit){submit.disabled=false;submit.textContent=`Create ${authRegisterRole==='artisan'?'Artisan':'Customer'} account`;}}}
+async function loginEmail(event){event.preventDefault();const email=document.getElementById('login-email')?.value.trim().toLowerCase();const password=document.getElementById('login-password')?.value;if(!email||!password)return;const submit=document.getElementById('login-submit');if(submit){submit.disabled=true;submit.textContent='Signing in...';}try{if(CONFIG.demoMode){const saved=state.authPasswords?.[email];if(saved&&saved!==password)throw new Error('Invalid email or password.');demoSignIn(authLoginRole,'email',email,authLoginRole==='artisan'?'Đào Studio Owner':'Quỳnh Anh');return;}const res=await fetch(apiURL('/api/auth/login'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password,role:authLoginRole})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.message||'Đăng nhập thất bại.');const u=data.session?.user||data.user||{};if(u.role&&u.role!==authLoginRole)throw new Error(`This account is registered as ${u.role}.`);applyAuthenticatedUser(u,'email');closeModal();toast('Signed in.','success');navigate(roleAfterLogin(state.user.role||authLoginRole));}catch(error){toast(error.message||'Không thể đăng nhập.','warning');}finally{if(submit){submit.disabled=false;submit.textContent=`Sign in as ${authLoginRole==='artisan'?'Artisan':'Customer'}`;}}}
+async function registerEmail(event){
+  event.preventDefault();
 
+  const name=document.getElementById('register-name')?.value.trim();
+  const email=document.getElementById('register-email')?.value.trim().toLowerCase();
+  const password=document.getElementById('register-password')?.value;
+  const confirm=document.getElementById('register-password-confirm')?.value;
+
+  if(!name || !email || !password || !confirm) return;
+
+  if(password.length<8){
+    toast('Mật khẩu phải có ít nhất 8 ký tự.','warning');
+    return;
+  }
+
+  if(password!==confirm){
+    toast('Mật khẩu xác nhận không khớp.','warning');
+    return;
+  }
+
+  const submit=document.getElementById('register-submit');
+
+  if(submit){
+    submit.disabled=true;
+    submit.textContent='Creating...';
+  }
+
+  try{
+
+    if(CONFIG.demoMode){
+
+      const id='USR-'+authRegisterRole.toUpperCase()+'-'+Date.now();
+
+      if(authRegisterRole==='artisan'){
+
+        const aid='A-'+String(state.artisans.length+1).padStart(3,'0');
+
+        state.artisans.push({
+          id:aid,
+          name,
+          handle:'@'+(
+            name
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g,'')
+              .replace(/[^a-zA-Z0-9]+/g,'')
+              .toLowerCase()
+              .slice(0,18) || 'newartisan'
+          ),
+          city:'',
+          verified:false,
+          online:true,
+          rating:0,
+          reviews:0,
+          completed:0,
+          startingPrice:3000000,
+          response:'< 1d',
+          specialties:[],
+          bio:'',
+          avatar:GUEST_USER.avatar,
+          hero:GUEST_USER.avatar,
+          portfolio:[],
+          paymentProfile:{
+            method:'vietqr',
+            bankName:'',
+            accountName:name,
+            accountNumber:'',
+            qrImage:''
+          }
+        });
+
+        state.user={
+          id,
+          name,
+          email,
+          phone:'',
+          city:'',
+          role:'artisan',
+          avatar:GUEST_USER.avatar,
+          bio:'',
+          joined:String(new Date().getFullYear()),
+          artisanId:aid,
+          authenticated:true,
+          provider:'email'
+        };
+
+      }else{
+
+        state.user={
+          ...clone(GUEST_USER),
+          id,
+          name,
+          email,
+          phone:'',
+          city:'',
+          role:'customer',
+          avatar:GUEST_USER.avatar,
+          bio:'',
+          joined:String(new Date().getFullYear()),
+          authenticated:true,
+          provider:'email'
+        };
+      }
+
+      state.session={
+        authenticated:true,
+        userId:state.user.id
+      };
+
+      save();
+      closeModal();
+      toast('Account created.','success');
+      navigate(roleAfterLogin(state.user.role));
+      return;
+    }
+
+    const res=await fetch(apiURL('/api/auth/register'),{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json'
+      },
+      credentials:'include',
+      body:JSON.stringify({
+        name,
+        email,
+        password,
+        role:authRegisterRole
+      })
+    });
+
+    const data=await res.json().catch(()=>({}));
+
+    if(!res.ok){
+      throw new Error(data.message||'Đăng ký thất bại.');
+    }
+
+    const u=data.session?.user||data.user||{};
+
+    applyAuthenticatedUser(u,'email');
+
+    closeModal();
+    toast('Account created.','success');
+    navigate(roleAfterLogin(state.user.role||authRegisterRole));
+
+  }catch(error){
+
+    toast(
+      error.message||'Không thể tạo tài khoản.',
+      'warning'
+    );
+
+  }finally{
+
+    if(submit){
+      submit.disabled=false;
+      submit.textContent=
+        `Create ${authRegisterRole==='artisan'?'Artisan':'Customer'} account`;
+    }
+  }
+}
 function openSupportModal(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><b>Help center</b><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><div class="grid two"><div class="card-soft pad"><div class="label">Commission</div><div class="small">Create a brief, compare proposals and manage your project.</div></div><div class="card-soft pad"><div class="label">Artisan</div><div class="small">Publish your studio profile, respond to requests and manage active work.</div></div><div class="card-soft pad"><div class="label">Payment</div><div class="small">Review milestone amounts, apply vouchers and complete payment.</div></div><div class="card-soft pad"><div class="label">Support</div><div class="small">For account or payment issues, contact DioraLink support.</div></div></div></div></div></div>`;lucide.createIcons();}
 function openLegalModal(type){const title=type==='terms'?'Terms of service':'Privacy';document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><b>${title}</b><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><div class="body">${type==='terms'?'Use of DioraLink is subject to the project scope, payment terms and platform rules agreed by the parties.':'DioraLink uses account and project information to provide authentication, communication, project management and payment services.'}</div></div></div></div>`;lucide.createIcons();}
 function openPasswordReset(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><b>Reset password</b><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><form onsubmit="submitPasswordReset(event)"><div class="label">Email</div><input name="email" class="field" type="email" required autocomplete="email" placeholder="you@example.com"><button class="btn btn-mint" style="width:100%;margin-top:14px">Send reset link</button></form></div></div></div>`;lucide.createIcons();}
 async function submitPasswordReset(e){e.preventDefault();const email=e.target.email.value.trim().toLowerCase();try{if(CONFIG.demoMode){closeModal();toast('Password reset link sent.','success');return;}const res=await fetch(apiURL('/api/auth/forgot-password'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email})});if(!res.ok)throw new Error('Unable to send reset link.');closeModal();toast('Password reset link sent.','success');}catch(err){toast(err.message,'warning');}}
 
 function loginGoogle(){if(CONFIG.demoMode){authSocial('google');return;}const clientId=CONFIG.googleClientId;if(!clientId||clientId.includes('YOUR_GOOGLE')){toast('Chưa cấu hình Google Client ID.','warning');return;}if(!window.google?.accounts?.id){toast('Google Identity Services chưa sẵn sàng.','warning');return;}window.google.accounts.id.initialize({client_id:clientId,callback:handleGoogleCredential});window.google.accounts.id.prompt();}
-async function handleGoogleCredential(response){try{const result=await fetch(apiURL('/api/auth/google'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential:response.credential,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Google authentication failed');const u=data.session?.user||data.user||{};state.user={...state.user,...u,authenticated:true,provider:'google'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Signed in with Google.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Google authentication failed','warning');}}
-function loginFacebook(){if(CONFIG.demoMode){authSocial('facebook');return;}if(!CONFIG.facebookAppId||CONFIG.facebookAppId.includes('YOUR_FACEBOOK')){toast('Chưa cấu hình Facebook App ID.','warning');return;}if(!window.FB){toast('Facebook SDK chưa sẵn sàng.','warning');return;}FB.login(async response=>{if(!response?.authResponse){toast('Facebook login đã bị huỷ.','warning');return;}try{const result=await fetch(apiURL('/api/auth/facebook'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accessToken:response.authResponse.accessToken,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Facebook authentication failed');const u=data.session?.user||data.user||{};state.user={...state.user,...u,authenticated:true,provider:'facebook'};state.session={authenticated:true,userId:state.user.id};save();closeModal();toast('Signed in with Facebook.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Facebook authentication failed','warning');}}, {scope:'public_profile,email'});}
+async function handleGoogleCredential(response){try{const result=await fetch(apiURL('/api/auth/google'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential:response.credential,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Google authentication failed');const u=data.session?.user||data.user||{};applyAuthenticatedUser(u,'google');closeModal();toast('Signed in with Google.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Google authentication failed','warning');}}
+function loginFacebook(){if(CONFIG.demoMode){authSocial('facebook');return;}if(!CONFIG.facebookAppId||CONFIG.facebookAppId.includes('YOUR_FACEBOOK')){toast('Chưa cấu hình Facebook App ID.','warning');return;}if(!window.FB){toast('Facebook SDK chưa sẵn sàng.','warning');return;}FB.login(async response=>{if(!response?.authResponse){toast('Facebook login đã bị huỷ.','warning');return;}try{const result=await fetch(apiURL('/api/auth/facebook'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accessToken:response.authResponse.accessToken,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Facebook authentication failed');const u=data.session?.user||data.user||{};applyAuthenticatedUser(u,'facebook');closeModal();toast('Signed in with Facebook.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Facebook authentication failed','warning');}}, {scope:'public_profile,email'});}
 async function restoreSession(){
-  if(CONFIG.demoMode)return;
+
+  if(CONFIG.demoMode) return;
+
   try{
-    const res=await fetch(apiURL('/api/auth/me'),{method:'GET',credentials:'include'});
+
+    const res=await fetch(
+      apiURL('/api/auth/me'),
+      {
+        method:'GET',
+        credentials:'include'
+      }
+    );
+
     if(res.ok){
+
       const data=await res.json();
-      if(data.user){state=normalizeState({...state,user:{...state.user,...data.user,authenticated:true},session:{authenticated:true,userId:data.user.id}});save();return;}
+
+      if(data.user){
+
+        applyAuthenticatedUser(
+          data.user,
+          data.user?.provider||'email'
+        );
+
+      }
+
+    }else if(res.status===401){
+
+      setGuest();
+
     }
-  }catch(e){console.warn('Session restore failed:',e.message);}
-  try{
-    const res=await fetch(apiURL('/api/admin/me'),{method:'GET',credentials:'include'});
-    if(res.ok){
-      const data=await res.json();
-      if(data.admin){state=normalizeState({...state,user:{id:data.admin.id,name:data.admin.name,email:data.admin.email,role:'admin',avatar:'',bio:'',authenticated:true,provider:'admin'},session:{authenticated:true,userId:data.admin.id}});save();return;}
-    }
-  }catch(e){console.warn('Admin session restore failed:',e.message);}
-  if(!isAuthenticated())setGuest();
+
+  }catch(e){
+
+    console.warn(
+      'Session restore failed:',
+      e.message
+    );
+
+  }
 }
 async function logout(){
   if(isAdmin()){return adminLogout();}
