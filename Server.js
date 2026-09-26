@@ -670,7 +670,10 @@ async function ensureFinanceSchema(){
 
   if(adminEmail && adminPassword){
     const existing=(await pool.query(
-      `SELECT id FROM platform_admins WHERE LOWER(email)=LOWER($1) LIMIT 1`,
+      `SELECT id,email,password_hash,display_name,active
+       FROM platform_admins
+       WHERE LOWER(email)=LOWER($1)
+       LIMIT 1`,
       [adminEmail]
     )).rows[0];
 
@@ -681,6 +684,29 @@ async function ensureFinanceSchema(){
          VALUES($1,$2,$3,TRUE)`,
         [adminEmail,hash,adminName]
       );
+    }else{
+      const passwordMatches=await bcrypt.compare(adminPassword,existing.password_hash);
+      const emailMatches=String(existing.email||'').trim().toLowerCase()===adminEmail;
+      const nameMatches=String(existing.display_name||'').trim()===adminName;
+      const needsPasswordUpdate=!passwordMatches;
+
+      let passwordHash=existing.password_hash;
+      if(needsPasswordUpdate){
+        passwordHash=await bcrypt.hash(adminPassword,12);
+      }
+
+      if(!emailMatches || !nameMatches || !existing.active || needsPasswordUpdate){
+        await pool.query(
+          `UPDATE platform_admins
+           SET email=$1,
+               password_hash=$2,
+               display_name=$3,
+               active=TRUE,
+               updated_at=NOW()
+           WHERE id=$4`,
+          [adminEmail,passwordHash,adminName,existing.id]
+        );
+      }
     }
   }
 }
