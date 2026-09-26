@@ -668,6 +668,12 @@ async function ensureFinanceSchema(){
   const adminPassword=String(process.env.ADMIN_PASSWORD||'');
   const adminName=String(process.env.ADMIN_NAME||'DioraLink Admin').trim() || 'DioraLink Admin';
 
+  console.log(
+    '[Finance admin bootstrap] emailConfigured=' + Boolean(adminEmail) +
+    ' passwordConfigured=' + Boolean(adminPassword) +
+    ' nameConfigured=' + Boolean(process.env.ADMIN_NAME)
+  );
+
   if(adminEmail && adminPassword){
     const existing=(await pool.query(
       `SELECT id,email,password_hash,display_name,active
@@ -774,7 +780,16 @@ app.post('/api/admin/login',asyncRoute(async(req,res)=>{
     [email]
   )).rows[0];
 
-  if(!admin || !admin.active || !(await bcrypt.compare(password,admin.password_hash))){
+  const passwordMatches=admin ? await bcrypt.compare(password,admin.password_hash) : false;
+
+  console.log(
+    '[Admin login diagnostic] email=' + email +
+    ' found=' + Boolean(admin) +
+    ' active=' + Boolean(admin?.active) +
+    ' passwordMatch=' + passwordMatches
+  );
+
+  if(!admin || !admin.active || !passwordMatches){
     return res.status(401).json({message:'Admin email or password is incorrect.'});
   }
 
