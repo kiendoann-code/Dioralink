@@ -73,11 +73,12 @@ function pageFor(pathname, artisans) {
 function renderDocument(template,page,artisans) {
   const url=ORIGIN+page.path;
   const schemas=page.index?[{'@type':'Organization','@id':ORIGIN+'/#organization',name:'DioraLink',url:ORIGIN+'/',description:'Nền tảng kết nối khách hàng và creator trong lĩnh vực diorama, miniature, custom figure và 3D creation.'},{'@type':'WebSite','@id':ORIGIN+'/#website',url:ORIGIN+'/',name:'DioraLink',inLanguage:'vi-VN',publisher:{'@id':ORIGIN+'/#organization'}},{'@type':'WebPage','@id':url+'#webpage',url,name:page.title,description:page.description,inLanguage:'vi-VN',isPartOf:{'@id':ORIGIN+'/#website'}},{'@type':'BreadcrumbList',itemListElement:page.breadcrumbs.map(([name,path],i)=>({'@type':'ListItem',position:i+1,name,item:ORIGIN+path}))}]:[];
+  if(page.index && page.structuredData)schemas.push(...page.structuredData);
   const head=`<title>${escapeHtml(page.title)}</title>\n<meta name="description" content="${escapeHtml(page.description)}">\n<meta name="robots" content="${page.index?'index,follow,max-image-preview:large':'noindex,follow'}">\n<link rel="canonical" href="${escapeHtml(url)}">\n<meta property="og:type" content="website"><meta property="og:locale" content="vi_VN"><meta property="og:site_name" content="DioraLink"><meta property="og:title" content="${escapeHtml(page.title)}"><meta property="og:description" content="${escapeHtml(page.description)}"><meta property="og:url" content="${escapeHtml(url)}">${page.image?`<meta property="og:image" content="${escapeHtml(new URL(page.image,ORIGIN).href)}">`:''}\n<meta name="twitter:card" content="summary">${schemas.length?`<script type="application/ld+json">${json({'@context':'https://schema.org','@graph':schemas})}</script>`:''}\n<script>window.DIORALINK_PUBLIC_PAGE=${json({route:page.route,path:page.path,status:page.status,artisans})};</script>`;
   const breadcrumb=page.index && page.path!=='/'?`<nav class="seo-breadcrumb" aria-label="Đường dẫn">${page.breadcrumbs.map(([name,path],i)=>i===page.breadcrumbs.length-1?`<span aria-current="page">${escapeHtml(name)}</span>`:`<a href="${path}">${escapeHtml(name)}</a><span aria-hidden="true"> / </span>`).join('')}</nav>`:'';
   return template.replace(/<title>[\s\S]*?<\/title>/,'').replace(/<meta name="description"[^>]*>/,'').replace('</head>',`${head}\n</head>`).replace('<main id="app" class="shell"></main>',()=>`<main id="app" class="shell">${breadcrumb}${page.html}</main>`);
 }
-function createSeoRouter({pool,indexFile,requireAuth}) {
+function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEntries}) {
   const router=express.Router();
   const template=fs.readFileSync(indexFile,'utf8');
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
@@ -120,6 +121,7 @@ function createSeoRouter({pool,indexFile,requireAuth}) {
     const artisans=await list();
     const paths=['/','/dich-vu','/nghe-nhan','/quy-trinh',...SERVICES.map(s=>'/dich-vu/'+s.slug)];
     const entries=paths.map(p=>`<url><loc>${ORIGIN+p}</loc></url>`).concat(artisans.map(a=>`<url><loc>${ORIGIN}/nghe-nhan/${a.slug}</loc><lastmod>${new Date(a.updatedAt).toISOString()}</lastmod></url>`));
+    if(getSitemapEntries)for(const item of await getSitemapEntries())entries.push(`<url><loc>${ORIGIN+escapeHtml(item.path)}</loc>${item.lastmod?`<lastmod>${new Date(item.lastmod).toISOString()}</lastmod>`:''}</url>`);
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries.join('')}</urlset>`);
   }));
   router.get(['/index.html','/home','/explore','/trust'],(req,res)=>res.redirect(301,({'/index.html':'/','/home':'/','/explore':'/nghe-nhan','/trust':'/quy-trinh'})[req.path]));
@@ -133,10 +135,11 @@ function createSeoRouter({pool,indexFile,requireAuth}) {
     if(req.path.length>1 && !req.path.startsWith('//') && req.path.endsWith('/')) return res.redirect(301,req.path.replace(/\/+$/,'')+(req.url.includes('?')?req.url.slice(req.url.indexOf('?')):''));
     let artisans;try{artisans=await list();}catch(error){console.error('Public catalog unavailable:',error.message);return res.status(503).set('Retry-After','120').set('X-Robots-Tag','noindex').type('html').send('<!doctype html><html lang="vi"><meta charset="utf-8"><title>DioraLink tạm thời gián đoạn</title><h1>Vui lòng thử lại sau ít phút.</h1></html>');}
     const page=pageFor(req.path,artisans);
+    if(req.path==='/' && getHomeSection){const block=await getHomeSection();page.html=page.html.replace('</div><section class="seo-section">',()=>'</div>'+block+'<section class="seo-section">');}
     if(!page.index)res.set('X-Robots-Tag','noindex');
     res.set('Cache-Control','no-cache').status(page.status).type('html').send(renderDocument(template,page,artisans));
   }));
   router.use((err,req,res,next)=>{console.error('SEO route error:',err.message);res.status(503).set('Retry-After','120').json({message:'Không thể tải hoặc lưu hồ sơ. Vui lòng thử lại.'});});
   return router;
 }
-module.exports={createSeoRouter,ensureSeoSchema,pageFor,renderDocument,sanitizeProfile,publicProfile,slugify,SERVICES};
+module.exports={createSeoRouter,ensureSeoSchema,pageFor,renderDocument,sanitizeProfile,publicProfile,slugify,SERVICES,safeImage};
