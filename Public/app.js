@@ -71,6 +71,7 @@ for (const profile of publicArtisans) {
   if(existing) Object.assign(existing,{...profile,...existing,slug:profile.slug});
   else state.artisans.push({...profile,verified:false,rating:0,reviews:0,completed:0});
 }
+const restoreAdminOnLoad=state.user?.role==='admin'||location.hash.startsWith('#admin-');
 if(!CONFIG.demoMode){ state.session={authenticated:false,userId:null}; state.user=clone(GUEST_USER); }
 let explore = {query:"",category:"all",budget:50000000};
 let mobileNavOpen = false;
@@ -197,7 +198,12 @@ function applyAuthenticatedUser(u,provider='email'){
   save();
 }
 
-function roleAfterLogin(role){ return role==='artisan'?'artisan-dashboard':'customer-dashboard'; }
+function roleAfterLogin(role){
+  const next=sessionStorage.getItem('dioralink_market_after_login');
+  if(next && role==='customer' && /^(market-checkout|market-order)\/[a-f0-9-]+$/.test(next)){sessionStorage.removeItem('dioralink_market_after_login');return next;}
+  if(next==='market-seller' && role==='artisan'){sessionStorage.removeItem('dioralink_market_after_login');return next;}
+  return role==='artisan'?'artisan-dashboard':'customer-dashboard';
+}
 function resetDemo(){ localStorage.removeItem(CONFIG.storageKey); state=clone(SEED); navigate('home'); toast('Workspace reset.','success'); }
 function money(n){ return new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0}).format(Number(n||0)); }
 function dateTime(v){ try{return new Date(v).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch{return v||''} }
@@ -219,15 +225,18 @@ function pill(s){
 }
 
 const NAV_PUBLIC=[
-  ['home','Home','house'],['services','Dịch vụ','layers'],['explore','Creators','compass'],['trust','Trust','badge-check']
+  ['home','Home','house'],['marketplace','Marketplace','store'],['services','Dịch vụ','layers'],['explore','Creators','compass'],['trust','Trust','badge-check']
 ];
 const NAV_CUSTOMER=[
+  ['marketplace','Marketplace','store'],['market-orders','Đơn mua','shopping-bag'],
   ['customer-dashboard','Dashboard','layout-dashboard'],['explore','Creators','compass'],['commission','New Commission','plus-circle'],['requests','Requests','file-text'],['projects','Projects','layers'],['messages','Messages','message-circle'],['saved','Saved','bookmark'],['account','Account','user']
 ];
 const NAV_ARTISAN=[
+  ['marketplace','Marketplace','store'],['market-seller','Gian hàng','package'],['market-sales','Đơn bán','shopping-bag'],
   ['artisan-dashboard','Dashboard','layout-dashboard'],['artisan-requests','Requests','inbox'],['artisan-proposals','Proposals','send'],['artisan-projects','Projects','layers'],['messages','Messages','message-circle'],['artisan-portfolio','Portfolio','images'],['artisan-earnings','Earnings','wallet-cards'],['account','Account','user']
 ];
 const NAV_ADMIN=[
+  ['marketplace','Marketplace','store'],['admin-market','Kinh doanh Marketplace','chart-column'],
   ['admin-dashboard','Finance','wallet-cards'],['admin-commissions','Commissions','receipt-text'],['admin-notifications','Notifications','bell']
 ];
 
@@ -237,7 +246,7 @@ function routeParts(){
 }
 function currentRoute(){ return routeParts()[0]; }
 function routeURL(route){
-  const paths={home:'/',explore:'/nghe-nhan',trust:'/quy-trinh',services:'/dich-vu'};
+  const paths={home:'/',explore:'/nghe-nhan',trust:'/quy-trinh',services:'/dich-vu',marketplace:'/marketplace'};
   if(paths[route]) return paths[route];
   if(route.startsWith('service/'))return '/dich-vu/'+encodeURIComponent(route.slice(8));
   if(route.startsWith('creator/')){
@@ -418,13 +427,15 @@ function render(){
   }
   document.querySelector('meta[name="robots"]')?.setAttribute('content','noindex,follow');
   const [route,param]=routeParts();
-  const protectedCustomer=['customer-dashboard','commission','requests','request','projects','project','saved','messages'];
+  if(!isAuthenticated() && ['market-checkout','market-order','market-seller'].includes(route))sessionStorage.setItem('dioralink_market_after_login',route+(param?'/'+param:''));
+  const protectedCustomer=['market-checkout','market-orders','customer-dashboard','commission','requests','request','projects','project','saved','messages'];
   if(protectedCustomer.includes(route) && !requireRole('customer')) return;
-  const protectedArtisan=['artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings'];
+  const protectedArtisan=['market-seller','market-sales','artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings'];
   if(protectedArtisan.includes(route) && !requireRole('artisan')) return;
-  const protectedAdmin=['admin-dashboard','admin-commissions','admin-notifications'];
+  const protectedAdmin=['admin-market','admin-market-order','admin-dashboard','admin-commissions','admin-notifications'];
   if(protectedAdmin.includes(route) && !requireAdmin()) return;
-  const map={home:renderHome,'customer-dashboard':renderCustomerDashboard,explore:renderExplore,creator:()=>renderCreator(param),commission:renderCommission,requests:renderRequests,request:()=>renderRequest(param),projects:renderProjects,project:()=>renderProject(param),messages:renderMessages,saved:renderSaved,account:renderAccount,trust:renderTrust,
+  if(route==='market-order' && !requireAuth())return;
+  const map={'market-checkout':()=>renderMarketCheckout(param),'market-orders':()=>renderMarketOrders(false),'market-sales':()=>renderMarketOrders(true),'market-order':()=>renderMarketOrder(param),'market-seller':renderMarketSeller,'admin-market':renderMarketAdmin,'admin-market-order':()=>renderMarketOrder(param,true),home:renderHome,'customer-dashboard':renderCustomerDashboard,explore:renderExplore,creator:()=>renderCreator(param),commission:renderCommission,requests:renderRequests,request:()=>renderRequest(param),projects:renderProjects,project:()=>renderProject(param),messages:renderMessages,saved:renderSaved,account:renderAccount,trust:renderTrust,
     'artisan-dashboard':renderArtisanDashboard,'artisan-requests':renderArtisanRequests,'artisan-request':()=>renderArtisanRequest(param),'artisan-proposals':renderArtisanProposals,'artisan-projects':renderArtisanProjects,'artisan-project':()=>renderArtisanProject(param),'artisan-portfolio':renderArtisanPortfolio,'artisan-earnings':renderArtisanEarnings,
     'admin-dashboard':renderAdminDashboard,'admin-commissions':renderAdminCommissions,'admin-notifications':renderAdminNotifications};
   (map[route]||renderHome)();
@@ -771,7 +782,7 @@ function adminStatus(status){
   return `<span class="pill ${status==='collected'?'pill-success':'pill-warning'}">${esc(status==='collected'?'Collected':'Unpaid')}</span>`;
 }
 async function renderAdminDashboard(){
-  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Admin</div><div class="section-title">PLATFORM FINANCE</div></div><button class="btn btn-sm" onclick="renderAdminDashboard()">Refresh</button></div><div id="admin-finance-content"><div class="empty">Loading finance...</div></div></section>`;
+  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Admin</div><div class="section-title">PLATFORM FINANCE</div></div><div class="wrap"><a class="btn btn-mint" href="/ung-dung#admin-market">Kinh doanh Marketplace</a><button class="btn btn-sm" onclick="renderAdminDashboard()">Refresh</button></div></div><div id="admin-finance-content"><div class="empty">Loading finance...</div></div></section>`;
   try{const data=await loadAdminFinance();const c=data.summary||{};document.getElementById('admin-finance-content').innerHTML=`<div class="grid four"><div class="card metric"><div class="n">${money(c.gross||0)}</div><div class="k">Gross transaction value</div></div><div class="card metric"><div class="n">${money(c.platformFee||0)}</div><div class="k">Platform commission</div></div><div class="card metric"><div class="n">${money(c.unpaid||0)}</div><div class="k">Commission unpaid</div></div><div class="card metric"><div class="n">${money(c.collected||0)}</div><div class="k">Commission collected</div></div></div><div class="card pad" style="margin-top:16px"><div class="between"><div><div class="eyebrow">Latest transactions</div><div class="section-title" style="font-size:29px">COMMISSION LEDGER</div></div><button class="btn btn-sm btn-mint" onclick="navigate('admin-commissions')">View all</button></div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Artist</th><th>Project</th><th>Gross</th><th>Rate</th><th>Platform fee</th><th>Confirmed</th><th>Status</th></tr></thead><tbody>${(data.commissions||[]).slice(0,10).map(x=>`<tr><td>${esc(x.artist_name||'—')}</td><td>${esc(x.project_title||x.project_ref||'—')}</td><td>${money(x.gross_amount)}</td><td>${Number(x.commission_rate||0)}%</td><td>${money(x.platform_fee)}</td><td>${x.confirmed_at?dateTime(x.confirmed_at):'—'}</td><td>${adminStatus(x.status)}</td></tr>`).join('')||'<tr><td colspan="7">No commission records yet.</td></tr>'}</tbody></table></div></div></div>`;}catch(e){document.getElementById('admin-finance-content').innerHTML=`<div class="empty">${esc(e.message||'Unable to load finance.')}</div>`;}
 }
 async function renderAdminCommissions(){
@@ -1269,6 +1280,10 @@ async function restoreSession(){
 
   try{
 
+    if(restoreAdminOnLoad){
+      const ar=await adminApi('/api/admin/me');
+      if(ar.ok){const d=await ar.json();if(d.admin){state.user={...d.admin,role:'admin',authenticated:true,provider:'admin'};state.session={authenticated:true,userId:d.admin.id};save();return;}}
+    }
     const res=await fetch(
       apiURL('/api/auth/me'),
       {

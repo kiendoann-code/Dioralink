@@ -83,6 +83,7 @@ const pool = new Pool(
 const PUBLIC_DIR = path.join(__dirname, "Public");
 const INDEX_FILE = path.join(PUBLIC_DIR, "index.html");
 const { createSeoRouter, ensureSeoSchema } = require("./seo");
+const { createMarketplace, ensureMarketplaceSchema } = require("./marketplace");
 
 const COOKIE_NAME = "dioralink_session";
 
@@ -1223,7 +1224,9 @@ app.get('/index.html', (_req, res) => res.redirect(301, '/'));
 app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '1h', setHeaders(res, filePath) {
   if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
 } }));
-app.use(createSeoRouter({ pool, indexFile: INDEX_FILE, requireAuth }));
+const marketplace = createMarketplace({ pool, indexFile: INDEX_FILE, requireAuth, requireAdmin: requireFinanceAdmin });
+app.use(marketplace.router);
+app.use(createSeoRouter({ pool, indexFile: INDEX_FILE, requireAuth, getHomeSection: marketplace.getHomeSection, getSitemapEntries: marketplace.getSitemapEntries }));
 
 /* =========================
    API 404
@@ -1283,6 +1286,7 @@ async function start() {
     `);
 
     await ensureSeoSchema(pool);
+    await ensureMarketplaceSchema(pool);
     console.log("Database schema: OK");
 
     app.post("/api/auth/logout", (req, res) => {
