@@ -82,6 +82,7 @@ const pool = new Pool(
 
 const PUBLIC_DIR = path.join(__dirname, "Public");
 const INDEX_FILE = path.join(PUBLIC_DIR, "index.html");
+const { createSeoRouter, ensureSeoSchema } = require("./seo");
 
 const COOKIE_NAME = "dioralink_session";
 
@@ -1217,11 +1218,12 @@ app.post('/api/admin/commissions/:id/collect',requireFinanceAdmin,asyncRoute(asy
   res.json({commission:result.rows[0],message:'Commission marked as collected.'});
 }));
 
-/* ====================== END PLATFORM COMMISSION V2 ====================== */app.use(express.static(PUBLIC_DIR));
-
-app.get(/^\/(?!api\/).*/, (req, res) => {
-  res.sendFile(INDEX_FILE);
-});
+/* Public pages are rendered on the server; private workspace remains a SPA. */
+app.get('/index.html', (_req, res) => res.redirect(301, '/'));
+app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '1h', setHeaders(res, filePath) {
+  if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+} }));
+app.use(createSeoRouter({ pool, indexFile: INDEX_FILE, requireAuth }));
 
 /* =========================
    API 404
@@ -1280,6 +1282,7 @@ async function start() {
       ON users (LOWER(email));
     `);
 
+    await ensureSeoSchema(pool);
     console.log("Database schema: OK");
 
     app.post("/api/auth/logout", (req, res) => {
@@ -1324,6 +1327,7 @@ app.listen(PORT, "0.0.0.0", () => {
 }
 
 start();
+
 
 
 
