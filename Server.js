@@ -25,7 +25,7 @@ if (!JWT_SECRET) {
 
 app.set("trust proxy", 1);
 
-app.use(express.json({ limit: "6mb" }));
+app.use(express.json({ limit: "18mb" }));
 app.use(cookieParser());
 /* =========================================================
    AUTH â€” LOGOUT (EARLY ROUTE)
@@ -82,7 +82,7 @@ const pool = new Pool(
 
 const PUBLIC_DIR = path.join(__dirname, "Public");
 const INDEX_FILE = path.join(PUBLIC_DIR, "index.html");
-const { createSeoRouter, ensureSeoSchema } = require("./seo");
+const { createSeoRouter, ensureSeoSchema, safeImage } = require("./seo");
 const { createMarketplace, ensureMarketplaceSchema } = require("./marketplace");
 
 const COOKIE_NAME = "dioralink_session";
@@ -909,6 +909,19 @@ function financeText(value,max=200){
   return String(value ?? '').trim().slice(0,max);
 }
 
+function complaintMedia(value){
+  if(typeof value!=='string' || !value)return '';
+  if(value.startsWith('data:image/'))return safeImage(value);
+  const match=value.match(/^data:video\/(mp4|webm);base64,([A-Za-z0-9+/]+=*)$/);
+  if(!match)throw Object.assign(new Error('Bằng chứng chỉ hỗ trợ ảnh JPEG/PNG/WebP hoặc video MP4/WebM.'),{status:400});
+  const bytes=Buffer.from(match[2],'base64');
+  if(bytes.length>4*1024*1024)throw Object.assign(new Error('Mỗi video bằng chứng tối đa 4 MB.'),{status:400});
+  const validMp4=match[1]==='mp4' && bytes.length>12 && bytes.toString('ascii',4,8)==='ftyp';
+  const validWebm=match[1]==='webm' && bytes.length>4 && bytes[0]===0x1a && bytes[1]===0x45 && bytes[2]===0xdf && bytes[3]===0xa3;
+  if(!validMp4&&!validWebm)throw Object.assign(new Error('Video bằng chứng không hợp lệ.'),{status:400});
+  return value;
+}
+
 function financeMoney(value){
   const n=Number(value);
   if(!Number.isFinite(n) || n <= 0){
@@ -970,6 +983,27 @@ async function ensureFinanceSchema(){
       read_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS platform_complaints (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      complainant_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      complainant_role TEXT NOT NULL CHECK(complainant_role IN ('customer','artisan')),
+      subject_type TEXT NOT NULL CHECK(subject_type IN ('commission_request','commission_project','marketplace_order')),
+      subject_ref TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      evidence JSONB NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+      admin_note TEXT NOT NULL DEFAULT '',
+      reviewed_by UUID REFERENCES platform_admins(id) ON DELETE SET NULL,
+      reviewed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_platform_complaints_user
+      ON platform_complaints(complainant_user_id,created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_platform_complaints_status
+      ON platform_complaints(status,created_at DESC);
 
     CREATE INDEX IF NOT EXISTS idx_platform_commissions_artisan
       ON platform_commissions(artisan_user_id,confirmed_at DESC);
@@ -1291,6 +1325,110 @@ app.post('/api/admin/notifications/:id/read',requireFinanceAdmin,asyncRoute(asyn
     [req.params.id,req.admin.id]
   );
   res.json({message:'Notification marked as read.'});
+}));
+
+app.post('/api/complaints',requireAuth,asyncRoute(async(req,res)=>{
+  await ensureFinanceSchema();
+  if(!['customer','artisan'].includes(req.user.role)){
+    return res.status(403).json({message:'Chỉ Khách hàng hoặc Nghệ nhân có thể gửi khiếu nại.'});
+  }
+
+  const subjectType=financeText(req.body?.subjectType,40);
+  const subjectRef=financeText(req.body?.subjectRef,120);
+  const reason=financeText(req.body?.reason,3000);
+  const rawEvidence=Array.isArray(req.body?.evidence)?req.body.evidence.slice(0,3):[];
+
+  if(!['commission_request','commission_project','marketplace_order'].includes(subjectType)){
+    return res.status(400).json({message:'Loại khiếu nại không hợp lệ.'});
+  }
+  if(!subjectRef)return res.status(400).json({message:'Thiếu mã yêu cầu/đơn hàng.'});
+  if(reason.length<20)return res.status(400).json({message:'Lý do khiếu nại cần ít nhất 20 ký tự.'});
+  if(!rawEvidence.length)return res.status(400).json({message:'Vui lòng đính kèm ít nhất một ảnh hoặc video bằng chứng.'});
+
+  const evidence=rawEvidence.map(complaintMedia);
+
+  if(subjectType==='marketplace_order'){
+    const order=(await pool.query(
+      'SELECT buyer_id,seller_id FROM market_orders WHERE id=$1 LIMIT 1',
+      [subjectRef]
+    )).rows[0];
+    if(!order || (order.buyer_id!==req.user.id && order.seller_id!==req.user.id)){
+      return res.status(404).json({message:'Không tìm thấy đơn hàng thuộc tài khoản của bạn.'});
+    }
+  }
+
+  const complaint=(await pool.query(
+    `INSERT INTO platform_complaints(
+       complainant_user_id,complainant_role,subject_type,subject_ref,reason,evidence
+     ) VALUES($1,$2,$3,$4,$5,$6)
+     RETURNING *`,
+    [req.user.id,req.user.role,subjectType,subjectRef,reason,JSON.stringify(evidence)]
+  )).rows[0];
+
+  const admins=(await pool.query('SELECT id FROM platform_admins WHERE active=TRUE')).rows;
+  for(const admin of admins){
+    await pool.query(
+      `INSERT INTO admin_notifications(admin_id,title,body,route)
+       VALUES($1,$2,$3,$4)`,
+      [
+        admin.id,
+        'Khiếu nại mới',
+        `${req.user.name} gửi khiếu nại cho ${subjectType} ${subjectRef}.`,
+        'admin-complaints'
+      ]
+    );
+  }
+
+  res.status(201).json({complaint,message:'Đã gửi khiếu nại để DioraLink xét duyệt.'});
+}));
+
+app.get('/api/complaints/mine',requireAuth,asyncRoute(async(req,res)=>{
+  await ensureFinanceSchema();
+  const complaints=(await pool.query(
+    `SELECT id,complainant_role,subject_type,subject_ref,reason,evidence,status,admin_note,reviewed_at,created_at
+     FROM platform_complaints
+     WHERE complainant_user_id=$1
+     ORDER BY created_at DESC
+     LIMIT 100`,
+    [req.user.id]
+  )).rows;
+  res.json({complaints});
+}));
+
+app.get('/api/admin/complaints',requireFinanceAdmin,asyncRoute(async(req,res)=>{
+  await ensureFinanceSchema();
+  const status=financeText(req.query?.status,20);
+  const complaints=(await pool.query(
+    `SELECT pc.*,u.name AS complainant_name,u.email AS complainant_email
+     FROM platform_complaints pc
+     JOIN users u ON u.id=pc.complainant_user_id
+     WHERE ($1='' OR pc.status=$1)
+     ORDER BY pc.created_at DESC
+     LIMIT 200`,
+    [status]
+  )).rows;
+  res.json({complaints});
+}));
+
+app.post('/api/admin/complaints/:id/review',requireFinanceAdmin,asyncRoute(async(req,res)=>{
+  await ensureFinanceSchema();
+  const status=financeText(req.body?.status,20);
+  const note=financeText(req.body?.note,3000);
+  if(!['approved','rejected'].includes(status)){
+    return res.status(400).json({message:'Trạng thái xét duyệt không hợp lệ.'});
+  }
+  if(note.length<10){
+    return res.status(400).json({message:'Vui lòng ghi kết luận xét duyệt ít nhất 10 ký tự.'});
+  }
+  const complaint=(await pool.query(
+    `UPDATE platform_complaints
+     SET status=$2,admin_note=$3,reviewed_by=$4,reviewed_at=NOW(),updated_at=NOW()
+     WHERE id=$1
+     RETURNING *`,
+    [req.params.id,status,note,req.admin.id]
+  )).rows[0];
+  if(!complaint)return res.status(404).json({message:'Không tìm thấy khiếu nại.'});
+  res.json({complaint,message:'Đã cập nhật kết quả xét duyệt.'});
 }));
 
 app.post('/api/admin/commissions/:id/collect',requireFinanceAdmin,asyncRoute(async(req,res)=>{
