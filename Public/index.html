@@ -189,6 +189,10 @@
     .nav-menu-item:hover,.nav-menu-item.active{background:rgba(129,216,208,.10);color:var(--white)}
     button.nav-menu-item{border:0;background:transparent;text-align:left;cursor:pointer}
     .role-switch-action{color:var(--mint);font-weight:850}
+    .complaint-media-grid{margin-top:12px}
+    .complaint-media,.market-evidence-video{display:block;width:100%;height:180px;object-fit:cover;border:1px solid var(--line);background:#071e29;border-radius:6px}
+    video.complaint-media,.market-evidence-video{object-fit:contain}
+    @media(max-width:600px){.complaint-media,.market-evidence-video{height:150px}}
     .header-menu-divider{height:1px;background:var(--line);margin:8px 4px}
     .profile-public-link{color:var(--mint)}
     .artisan-profile-shortcut{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:16px}
@@ -301,8 +305,8 @@
   <div class="shell" style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><span>© 2026 DioraLink</span><span>All rights reserved.</span></div>
 </footer>
 
-<script src="/marketplace.js?v=20261005-2" defer></script>
-<script src="/app.js?v=roles-20261005-1" defer></script>
+<script src="/marketplace.js?v=complaints-20261005-1" defer></script>
+<script src="/app.js?v=complaints-20261005-1" defer></script>
 </body>
 </html>
 
