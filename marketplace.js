@@ -32,6 +32,20 @@ async function ensureMarketplaceSchema(pool){
 }
 function settingsInput(b){const s={bank_name:text(b.bank_name,120),account_name:text(b.account_name,150),account_number:text(b.account_number,40),allow_transfer:b.allow_transfer===true,allow_cod:b.allow_cod===true};if(s.allow_transfer&&(!s.bank_name||!s.account_name||!/^\d{6,30}$/.test(s.account_number)))fail('Điền đầy đủ ngân hàng, chủ tài khoản và số tài khoản để nhận chuyển khoản.');if(!s.allow_transfer&&!s.allow_cod)fail('Chọn ít nhất một phương thức thanh toán.');return s;}
 function marketImage(value){try{const image=safeImage(value);if(!image)fail('Ảnh không được để trống.');return image;}catch(e){fail(e.message);}}
+function marketEvidence(value){
+ try{
+  if(typeof value!=='string'||!value)fail('Bằng chứng không hợp lệ.');
+  if(value.startsWith('data:image/'))return marketImage(value);
+  const m=value.match(/^data:video\/(mp4|webm);base64,([A-Za-z0-9+/]+=*)$/);
+  if(!m)fail('Bằng chứng hỗ trợ ảnh JPEG/PNG/WebP hoặc video MP4/WebM.');
+  const bytes=Buffer.from(m[2],'base64');
+  if(bytes.length>4*1024*1024)fail('Mỗi video bằng chứng tối đa 4 MB.');
+  const mp4=m[1]==='mp4'&&bytes.length>12&&bytes.toString('ascii',4,8)==='ftyp';
+  const webm=m[1]==='webm'&&bytes.length>4&&bytes[0]===0x1a&&bytes[1]===0x45&&bytes[2]===0xdf&&bytes[3]===0xa3;
+  if(!mp4&&!webm)fail('Video bằng chứng không hợp lệ.');
+  return value;
+ }catch(e){fail(e.message);}
+}
 function productInput(b){
  const p={title:text(b.title,160),description:text(b.description,6000),category:text(b.category,60),condition:text(b.condition,120),price:integer(b.price,1,1e9,'Giá'),shipping_fee:integer(b.shipping_fee,0,1e7,'Phí vận chuyển'),stock:integer(b.stock,0,100000,'Tồn kho'),images:[],status:['draft','active','hidden'].includes(b.status)?b.status:'draft'};
  if(p.title.length<4||p.description.length<30||!p.category||!p.condition)fail('Điền tên, mô tả ít nhất 30 ký tự, loại sản phẩm và tình trạng.');
@@ -48,7 +62,7 @@ async function changeOrder(c,o,actor,action,b={}){
  const isAdmin=actor.role==='admin',seller=actor.id===o.seller_id&&actor.role==='artisan',buyer=!isAdmin&&actor.id===o.buyer_id;
  if(!isAdmin&&!seller&&!buyer)fail('Bạn không có quyền xem đơn này.',404);
  const note=text(b.note,3000),ref=text(b.reference,200);
- const evidence=Array.isArray(b.evidence)?b.evidence.slice(0,3).map(marketImage):[];
+ const evidence=Array.isArray(b.evidence)?b.evidence.slice(0,3).map(marketEvidence):[];
  const need=(ok,msg='Thao tác không phù hợp với trạng thái hoặc quyền của bạn.')=>{if(!ok)fail(msg,409);};
  if(o.dispute_open&&!['comment','resolve_continue','refund','refund_sent','confirm_refund','admin_confirm_refund','cancel_unpaid'].includes(action))fail('Đơn đang có tranh chấp. Vui lòng xử lý trong mục hỗ trợ.',409);
  switch(action){
@@ -59,7 +73,7 @@ async function changeOrder(c,o,actor,action,b={}){
   case 'ship':need(seller&&o.status==='accepted');need(o.payment_method==='cod'||o.payment_status==='received','Phải xác nhận nhận tiền trước khi giao đơn chuyển khoản.');need(/^[a-zA-Z0-9-]{6,50}$/.test(b.tracking_number||''),'Nhập mã vận đơn SPX gồm 6–50 ký tự chữ/số/dấu gạch.');o.tracking_number=b.tracking_number.toUpperCase();o.status='shipped';break;
   case 'receive':need(buyer&&o.status==='shipped');o.status=o.payment_method==='transfer'?'completed':'delivered';if(o.status==='completed')o.completed_at=new Date();break;
   case 'cod_received':need(seller&&o.status==='delivered'&&o.payment_method==='cod');need(ref.length>=3,'Ghi mã đối soát tiền COD từ SPX.');o.payment_status='cod_received';o.status='completed';o.completed_at=new Date();break;
-  case 'dispute':need((buyer||seller)&&!['cancelled','refunded','refund_pending'].includes(o.status));need(note.length>=20,'Mô tả tranh chấp tối thiểu 20 ký tự.');o.dispute_open=true;break;
+  case 'dispute':need((buyer||seller)&&!['cancelled','refunded','refund_pending'].includes(o.status));need(note.length>=20,'Mô tả tranh chấp tối thiểu 20 ký tự.');need(evidence.length>0,'Vui lòng đính kèm ít nhất một ảnh hoặc video bằng chứng.');o.dispute_open=true;break;
   case 'comment':need(note.length>=2||evidence.length>0,'Nhập nội dung hoặc chứng cứ.');break;
   case 'resolve_continue':need(isAdmin&&o.dispute_open&&o.status!=='refund_pending');need(note.length>=20,'Ghi căn cứ xử lý ít nhất 20 ký tự.');o.dispute_open=false;break;
   case 'cancel_unpaid':need(isAdmin&&o.dispute_open&&['pending','accepted'].includes(o.status)&&['pending','awaiting_cod'].includes(o.payment_status));need(note.length>=20,'Ghi căn cứ xử lý ít nhất 20 ký tự.');o.status='cancelled';o.dispute_open=false;await releaseStock(c,o);break;
