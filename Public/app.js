@@ -312,11 +312,11 @@ function renderTopNav(){
 
     top.innerHTML=`
       ${visible.map(x=>headerTab(...x)).join('')}
-      <div class="radio-menu-wrap">
-        <button id="desktop-nav-trigger" class="radio-nav-item radio-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false" onclick="toggleDesktopNavMenu()">
+      <details class="radio-menu-wrap">
+        <summary class="radio-nav-item radio-menu-trigger" aria-label="Mở menu">
           <span class="radio-nav-label"><i data-lucide="menu"></i>Menu<i data-lucide="chevron-down" class="header-menu-chevron"></i></span>
-        </button>
-        <div id="desktop-nav-menu" class="header-menu-dropdown" hidden>
+        </summary>
+        <div class="header-menu-dropdown">
           <div class="header-menu-title">${isAdmin()?'Admin':isCustomer()?t('Customer'):t('Artisan')}</div>
           ${secondary.map(x=>navMenuItem(...x)).join('')}
           ${isArtisan()?(() => {
@@ -326,7 +326,7 @@ function renderTopNav(){
               ${me?.slug?`<a class="nav-menu-item profile-public-link" href="/nghe-nhan/${esc(me.slug)}"><i data-lucide="external-link"></i><span>Xem hồ sơ công khai</span></a>`:''}`;
           })():''}
         </div>
-      </div>`;
+      </details>`;
   }
 
   const mobile=document.getElementById('mobile-nav');
@@ -961,10 +961,6 @@ async function saveProfile(e){
   }
 }
 function openAccountMenu(){if(!isAuthenticated()){openAuthModal('login');return;}navigate('account');}
-document.addEventListener('click',event=>{
-  const wrap=event.target.closest?.('.header-menu-wrap');
-  if(!wrap)closeDesktopNavMenu();
-});
 function openChangePassword(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><div class="eyebrow">Security</div><b>Change password</b></div><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><form onsubmit="changePassword(event)"><div class="label">Current password</div><input class="field" name="currentPassword" type="password" autocomplete="current-password" minlength="8" required><div style="margin-top:12px"><div class="label">New password</div><input class="field" name="newPassword" type="password" autocomplete="new-password" minlength="8" required></div><div style="margin-top:12px"><div class="label">Confirm new password</div><input class="field" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required></div><button id="change-password-submit" class="btn btn-mint" style="width:100%;margin-top:16px">Update password</button></form></div></div></div>`;window.lucide?.createIcons();}
 async function changePassword(e){e.preventDefault();if(!requireAuth())return;const fd=new FormData(e.target);const current=String(fd.get('currentPassword')||'');const next=String(fd.get('newPassword')||'');const confirm=String(fd.get('confirmPassword')||'');if(next.length<8){toast('Password must be at least 8 characters.','warning');return;}if(next!==confirm){toast('New passwords do not match.','warning');return;}const submit=document.getElementById('change-password-submit');if(submit){submit.disabled=true;submit.textContent='Updating...';}try{if(CONFIG.demoMode){state.authPasswords=state.authPasswords||{};const key=state.user.email.toLowerCase();const existing=state.authPasswords[key];if(existing&&existing!==current)throw new Error('Current password is incorrect.');state.authPasswords[key]=next;save();closeModal();toast('Password updated.','success');return;}const res=await fetch(apiURL('/api/auth/change-password'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({currentPassword:current,newPassword:next})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.message||'Unable to update password.');closeModal();toast('Password updated.','success');}catch(error){toast(error.message||'Unable to update password.','warning');}finally{if(submit){submit.disabled=false;submit.textContent='Update password';}}}
 
