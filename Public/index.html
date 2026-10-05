@@ -169,8 +169,14 @@
     .radio-nav-item .pos-name{left:-10px;border-bottom-right-radius:300px;box-shadow:3px 3px 0 3px #eef6f1}
     .radio-nav-item.active .pre-name,.radio-nav-item.active .pos-name{opacity:1}
     .radio-menu-wrap{position:relative;display:flex}
+    .radio-menu-wrap>summary{list-style:none}
+    .radio-menu-wrap>summary::-webkit-details-marker{display:none}
     .radio-menu-trigger{font:inherit}
-    .header-menu-dropdown{top:calc(100% + 8px);right:0}
+    .radio-menu-wrap[open]>.radio-menu-trigger{background:#eef6f1;color:#0b2a31}
+    .radio-menu-wrap[open] .header-menu-chevron{transform:rotate(180deg)}
+    .header-menu-chevron{transition:transform .16s ease}
+    .header-menu-dropdown{display:none;position:absolute;top:calc(100% + 8px);right:0;width:290px;max-height:min(70vh,560px);overflow:auto;padding:9px;background:#0A2731;border:1px solid rgba(129,216,208,.20);border-radius:8px;box-shadow:0 24px 60px rgba(0,0,0,.38);z-index:200}
+    .radio-menu-wrap[open]>.header-menu-dropdown{display:block}
     @media(max-width:1240px){.radio-nav-label{padding:9px 9px;letter-spacing:.05em}.brand{min-width:180px}.header-inner{gap:10px}}
 
     .header-menu-wrap{position:relative;display:flex;align-items:center}
@@ -294,7 +300,7 @@
 </footer>
 
 <script src="/marketplace.js?v=20261005-2" defer></script>
-<script src="/app.js?v=header-20261005-2" defer></script>
+<script src="/app.js?v=header-20261005-3" defer></script>
 </body>
 </html>
 
