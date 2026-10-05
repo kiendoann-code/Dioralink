@@ -186,6 +186,10 @@ function applyAuthenticatedUser(u,provider='email'){
     provider:provider||u?.provider||'email'
   };
 
+  if(!Array.isArray(state.user.roles)||!state.user.roles.length){
+    state.user.roles=[state.user.role].filter(Boolean);
+  }
+
   state.session={
     authenticated:true,
     userId:state.user.id
@@ -215,6 +219,7 @@ function projectById(id){ return state.projects.find(p=>p.id===id); }
 function customerById(id){ return id===SEED.user.id ? SEED.user : (id==='USR-CUSTOMER-01' ? {name:'Quá»³nh Anh',avatar:SEED.user.avatar,email:'quynhanh@example.com'} : {name:'Customer',avatar:'',email:''}); }
 function isAdmin(){ return state.user?.role==='admin' && state.session?.authenticated===true; }
 function currentRole(){ return state.user?.role||'guest'; }
+function hasRole(role){ return Array.isArray(state.user?.roles)?state.user.roles.includes(role):currentRole()===role; }
 function isCustomer(){ return currentRole()==='customer'; }
 function isArtisan(){ return currentRole()==='artisan'; }
 function requireAdmin(){ if(isAdmin()) return true; openAdminLogin(); return false; }
@@ -324,6 +329,12 @@ function renderTopNav(){
             return `<div class="header-menu-divider"></div>
               <a class="nav-menu-item profile-public-link" href="/ung-dung#artisan-portfolio"><i data-lucide="user-round-cog"></i><span>Chỉnh sửa hồ sơ của tôi</span></a>
               ${me?.slug?`<a class="nav-menu-item profile-public-link" href="/nghe-nhan/${esc(me.slug)}"><i data-lucide="external-link"></i><span>Xem hồ sơ công khai</span></a>`:''}`;
+          })():''}
+          ${!isAdmin()?(() => {
+            const other=isCustomer()?'artisan':'customer';
+            const enabled=hasRole(other);
+            const label=other==='artisan'?'Nghệ nhân':'Khách hàng';
+            return `<div class="header-menu-divider"></div><button class="nav-menu-item role-switch-action" type="button" onclick="activateRole('${other}',${enabled?'false':'true'})"><i data-lucide="${enabled?'repeat-2':'user-plus'}"></i><span>${enabled?'Chuyển sang ':'Trở thành '}${label}</span></button>`;
           })():''}
         </div>
       </details>`;
@@ -880,7 +891,7 @@ function toast(message,type='success'){const el=document.createElement('div');el
 
 function renderAccount(){
   if(!isAuthenticated()){document.getElementById('app').innerHTML=`<section class="page"><div class="auth-grid"><div class="auth-brand"><div class="eyebrow">Account</div><div class="section-title" style="font-size:54px;margin-top:12px">WELCOME BACK.<br><span style="color:var(--mint)">BUILD WITH DIORALINK.</span></div><div class="hero-cta"><button class="btn btn-mint" onclick="openAuthModal('login')">Sign in</button><button class="btn" onclick="openAuthModal('register')">Register</button></div></div><div class="card pad"><div class="eyebrow">Access</div><div class="section-title" style="font-size:34px;margin-top:10px">ACCOUNT ACCESS</div><div class="wrap" style="margin-top:14px"><span class="pill">Customer</span><span class="pill">Artisan</span></div><div class="divider"></div><div class="small muted">Email, Google or Facebook</div></div></div></section>`;return;}
-  const isA=isArtisan();const artisanProfile=isA?artisanById(state.user.artisanId):null;document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Account</div><div class="section-title">PROFILE & SETTINGS</div></div><div class="wrap"><span class="role-badge">${isA?'Artisan':'Customer'}</span><button class="btn btn-danger" onclick="logout()">Logout</button></div></div>${isA?`<div class="card pad artisan-profile-shortcut"><div><div class="eyebrow">Hồ sơ nghệ nhân</div><div class="section-title" style="font-size:30px;margin-bottom:6px">STUDIO CỦA BẠN</div><p class="small muted">${artisanProfile?.slug?'Hồ sơ đang công khai trên DioraLink.':'Hoàn thiện portfolio và công khai để khách hàng có thể tìm thấy bạn.'}</p></div><div class="wrap"><button class="btn btn-mint" onclick="navigate('artisan-portfolio')">Chỉnh sửa hồ sơ nghệ nhân</button>${artisanProfile?.slug?`<a class="btn" href="/nghe-nhan/${esc(artisanProfile.slug)}">Xem hồ sơ công khai</a>`:''}</div></div>`:''}<div class="grid two"><form class="card pad" onsubmit="saveProfile(event)"><div class="avatar-editor"><img id="profile-avatar-preview" class="avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}><div><div class="display" style="font-size:29px;text-transform:uppercase">${esc(state.user.name)}</div><div class="small muted">${esc(state.user.email)} · ${esc(state.user.provider||'email')}</div><label class="file-input-label" style="margin-top:8px"><i data-lucide="camera" style="width:14px"></i> Change avatar<input id="profile-avatar-file" name="avatarFile" type="file" accept="image/*" style="display:none" onchange="previewAvatarFile(this)"></label></div></div><div class="grid two" style="margin-top:16px"><div><div class="label">Name</div><input class="field" name="name" value="${esc(state.user.name)}" required></div><div><div class="label">Phone</div><input class="field" name="phone" value="${esc(state.user.phone||'')}"></div></div><div style="margin-top:12px"><div class="label">City</div><input class="field" name="city" value="${esc(state.user.city||'')}"></div><div style="margin-top:12px"><div class="label">Bio</div><textarea class="field" name="bio">${esc(state.user.bio||'')}</textarea></div><button class="btn btn-mint" style="margin-top:14px">Save changes</button></form><div class="card pad"><div class="eyebrow">Security</div><div class="section-title" style="font-size:31px">ACCOUNT SECURITY</div><div class="grid two" style="margin-top:14px"><div class="card-soft pad"><div class="label">Role</div><b>${isA?'Artisan':'Customer'}</b></div><div class="card-soft pad"><div class="label">Provider</div><b>${esc(state.user.provider||'email')}</b></div></div><div class="divider"></div><button class="btn" style="width:100%" onclick="openChangePassword()">Change password</button><button class="btn btn-danger" style="width:100%;margin-top:8px" onclick="logout()">Log out</button></div></div></section>`;window.lucide?.createIcons();
+  const isA=isArtisan();const artisanProfile=isA?artisanById(state.user.artisanId):null;document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Account</div><div class="section-title">PROFILE & SETTINGS</div></div><div class="wrap"><span class="role-badge">${isA?'Artisan':'Customer'}</span><button class="btn btn-danger" onclick="logout()">Logout</button></div></div>${isA?`<div class="card pad artisan-profile-shortcut"><div><div class="eyebrow">Hồ sơ nghệ nhân</div><div class="section-title" style="font-size:30px;margin-bottom:6px">STUDIO CỦA BẠN</div><p class="small muted">${artisanProfile?.slug?'Hồ sơ đang công khai trên DioraLink.':'Hoàn thiện portfolio và công khai để khách hàng có thể tìm thấy bạn.'}</p></div><div class="wrap"><button class="btn btn-mint" onclick="navigate('artisan-portfolio')">Chỉnh sửa hồ sơ nghệ nhân</button>${artisanProfile?.slug?`<a class="btn" href="/nghe-nhan/${esc(artisanProfile.slug)}">Xem hồ sơ công khai</a>`:''}</div></div>`:''}<div class="grid two"><form class="card pad" onsubmit="saveProfile(event)"><div class="avatar-editor"><img id="profile-avatar-preview" class="avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}><div><div class="display" style="font-size:29px;text-transform:uppercase">${esc(state.user.name)}</div><div class="small muted">${esc(state.user.email)} · ${esc(state.user.provider||'email')}</div><label class="file-input-label" style="margin-top:8px"><i data-lucide="camera" style="width:14px"></i> Change avatar<input id="profile-avatar-file" name="avatarFile" type="file" accept="image/*" style="display:none" onchange="previewAvatarFile(this)"></label></div></div><div class="grid two" style="margin-top:16px"><div><div class="label">Name</div><input class="field" name="name" value="${esc(state.user.name)}" required></div><div><div class="label">Phone</div><input class="field" name="phone" value="${esc(state.user.phone||'')}"></div></div><div style="margin-top:12px"><div class="label">City</div><input class="field" name="city" value="${esc(state.user.city||'')}"></div><div style="margin-top:12px"><div class="label">Bio</div><textarea class="field" name="bio">${esc(state.user.bio||'')}</textarea></div><button class="btn btn-mint" style="margin-top:14px">Save changes</button></form><div class="card pad"><div class="eyebrow">Security</div><div class="section-title" style="font-size:31px">ACCOUNT SECURITY</div><div class="grid two" style="margin-top:14px"><div class="card-soft pad"><div class="label">Role</div><b>${isA?'Artisan':'Customer'}</b></div><div class="card-soft pad"><div class="label">Provider</div><b>${esc(state.user.provider||'email')}</b></div></div><div class="divider"></div><button class="btn btn-mint" style="width:100%;margin-bottom:8px" onclick="openRoleSwitcher()">Quản lý vai trò · ${(state.user.roles||[state.user.role]).length}/2</button><button class="btn" style="width:100%" onclick="openChangePassword()">Change password</button><button class="btn btn-danger" style="width:100%;margin-top:8px" onclick="logout()">Log out</button></div></div></section>`;window.lucide?.createIcons();
 }
 function previewAvatarFile(input){const f=input?.files?.[0];if(!f)return;if(f.size>3*1024*1024){toast('Avatar must be 3MB or smaller.','error');input.value='';return;}readFileDataUrl(f).then(url=>{const el=document.getElementById('profile-avatar-preview');if(el)el.src=url;});}
 async function compressAvatarFile(file){
@@ -964,9 +975,50 @@ function openAccountMenu(){if(!isAuthenticated()){openAuthModal('login');return;
 function openChangePassword(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><div class="eyebrow">Security</div><b>Change password</b></div><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><form onsubmit="changePassword(event)"><div class="label">Current password</div><input class="field" name="currentPassword" type="password" autocomplete="current-password" minlength="8" required><div style="margin-top:12px"><div class="label">New password</div><input class="field" name="newPassword" type="password" autocomplete="new-password" minlength="8" required></div><div style="margin-top:12px"><div class="label">Confirm new password</div><input class="field" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required></div><button id="change-password-submit" class="btn btn-mint" style="width:100%;margin-top:16px">Update password</button></form></div></div></div>`;window.lucide?.createIcons();}
 async function changePassword(e){e.preventDefault();if(!requireAuth())return;const fd=new FormData(e.target);const current=String(fd.get('currentPassword')||'');const next=String(fd.get('newPassword')||'');const confirm=String(fd.get('confirmPassword')||'');if(next.length<8){toast('Password must be at least 8 characters.','warning');return;}if(next!==confirm){toast('New passwords do not match.','warning');return;}const submit=document.getElementById('change-password-submit');if(submit){submit.disabled=true;submit.textContent='Updating...';}try{if(CONFIG.demoMode){state.authPasswords=state.authPasswords||{};const key=state.user.email.toLowerCase();const existing=state.authPasswords[key];if(existing&&existing!==current)throw new Error('Current password is incorrect.');state.authPasswords[key]=next;save();closeModal();toast('Password updated.','success');return;}const res=await fetch(apiURL('/api/auth/change-password'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({currentPassword:current,newPassword:next})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.message||'Unable to update password.');closeModal();toast('Password updated.','success');}catch(error){toast(error.message||'Unable to update password.','warning');}finally{if(submit){submit.disabled=false;submit.textContent='Update password';}}}
 
-function openRoleSwitcher(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><b>Switch workspace</b><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><div class="role-cards"><button class="role-card ${isCustomer()?'selected':''}" onclick="switchRole('customer')"><b>Customer</b><span>Discover · Request · Project</span></button><button class="role-card ${isArtisan()?'selected':''}" onclick="switchRole('artisan')"><b>Artisan</b><span>Profile · Proposal · Delivery</span></button></div></div></div></div>`;window.lucide?.createIcons();}
+function openRoleSwitcher(){
+  if(!requireAuth())return;
+  const customerEnabled=hasRole('customer');
+  const artisanEnabled=hasRole('artisan');
+  document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><div class="eyebrow">Một tài khoản · hai vai trò</div><b>Chọn không gian làm việc</b></div><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body"><p class="body">Bạn có thể mua hàng và đặt commission bằng vai trò Khách hàng, đồng thời bán sản phẩm và nhận commission bằng vai trò Nghệ nhân. Dữ liệu của hai vai trò dùng chung một tài khoản.</p><div class="role-cards" style="margin-top:16px"><button class="role-card ${isCustomer()?'selected':''}" onclick="activateRole('customer',${customerEnabled?'false':'true'})"><b>Khách hàng</b><span>${customerEnabled?'Đã bật · '+(isCustomer()?'Đang sử dụng':'Chuyển sang'):'Bật vai trò này'}</span></button><button class="role-card ${isArtisan()?'selected':''}" onclick="activateRole('artisan',${artisanEnabled?'false':'true'})"><b>Nghệ nhân</b><span>${artisanEnabled?'Đã bật · '+(isArtisan()?'Đang sử dụng':'Chuyển sang'):'Bật vai trò này'}</span></button></div></div></div></div>`;
+  window.lucide?.createIcons();
+}
 
-function switchRole(role){state.user.role=role;state.session.userId=role==='customer'?'USR-CUSTOMER-01':'USR-ARTISAN-01';if(role==='artisan'){if(!state.artisanUsers)state.artisanUsers={};state.user={...state.user,id:'USR-ARTISAN-01',name:'ÄÃ o Studio Owner',email:'artisan@example.com',phone:'09xx xxx 111',city:'HÃ  Ná»™i',role:'artisan',avatar:state.artisans[0].avatar,bio:state.artisans[0].bio,joined:'2025',artisanId:'A-001'};}else{state.user={...SEED.user,role:'customer',id:'USR-CUSTOMER-01'};}save();closeModal();navigate(role==='customer'?'home':'artisan-dashboard');toast('Workspace switched to '+role+'.','success');}
+async function activateRole(role,enable=false){
+  if(!requireAuth())return;
+  if(!['customer','artisan'].includes(role))return;
+  if(currentRole()===role){closeModal();return;}
+  try{
+    if(CONFIG.demoMode){
+      state.user.roles=Array.from(new Set([...(state.user.roles||[state.user.role]),role]));
+      state.user.role=role;
+      if(role==='artisan')ensureCurrentArtisanProfile();
+      save();
+      closeModal();
+      toast(role==='artisan'?'Đã chuyển sang Nghệ nhân.':'Đã chuyển sang Khách hàng.','success');
+      navigate(role==='artisan'?'artisan-dashboard':'customer-dashboard');
+      return;
+    }
+    const res=await fetch(apiURL('/api/auth/role'),{
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({role,enable})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(data.message||'Không thể thay đổi vai trò.');
+    applyAuthenticatedUser(data.user,data.user?.provider||state.user.provider||'email');
+    closeModal();
+    toast(enable
+      ? (role==='artisan'?'Bạn đã trở thành Nghệ nhân trên DioraLink.':'Bạn đã bật vai trò Khách hàng.')
+      : (role==='artisan'?'Đã chuyển sang Nghệ nhân.':'Đã chuyển sang Khách hàng.'),
+      'success'
+    );
+    navigate(role==='artisan'?'artisan-dashboard':'customer-dashboard');
+  }catch(error){
+    toast(error.message||'Không thể thay đổi vai trò.','error');
+  }
+}
+function switchRole(role){return activateRole(role,!hasRole(role));}
 
 function renderTrust(){ document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Trust</div><div class="section-title">TRUST & VERIFICATION</div></div></div><div class="grid three">${[['Identity','Basic identity / profile completeness'],['Portfolio','Public project history and selected works'],['Reviews','Customer feedback linked to completed work']].map(x=>`<div class="card pad"><div class="eyebrow">${x[0]}</div><div class="display" style="font-size:30px;text-transform:uppercase;margin-top:7px">${x[0]}</div><p class="body" style="margin-top:7px">${x[1]}</p></div>`).join('')}</div></section>`; }
 
