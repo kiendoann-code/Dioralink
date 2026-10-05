@@ -87,20 +87,36 @@ const { createMarketplace, ensureMarketplaceSchema } = require("./marketplace");
 
 const COOKIE_NAME = "dioralink_session";
 
-function createToken(user) {
+function normalizeAccountRole(value) {
+  const role=String(value||'').trim().toLowerCase();
+  return role==='artist'?'artisan':role;
+}
+
+async function rolesForUser(userId, fallbackRole='') {
+  const result=await pool.query(
+    `SELECT role FROM user_roles WHERE user_id=$1 ORDER BY CASE role WHEN 'customer' THEN 1 ELSE 2 END`,
+    [userId]
+  );
+  const roles=result.rows.map(row=>row.role).filter(role=>['customer','artisan'].includes(role));
+  const fallback=normalizeAccountRole(fallbackRole);
+  if(['customer','artisan'].includes(fallback)&&!roles.includes(fallback))roles.push(fallback);
+  return roles;
+}
+
+function createToken(user, activeRole=user.activeRole||user.role) {
   return jwt.sign(
     {
       sub: user.id,
       email: user.email,
-      role: user.role,
+      role: activeRole,
     },
     JWT_SECRET,
     { expiresIn: "7d" }
   );
 }
 
-function setSessionCookie(res, user) {
-  const token = createToken(user);
+function setSessionCookie(res, user, activeRole=user.activeRole||user.role) {
+  const token = createToken(user, activeRole);
 
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
@@ -122,14 +138,16 @@ function clearSessionCookie(res) {
   });
 }
 
-function publicUser(row) {
+function publicUser(row, activeRole=row.activeRole||row.role, roles=row.roles) {
+  const enabledRoles=Array.isArray(roles)&&roles.length?roles:[activeRole].filter(Boolean);
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     phone: row.phone || "",
     city: row.city || "",
-    role: row.role,
+    role: activeRole,
+    roles: [...new Set(enabledRoles)],
     avatar: row.avatar || "",
     bio: row.bio || "",
     joined: row.joined || String(new Date().getFullYear()),
@@ -168,11 +186,16 @@ async function getUserFromRequest(req) {
       [payload.sub]
     );
 
-    if (!result.rows[0]) {
+    const row=result.rows[0];
+    if (!row) {
       return null;
     }
 
-    return result.rows[0];
+    const roles=await rolesForUser(row.id,row.role);
+    const requested=normalizeAccountRole(payload.role);
+    const activeRole=roles.includes(requested)?requested:(roles.includes(row.role)?row.role:roles[0]);
+
+    return {...row,primaryRole:row.role,role:activeRole,roles};
   } catch {
     return null;
   }
@@ -300,11 +323,17 @@ app.post("/api/auth/register", async (req, res) => {
     );
 
     const user = insert.rows[0];
+    await pool.query(
+      `INSERT INTO user_roles(user_id,role) VALUES($1,$2) ON CONFLICT DO NOTHING`,
+      [user.id,role]
+    );
+    user.roles=[role];
+    user.role=role;
 
-    setSessionCookie(res, user);
+    setSessionCookie(res, user, role);
 
     res.status(201).json({
-      user: publicUser(user),
+      user: publicUser(user,role,[role]),
       session: {
         authenticated: true,
         userId: user.id,
@@ -372,16 +401,21 @@ app.post("/api/auth/login", async (req, res) => {
       });
     }
 
-    if (user.role !== role) {
+    const roles=await rolesForUser(user.id,user.role);
+    if (!roles.includes(role)) {
+      const existingLabel=roles.includes('customer')?'Customer':'Artisan';
+      const requestedLabel=role==='artisan'?'Artisan':'Customer';
       return res.status(403).json({
-        message: `This account is registered as ${user.role}.`,
+        message: `Tài khoản này chưa bật chế độ ${requestedLabel}. Hãy đăng nhập bằng ${existingLabel}, sau đó chọn “Trở thành ${requestedLabel}”.`,
       });
     }
 
-    setSessionCookie(res, user);
+    user.roles=roles;
+    user.role=role;
+    setSessionCookie(res, user, role);
 
     res.json({
-      user: publicUser(user),
+      user: publicUser(user,role,roles),
       session: {
         authenticated: true,
         userId: user.id,
@@ -419,6 +453,58 @@ app.get("/api/auth/me", async (req, res) => {
     res.status(500).json({
       message: "Unable to restore session.",
     });
+  }
+});
+
+/* =========================
+   ACCOUNT ROLES / WORKSPACES
+   One account may use both Customer and Artisan modes.
+========================= */
+app.post("/api/auth/role", requireAuth, async (req, res) => {
+  try {
+    const role=normalizeAccountRole(req.body?.role);
+    const enable=req.body?.enable===true;
+
+    if(!["customer","artisan"].includes(role)){
+      return res.status(400).json({message:"Invalid role."});
+    }
+
+    let roles=await rolesForUser(req.user.id,req.user.primaryRole||req.user.role);
+
+    if(!roles.includes(role)){
+      if(!enable){
+        return res.status(403).json({
+          message: role==="artisan"
+            ? "Bạn chưa bật chế độ Nghệ nhân."
+            : "Bạn chưa bật chế độ Khách hàng."
+        });
+      }
+
+      await pool.query(
+        `INSERT INTO user_roles(user_id,role) VALUES($1,$2) ON CONFLICT DO NOTHING`,
+        [req.user.id,role]
+      );
+      roles=await rolesForUser(req.user.id,req.user.primaryRole||req.user.role);
+    }
+
+    const row=(await pool.query(
+      `SELECT id,name,email,phone,city,role,avatar,bio,joined,provider
+       FROM users WHERE id=$1 LIMIT 1`,
+      [req.user.id]
+    )).rows[0];
+
+    if(!row)return res.status(404).json({message:"User not found."});
+
+    setSessionCookie(res,row,role);
+
+    return res.json({
+      success:true,
+      enabled:enable,
+      user:publicUser(row,role,roles)
+    });
+  } catch (error) {
+    console.error("Role activation error:",error);
+    return res.status(500).json({message:"Unable to change account role."});
   }
 });
 
@@ -761,34 +847,36 @@ app.post("/api/auth/google", async (req, res) => {
       user = insertResult.rows[0];
     }
 
-    setSessionCookie(res, user);
+    let roles=await rolesForUser(user.id,user.role);
+
+    if(existingResult.rows[0] && !roles.includes(requestedRole)){
+      const existingLabel=roles.includes('customer')?'Customer':'Artisan';
+      const requestedLabel=requestedRole==='artisan'?'Artisan':'Customer';
+      return res.status(403).json({
+        message:`Tài khoản Google này chưa bật chế độ ${requestedLabel}. Hãy đăng nhập bằng ${existingLabel}, sau đó chọn “Trở thành ${requestedLabel}”.`
+      });
+    }
+
+    if(!existingResult.rows[0]){
+      await pool.query(
+        `INSERT INTO user_roles(user_id,role) VALUES($1,$2) ON CONFLICT DO NOTHING`,
+        [user.id,requestedRole]
+      );
+      roles=await rolesForUser(user.id,requestedRole);
+    }
+
+    user.role=requestedRole;
+    user.roles=roles;
+    setSessionCookie(res, user, requestedRole);
+    const safeUser=publicUser(user,requestedRole,roles);
 
     return res.status(200).json({
       success: true,
       message: "Signed in with Google successfully.",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone || "",
-        city: user.city || "",
-        role: user.role,
-        avatar: user.avatar || "",
-        bio: user.bio || "",
-        provider: "google",
-        authenticated: true
-      },
+      user: safeUser,
       session: {
         authenticated: true,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar || "",
-          provider: "google",
-          authenticated: true
-        }
+        user: safeUser
       }
     });
 
@@ -1283,6 +1371,19 @@ async function start() {
     await pool.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique
       ON users (LOWER(email));
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_roles (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role VARCHAR(20) NOT NULL CHECK (role IN ('customer','artisan')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY(user_id,role)
+      );
+      CREATE INDEX IF NOT EXISTS user_roles_role_idx ON user_roles(role,user_id);
+      INSERT INTO user_roles(user_id,role)
+      SELECT id,role FROM users
+      ON CONFLICT(user_id,role) DO NOTHING;
     `);
 
     await ensureSeoSchema(pool);
