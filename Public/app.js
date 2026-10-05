@@ -287,42 +287,50 @@ function closeDesktopNavMenu(){
   if(menu)menu.hidden=true;
   trigger?.setAttribute('aria-expanded','false');
 }
+function headerTab(route,label,icon){
+  const active=currentRoute()===route;
+  return `<a class="radio-nav-item ${active?'active':''}" href="${routeURL(route)}"><span class="pre-name"></span><span class="pos-name"></span><span class="radio-nav-label"><i data-lucide="${icon}"></i>${t(label)}</span></a>`;
+}
 function renderTopNav(){
   const nav=roleNav();
   const top=document.getElementById('top-nav');
   if(!top)return;
 
   if(!isAuthenticated() && !isAdmin()){
+    top.className='nav';
     top.innerHTML=nav.map(x=>navButton(...x)).join('');
   }else{
-    const primaryRoutes=isAdmin()
+    top.className='nav radio-inputs';
+    const visibleRoutes=isAdmin()
       ? ['marketplace','admin-dashboard']
       : isCustomer()
-        ? ['marketplace','customer-dashboard']
-        : ['marketplace','artisan-dashboard'];
+        ? ['marketplace','explore','customer-dashboard']
+        : ['marketplace','explore','artisan-dashboard','artisan-portfolio'];
 
-    const primary=nav.filter(x=>primaryRoutes.includes(x[0]));
-    const secondary=nav.filter(x=>!primaryRoutes.includes(x[0]));
+    const visible=visibleRoutes.map(route=>nav.find(x=>x[0]===route)).filter(Boolean);
+    const secondary=nav.filter(x=>!visibleRoutes.includes(x[0]));
 
     top.innerHTML=`
-      ${primary.map(x=>navButton(...x)).join('')}
-      <div class="header-menu-wrap">
-        <button id="desktop-nav-trigger" class="nav-btn header-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false" onclick="toggleDesktopNavMenu()">
-          <i data-lucide="menu" style="width:14px;vertical-align:-3px;margin-right:5px"></i>${t('Menu')}
-          <i data-lucide="chevron-down" class="header-menu-chevron"></i>
+      ${visible.map(x=>headerTab(...x)).join('')}
+      <div class="radio-menu-wrap">
+        <button id="desktop-nav-trigger" class="radio-nav-item radio-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false" onclick="toggleDesktopNavMenu()">
+          <span class="radio-nav-label"><i data-lucide="menu"></i>Menu<i data-lucide="chevron-down" class="header-menu-chevron"></i></span>
         </button>
         <div id="desktop-nav-menu" class="header-menu-dropdown" hidden>
           <div class="header-menu-title">${isAdmin()?'Admin':isCustomer()?t('Customer'):t('Artisan')}</div>
           ${secondary.map(x=>navMenuItem(...x)).join('')}
           ${isArtisan()?(() => {
             const me=artisanById(state.user.artisanId);
-            return me?.slug?`<div class="header-menu-divider"></div><a class="nav-menu-item profile-public-link" href="/nghe-nhan/${esc(me.slug)}"><i data-lucide="external-link"></i><span>Xem hồ sơ công khai</span></a>`:'';
+            return `<div class="header-menu-divider"></div>
+              <a class="nav-menu-item profile-public-link" href="/ung-dung#artisan-portfolio"><i data-lucide="user-round-cog"></i><span>Chỉnh sửa hồ sơ của tôi</span></a>
+              ${me?.slug?`<a class="nav-menu-item profile-public-link" href="/nghe-nhan/${esc(me.slug)}"><i data-lucide="external-link"></i><span>Xem hồ sơ công khai</span></a>`:''}`;
           })():''}
         </div>
       </div>`;
   }
 
-  document.getElementById('mobile-nav').innerHTML=`<div style="display:grid;gap:5px">${nav.map(x=>`<a class="side-link" href="${routeURL(x[0])}"><i data-lucide="${x[2]}" style="width:15px"></i>${t(x[1])}</a>`).join('')}${isArtisan()&&artisanById(state.user.artisanId)?.slug?`<a class="side-link" href="/nghe-nhan/${esc(artisanById(state.user.artisanId).slug)}"><i data-lucide="external-link" style="width:15px"></i>Xem hồ sơ công khai</a>`:''}</div>`;
+  const mobile=document.getElementById('mobile-nav');
+  if(mobile)mobile.innerHTML=`<div style="display:grid;gap:5px">${nav.map(x=>`<a class="side-link" href="${routeURL(x[0])}"><i data-lucide="${x[2]}" style="width:15px"></i>${t(x[1])}</a>`).join('')}${isArtisan()?`<a class="side-link" href="/ung-dung#artisan-portfolio"><i data-lucide="user-round-cog" style="width:15px"></i>Hồ sơ của tôi</a>`:''}</div>`;
 }
 function refreshShell(){
   renderTopNav();
@@ -332,7 +340,7 @@ function refreshShell(){
     if(isAdmin()){
       actions.innerHTML=langSwitch+`<button class="icon-btn" onclick="openAdminNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><span class="role-badge">Admin</span><button class="btn btn-sm btn-danger" onclick="adminLogout()">Logout</button>`;
     }else if(isAuthenticated()){
-      actions.innerHTML=langSwitch+`<button class="icon-btn" onclick="navigate('messages')" title="Messages"><i data-lucide="message-circle"></i></button><button class="icon-btn" onclick="openNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><span class="role-badge">${isCustomer()?'Customer':'Artisan'}</span><button class="icon-btn" onclick="openAccountMenu()" title="Account"><img id="header-avatar" class="avatar" alt="Avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}></button>`;
+      actions.innerHTML=langSwitch+`<button class="icon-btn" onclick="openNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><button class="icon-btn" onclick="openAccountMenu()" title="Tài khoản"><img id="header-avatar" class="avatar" alt="Avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}></button>`;
       const dot=document.getElementById('notif-dot'); if(dot) dot.hidden=!state.notifications.some(n=>!n.read);
     }else{
       actions.innerHTML=langSwitch+`<button class="btn btn-sm" onclick="openAuthModal('login')">Sign in</button><button class="btn btn-sm btn-mint" onclick="openAuthModal('register')">Register</button>`;
