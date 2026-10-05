@@ -85,7 +85,7 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
  const getProducts=async(limit=24,offset=0,search='',category='',sort='new')=>{
   const params=[`%${search.replace(/[\\%_]/g,'\\$&')}%`,category,limit,offset];
   const order=sort==='price_asc'?'p.price ASC,p.created_at DESC':sort==='price_desc'?'p.price DESC,p.created_at DESC':'p.created_at DESC';
-  return (await pool.query(`${publicSelect} WHERE p.status='active' AND (p.title ILIKE $1 OR p.description ILIKE $1) AND ($2='' OR p.category=$2) ORDER BY ${order} LIMIT $3 OFFSET $4`,params)).rows.map(publicProduct);
+  return (await pool.query(`${publicSelect} WHERE p.status='active' AND (p.title ILIKE $1 OR p.description ILIKE $1 OR COALESCE(a.profile->>'name',u.name) ILIKE $1) AND ($2='' OR p.category=$2) ORDER BY ${order} LIMIT $3 OFFSET $4`,params)).rows.map(publicProduct);
  };
  const getProduct=async(pid)=>(await pool.query(publicSelect+' WHERE p.id=$1',[pid])).rows[0];
  const summaryFields='id,buyer_id,seller_id,product_id,quantity,payment_method,status,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,tracking_number,terms_version,terms_accepted_at,dispute_open,stock_released,fee_collected_amount,fee_returned_amount,completed_at,created_at,updated_at'.split(',').map(k=>'o.'+k).join(',');
