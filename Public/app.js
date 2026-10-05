@@ -1327,16 +1327,173 @@ function demoSignIn(role,provider,email,name){ if(role==='artisan'){const a=arti
 function renderAuthModal(){
   const register=authMode==='register';
   const role=register?authRegisterRole:authLoginRole;
-  document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" style="width:min(900px,100%)" onclick="event.stopPropagation()">
-  <div class="modal-head"><div><div class="brand-name">DIORALINK</div><div class="small muted" style="margin-top:3px">${register?'Create account':'Sign in'}</div></div><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div>
-  <div class="modal-body"><div class="auth-shell"><div class="auth-panel"><div class="eyebrow">${register?'Join DioraLink':'Welcome back'}</div><div class="display" style="font-size:48px;line-height:.9;margin-top:10px">${register?'MAKE.':'COMMISSIONS.'}<br><span style="color:var(--mint)">${register?'WORK.':'CRAFT.'}</span></div><div class="divider"></div><div class="label">${register?'Account type':'Sign in as'}</div><div class="role-cards"><button type="button" class="role-card ${role==='customer'?'selected':''}" onclick="${register?"authRegisterRole='customer'":"authLoginRole='customer'"};renderAuthModal()"><b>Customer</b><span>Discover · Request · Manage</span></button><button type="button" class="role-card ${role==='artisan'?'selected':''}" onclick="${register?"authRegisterRole='artisan'":"authLoginRole='artisan'"};renderAuthModal()"><b>Artisan</b><span>Publish · Propose · Deliver</span></button></div></div>
-  <div class="card pad"><div style="display:flex;gap:4px;background:rgba(255,255,255,.03);padding:4px"><button type="button" class="auth-tab ${authMode==='login'?'active-login':''}" onclick="switchAuthMode('login')">Sign in</button><button type="button" class="auth-tab ${authMode==='register'?'active-register':''}" onclick="switchAuthMode('register')">Register</button></div>
-  <div style="margin-top:16px"><button type="button" class="social-btn social-google" onclick="authSocial('google')"><span style="font-size:18px;font-weight:900">G</span> Continue with Google</button><button type="button" class="social-btn social-facebook" style="margin-top:8px" onclick="authSocial('facebook')"><span style="font-size:18px;font-weight:900">f</span> Continue with Facebook</button></div>
-  <div class="row" style="margin:18px 0;color:#537273;font-size:8px;letter-spacing:.14em"><span style="height:1px;background:var(--line);flex:1"></span><span>OR EMAIL</span><span style="height:1px;background:var(--line);flex:1"></span></div>
-  ${register?`<form onsubmit="registerEmail(event)"><div class="label">Full name</div><input id="register-name" class="field" type="text" autocomplete="name" minlength="2" maxlength="120" required><div style="margin-top:10px"><div class="label">Email</div><input id="register-email" class="field" type="email" autocomplete="email" required></div><div class="grid two" style="margin-top:10px"><div><div class="label">Password</div><input id="register-password" class="field" type="password" autocomplete="new-password" minlength="8" required></div><div><div class="label">Confirm</div><input id="register-password-confirm" class="field" type="password" autocomplete="new-password" minlength="8" required></div></div><label class="row compact-note" style="margin-top:12px;align-items:flex-start"><input id="register-terms" type="checkbox" required><span>I agree to the <button type="button" class="link-btn" onclick="openLegalModal('terms')">Terms</button> and <button type="button" class="link-btn" onclick="openLegalModal('privacy')">Privacy Policy</button>.</span></label><button id="register-submit" class="btn btn-mint" style="width:100%;margin-top:14px">Create ${authRegisterRole==='artisan'?'Artisan':'Customer'} account</button></form>`:`<form onsubmit="loginEmail(event)"><div class="label">Email</div><input id="login-email" class="field" type="email" autocomplete="email" required><div style="margin-top:10px"><div class="between"><div class="label" style="margin:0">Password</div><button type="button" class="link-btn" onclick="openPasswordReset()">Forgot password?</button></div><input id="login-password" class="field" type="password" autocomplete="current-password" minlength="8" required></div><label class="row compact-note" style="margin-top:12px"><input type="checkbox"> Remember me</label><button id="login-submit" class="btn btn-mint" style="width:100%;margin-top:14px">Sign in as ${authLoginRole==='artisan'?'Artisan':'Customer'}</button></form>`}
-  </div></div></div></div></div>`;window.lucide?.createIcons();
-}
+  const roleName=role==='artisan'?'Nghệ nhân':'Khách hàng';
+  const roleCopy=role==='artisan'
+    ? 'Đăng tác phẩm · nhận commission · quản lý đơn bán'
+    : 'Khám phá creator · đặt commission · mua sản phẩm';
 
+  document.getElementById('modal-root').innerHTML=`
+    <div class="modal-backdrop auth-backdrop" onclick="closeModal(event)">
+      <section class="auth-premium-modal" role="dialog" aria-modal="true" aria-label="${register?'Đăng ký DioraLink':'Đăng nhập DioraLink'}" onclick="event.stopPropagation()">
+        <aside class="auth-premium-visual" aria-hidden="true">
+          <div class="auth-space-grid"></div>
+          <span class="auth-planet auth-planet-large"></span>
+          <span class="auth-planet auth-planet-small"></span>
+          <span class="auth-planet auth-planet-glow"></span>
+          <span class="auth-orbit auth-orbit-one"></span>
+          <span class="auth-orbit auth-orbit-two"></span>
+          <span class="auth-star auth-star-one"></span>
+          <span class="auth-star auth-star-two"></span>
+          <span class="auth-star auth-star-three"></span>
+
+          <div class="auth-visual-content">
+            <div class="auth-visual-brand">
+              <span class="auth-visual-mark"><i data-lucide="layers-3"></i></span>
+              <div>
+                <strong>DIORALINK</strong>
+                <span>CONNECTING CREATIVE WORLDS</span>
+              </div>
+            </div>
+
+            <div class="auth-visual-copy">
+              <div class="auth-visual-kicker">${register?'CREATE YOUR SPACE':'WELCOME BACK'}</div>
+              <h2>${register?'BUILD YOUR':'ENTER YOUR'}<br><span>CREATIVE WORLD.</span></h2>
+              <p>${register
+                ? 'Một tài khoản cho commission, marketplace và hành trình xây dựng studio của bạn.'
+                : 'Quay lại nơi ý tưởng gặp đúng người có thể biến chúng thành hiện thực.'}</p>
+            </div>
+
+            <div class="auth-visual-foot">
+              <span></span>
+              <p>COMMISSION · MARKETPLACE · CREATOR NETWORK</p>
+            </div>
+          </div>
+        </aside>
+
+        <div class="auth-premium-panel">
+          <div class="auth-premium-head">
+            <div>
+              <div class="auth-panel-kicker">${register?'BẮT ĐẦU VỚI DIORALINK':'CHÀO MỪNG TRỞ LẠI'}</div>
+              <h3>${register?'Tạo tài khoản':'Đăng nhập'}</h3>
+              <p>${register?'Chọn vai trò ban đầu. Bạn có thể bật vai trò còn lại sau.':'Tiếp tục với không gian làm việc bạn muốn sử dụng.'}</p>
+            </div>
+            <button class="auth-premium-close" type="button" onclick="closeModal()" aria-label="Đóng">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+
+          <div class="auth-role-section">
+            <div class="auth-role-label">Tiếp tục với vai trò</div>
+            <div class="auth-role-pills">
+              <button type="button" class="auth-role-pill ${role==='customer'?'active':''}" onclick="${register?"authRegisterRole='customer'":"authLoginRole='customer'"};renderAuthModal()">
+                <span class="auth-role-icon"><i data-lucide="shopping-bag"></i></span>
+                <span><b>Khách hàng</b><small>Discover · Request · Buy</small></span>
+              </button>
+              <button type="button" class="auth-role-pill ${role==='artisan'?'active':''}" onclick="${register?"authRegisterRole='artisan'":"authLoginRole='artisan'"};renderAuthModal()">
+                <span class="auth-role-icon"><i data-lucide="sparkles"></i></span>
+                <span><b>Nghệ nhân</b><small>Publish · Propose · Sell</small></span>
+              </button>
+            </div>
+            <div class="auth-role-summary"><span></span>${roleCopy}</div>
+          </div>
+
+          <div class="auth-mode-tabs" role="tablist">
+            <button type="button" class="${authMode==='login'?'active':''}" onclick="switchAuthMode('login')">Đăng nhập</button>
+            <button type="button" class="${authMode==='register'?'active':''}" onclick="switchAuthMode('register')">Đăng ký</button>
+          </div>
+
+          ${register?`
+            <form class="auth-premium-form" onsubmit="registerEmail(event)">
+              <label class="auth-premium-field">
+                <span>Họ và tên</span>
+                <div class="auth-premium-input">
+                  <i data-lucide="user-round"></i>
+                  <input id="register-name" type="text" autocomplete="name" minlength="2" maxlength="120" placeholder="Tên hiển thị của bạn" required>
+                </div>
+              </label>
+              <label class="auth-premium-field">
+                <span>Email</span>
+                <div class="auth-premium-input">
+                  <i data-lucide="mail"></i>
+                  <input id="register-email" type="email" autocomplete="email" placeholder="you@example.com" required>
+                </div>
+              </label>
+              <div class="auth-premium-two">
+                <label class="auth-premium-field">
+                  <span>Mật khẩu</span>
+                  <div class="auth-premium-input">
+                    <i data-lucide="lock-keyhole"></i>
+                    <input id="register-password" type="password" autocomplete="new-password" minlength="8" placeholder="Tối thiểu 8 ký tự" required>
+                  </div>
+                </label>
+                <label class="auth-premium-field">
+                  <span>Xác nhận</span>
+                  <div class="auth-premium-input">
+                    <i data-lucide="shield-check"></i>
+                    <input id="register-password-confirm" type="password" autocomplete="new-password" minlength="8" placeholder="Nhập lại mật khẩu" required>
+                  </div>
+                </label>
+              </div>
+              <label class="auth-premium-check">
+                <input id="register-terms" type="checkbox" required>
+                <span>Tôi đồng ý với <button type="button" onclick="openLegalModal('terms')">Điều khoản</button> và <button type="button" onclick="openLegalModal('privacy')">Chính sách riêng tư</button>.</span>
+              </label>
+              <button id="register-submit" class="auth-primary-submit" type="submit">
+                Tạo tài khoản ${roleName}
+                <i data-lucide="arrow-right"></i>
+              </button>
+            </form>
+          `:`
+            <form class="auth-premium-form" onsubmit="loginEmail(event)">
+              <label class="auth-premium-field">
+                <span>Email</span>
+                <div class="auth-premium-input">
+                  <i data-lucide="mail"></i>
+                  <input id="login-email" type="email" autocomplete="email" placeholder="you@example.com" required>
+                </div>
+              </label>
+              <label class="auth-premium-field">
+                <span class="auth-field-between"><span>Mật khẩu</span><button type="button" onclick="openPasswordReset()">Quên mật khẩu?</button></span>
+                <div class="auth-premium-input">
+                  <i data-lucide="lock-keyhole"></i>
+                  <input id="login-password" type="password" autocomplete="current-password" minlength="8" placeholder="••••••••" required>
+                </div>
+              </label>
+              <label class="auth-premium-check auth-remember">
+                <input type="checkbox">
+                <span>Ghi nhớ đăng nhập</span>
+              </label>
+              <button id="login-submit" class="auth-primary-submit" type="submit">
+                Đăng nhập với tư cách ${roleName}
+                <i data-lucide="arrow-right"></i>
+              </button>
+            </form>
+          `}
+
+          <div class="auth-premium-divider"><span>Hoặc tiếp tục với</span></div>
+
+          <div class="auth-social-grid">
+            <button type="button" class="auth-social-card auth-google" onclick="authSocial('google')">
+              <span class="auth-social-logo">G</span>
+              <span>Google</span>
+            </button>
+            <button type="button" class="auth-social-card auth-facebook" onclick="authSocial('facebook')">
+              <span class="auth-social-logo">f</span>
+              <span>Facebook</span>
+            </button>
+          </div>
+
+          <p class="auth-switch-note">
+            ${register
+              ? `Đã có tài khoản? <button type="button" onclick="switchAuthMode('login')">Đăng nhập</button>`
+              : `Chưa có tài khoản? <button type="button" onclick="switchAuthMode('register')">Đăng ký ngay</button>`}
+          </p>
+        </div>
+      </section>
+    </div>`;
+
+  window.lucide?.createIcons();
+}
 function authSocial(provider){const role=authMode==='register'?authRegisterRole:authLoginRole;if(CONFIG.demoMode){demoSignIn(role,provider,role==='artisan'?'artisan@example.com':'quynhanh@example.com',role==='artisan'?'ÄÃ o Studio Owner':'Quá»³nh Anh');return;} if(provider==='google')return loginGoogle(); if(provider==='facebook')return loginFacebook();}
 async function loginEmail(event){event.preventDefault();const email=document.getElementById('login-email')?.value.trim().toLowerCase();const password=document.getElementById('login-password')?.value;if(!email||!password)return;const submit=document.getElementById('login-submit');if(submit){submit.disabled=true;submit.textContent='Signing in...';}try{if(CONFIG.demoMode){const saved=state.authPasswords?.[email];if(saved&&saved!==password)throw new Error('Invalid email or password.');demoSignIn(authLoginRole,'email',email,authLoginRole==='artisan'?'ÄÃ o Studio Owner':'Quá»³nh Anh');return;}const res=await fetch(apiURL('/api/auth/login'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password,role:authLoginRole})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.message||'ÄÄƒng nháº­p tháº¥t báº¡i.');const u=data.session?.user||data.user||{};if(u.role&&u.role!==authLoginRole)throw new Error(`This account is registered as ${u.role}.`);applyAuthenticatedUser(u,'email');closeModal();toast('Signed in.','success');navigate(roleAfterLogin(state.user.role||authLoginRole));}catch(error){toast(error.message||'KhÃ´ng thá»ƒ Ä‘Äƒng nháº­p.','warning');}finally{if(submit){submit.disabled=false;submit.textContent=`Sign in as ${authLoginRole==='artisan'?'Artisan':'Customer'}`;}}}
 async function registerEmail(event){
