@@ -1,5 +1,18 @@
 /* DioraLink marketplace: persisted products, orders, disputes and reporting. */
 let marketProducts=[],marketProductDraft=null,marketCheckout=null,marketOrder=null,marketAdminReport=null;
+let marketDraftImageTask=Promise.resolve();
+function marketProductDraftKey(pid){return 'market-product:'+(pid||'new');}
+function marketProductMediaStorageKey(key){return 'dioralink_market_product_media_v1:'+String(state.user?.id||'guest')+':'+key;}
+function loadMarketProductMediaDraft(key){
+ try{const raw=localStorage.getItem(marketProductMediaStorageKey(key));const data=raw?JSON.parse(raw):null;return Array.isArray(data?.images)?data.images:[];}catch{return [];}
+}
+function saveMarketProductMediaDraft(){
+ if(!marketProductDraft?._draftKey)return;
+ try{localStorage.setItem(marketProductMediaStorageKey(marketProductDraft._draftKey),JSON.stringify({images:marketProductDraft.images||[],savedAt:new Date().toISOString()}));}catch{}
+}
+function clearMarketProductMediaDraft(key){
+ try{localStorage.removeItem(marketProductMediaStorageKey(key));}catch{}
+}
 const marketStatuses={pending:'Chờ nghệ nhân xác nhận',accepted:'Đã nhận đơn',shipped:'Đang giao SPX',delivered:'Khách đã nhận, chờ đối soát COD',completed:'Hoàn tất',cancelled:'Đã hủy',refund_pending:'Đang hoàn tiền',refunded:'Đã hoàn tiền'};
 const marketPayments={pending:'Chưa thanh toán',reported:'Khách báo đã chuyển',received:'Nghệ nhân đã nhận tiền',awaiting_cod:'Thu tiền khi nhận hàng',cod_received:'Đã đối soát COD',refund_pending:'Chờ nghệ nhân hoàn tiền',refund_sent:'Đã gửi chứng từ hoàn',refunded:'Đã xác nhận hoàn tiền'};
 const marketActions={created:'Tạo đơn',accept:'Chấp nhận đơn',cancel:'Hủy đơn',report_payment:'Báo chuyển khoản',confirm_payment:'Xác nhận nhận tiền',ship:'Cập nhật vận đơn SPX',receive:'Khách xác nhận nhận hàng',cod_received:'Đối soát COD',dispute:'Mở tranh chấp',comment:'Trao đổi / chứng cứ',resolve_continue:'Kết thúc tranh chấp, tiếp tục đơn',cancel_unpaid:'Hủy đơn chưa thanh toán',refund:'Yêu cầu hoàn toàn bộ',refund_sent:'Gửi chứng từ hoàn tiền',confirm_refund:'Khách xác nhận đã nhận hoàn tiền',admin_confirm_refund:'Quản trị kiểm chứng hoàn tiền',restock:'Nhập lại hàng đã trả',collect_fee:'Ghi nhận đã thu phí DioraLink',return_fee:'Ghi nhận hoàn lại phí nền tảng'};
@@ -23,15 +36,81 @@ async function renderMarketSeller(){
 }
 async function saveMarketSettings(event){event.preventDefault();const f=event.target,fd=new FormData(f),button=f.querySelector('button');button.disabled=true;try{await marketAPI('/api/market/seller/settings',{method:'PUT',body:JSON.stringify({bank_name:fd.get('bank_name'),account_name:fd.get('account_name'),account_number:fd.get('account_number'),allow_transfer:fd.has('allow_transfer'),allow_cod:fd.has('allow_cod')})});toast('Đã lưu phương thức thanh toán.','success');}catch(e){toast(e.message,'error');}finally{button.disabled=false;}}
 function editMarketProduct(pid){
- const p=pid?marketProducts.find(p=>p.id===pid):{title:'',description:'',category:'Diorama',condition:'new',price:1000000,shipping_fee:0,stock:1,status:'draft',images:[]};marketProductDraft=JSON.parse(JSON.stringify(p));
- marketModal(pid?'Sửa sản phẩm':'Đăng sản phẩm làm sẵn',`<form onsubmit="saveMarketProduct(event)"><div class="grid two"><label>Tên sản phẩm<input name="title" class="field" value="${esc(p.title)}" minlength="4" maxlength="160" required></label><label>Danh mục<select name="category" class="field">${['Diorama','Miniature','Custom figure','Mô hình 3D','Phụ kiện','Khác'].map(c=>`<option ${p.category===c?'selected':''}>${c}</option>`).join('')}</select></label><label>Giá tiền hàng (VND)<input name="price" class="field" type="number" min="1" max="1000000000" step="1" value="${p.price}" required></label><label>Phí SPX cho một đơn (VND)<input name="shipping_fee" class="field" type="number" min="0" max="10000000" step="1" value="${p.shipping_fee}" required></label><label>Số lượng còn có thể bán<input name="stock" class="field" type="number" min="0" max="100000" step="1" value="${p.stock}" required></label><label>Tình trạng<select name="condition" class="field">${[['new','Mới'],['like_new','Như mới'],['used','Đã qua sử dụng']].map(([v,t])=>`<option value="${v}" ${p.condition===v?'selected':''}>${t}</option>`).join('')}</select></label></div><label class="market-field">Mô tả sản phẩm<textarea name="description" class="field" minlength="30" maxlength="6000" required placeholder="Kích thước, vật liệu, tình trạng, phụ kiện, các điểm cần lưu ý…">${esc(p.description)}</textarea></label><label class="market-field">Ảnh thật của sản phẩm (1–6 ảnh)<input class="field" name="images" type="file" accept="image/png,image/jpeg,image/webp" multiple></label><div id="market-edit-images" class="grid three seo-note"></div><label class="market-field">Hiển thị<select name="status" class="field">${[['draft','Lưu bản nháp'],['active','Đăng bán công khai'],['hidden','Ẩn sản phẩm']].map(([v,t])=>`<option value="${v}" ${p.status===v?'selected':''}>${t}</option>`).join('')}</select></label><p class="small muted">Tồn kho nhập ở đây là số lượng còn có thể bán, không gồm hàng đã giữ cho đơn đang xử lý. Ảnh được nén trước khi tải lên.</p>${marketFeeInfo()}<button class="btn btn-mint seo-note" type="submit">Lưu sản phẩm</button><div id="market-product-error" class="small"></div></form>`);renderMarketEditImages();
+ const key=marketProductDraftKey(pid);
+ const source=pid?marketProducts.find(p=>p.id===pid):{title:'',description:'',category:'Diorama',condition:'new',price:1000000,shipping_fee:0,stock:1,status:'draft',images:[]};
+ const p=JSON.parse(JSON.stringify(source));
+ const savedMedia=loadMarketProductMediaDraft(key);
+ marketProductDraft={...p,images:savedMedia.length?savedMedia:[...(p.images||[])],_draftKey:key};
+ marketModal(pid?'Sửa sản phẩm':'Đăng sản phẩm làm sẵn',`<form data-autosave-key="${esc(key)}" onsubmit="saveMarketProduct(event)"><div class="grid two"><label>Tên sản phẩm<input name="title" class="field" value="${esc(p.title)}" minlength="4" maxlength="160" required></label><label>Danh mục<select name="category" class="field">${['Diorama','Miniature','Custom figure','Mô hình 3D','Phụ kiện','Khác'].map(c=>`<option ${p.category===c?'selected':''}>${c}</option>`).join('')}</select></label><label>Giá tiền hàng (VND)<input name="price" class="field" type="number" min="1" max="1000000000" step="1" value="${p.price}" required></label><label>Phí SPX cho một đơn (VND)<input name="shipping_fee" class="field" type="number" min="0" max="10000000" step="1" value="${p.shipping_fee}" required></label><label>Số lượng còn có thể bán<input name="stock" class="field" type="number" min="0" max="100000" step="1" value="${p.stock}" required></label><label>Tình trạng<select name="condition" class="field">${[['new','Mới'],['like_new','Như mới'],['used','Đã qua sử dụng']].map(([v,t])=>`<option value="${v}" ${p.condition===v?'selected':''}>${t}</option>`).join('')}</select></label></div><label class="market-field">Mô tả sản phẩm<textarea name="description" class="field" minlength="30" maxlength="6000" required placeholder="Kích thước, vật liệu, tình trạng, phụ kiện, các điểm cần lưu ý…">${esc(p.description)}</textarea></label><label class="market-field">Ảnh thật của sản phẩm (1–6 ảnh)<input class="field" name="images" type="file" accept="image/png,image/jpeg,image/webp" multiple onchange="captureMarketDraftImages(this)"></label><div id="market-edit-images" class="grid three seo-note"></div><label class="market-field">Hiển thị<select name="status" class="field">${[['draft','Lưu bản nháp'],['active','Đăng bán công khai'],['hidden','Ẩn sản phẩm']].map(([v,t])=>`<option value="${v}" ${p.status===v?'selected':''}>${t}</option>`).join('')}</select></label><p class="small muted">Nội dung được tự động lưu. Ảnh bạn vừa chọn cũng được giữ tạm trên thiết bị cho tới khi lưu sản phẩm.</p><p class="tiny muted" data-autosave-status>Tự động lưu đang bật.</p>${marketFeeInfo()}<button class="btn btn-mint seo-note" type="submit">Lưu sản phẩm</button><div id="market-product-error" class="small"></div></form>`);
+ renderMarketEditImages();
 }
-function renderMarketEditImages(){const el=document.getElementById('market-edit-images');if(el)el.innerHTML=marketProductDraft.images.map((src,i)=>`<div><img class="seo-cover" src="${esc(src)}" alt="Ảnh sản phẩm ${i+1}"><button class="btn btn-sm" type="button" onclick="marketProductDraft.images.splice(${i},1);renderMarketEditImages()">Bỏ ảnh ${i+1}</button></div>`).join('');}
+function renderMarketEditImages(){
+ const el=document.getElementById('market-edit-images');
+ if(!el||!marketProductDraft)return;
+ el.innerHTML=(marketProductDraft.images||[]).map((src,i)=>`<div><button class="market-image-button" type="button" onclick="openImagePreviewFromMarketDraft('${i}')"><img class="seo-cover" ${mediaAttrs(src,'')} alt="Ảnh sản phẩm ${i+1}"></button><button class="btn btn-sm" type="button" onclick="removeMarketDraftImage(${i})">Bỏ ảnh ${i+1}</button></div>`).join('');
+ hydrateMediaAssets();
+}
+async function marketDraftImagePreviewSource(src){
+ if(!String(src||'').startsWith('asset:'))return src;
+ const id=String(src).slice(6);
+ const db=await openFileDB();
+ const record=await new Promise((resolve,reject)=>{const tx=db.transaction(FILE_STORE,'readonly');const req=tx.objectStore(FILE_STORE).get(id);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+ db.close();
+ if(!record?.blob)return '';
+ return URL.createObjectURL(record.blob);
+}
+async function openImagePreviewFromMarketDraft(index){
+ const src=marketProductDraft?.images?.[index];
+ if(!src)return;
+ try{openImagePreview(await marketDraftImagePreviewSource(src),'Ảnh sản phẩm '+(Number(index)+1));}catch(e){toast('Không thể mở ảnh xem trước.','error');}
+}
+function removeMarketDraftImage(index){
+ if(!marketProductDraft)return;
+ marketProductDraft.images.splice(index,1);
+ saveMarketProductMediaDraft();
+ renderMarketEditImages();
+}
+function captureMarketDraftImages(input){
+ marketDraftImageTask=(async()=>{
+  try{
+   const files=Array.from(input?.files||[]);
+   if(!files.length)return;
+   if((marketProductDraft?.images?.length||0)+files.length>6)throw new Error('Tối đa 6 ảnh cho mỗi sản phẩm.');
+   for(const file of files){
+    if(!file.type.startsWith('image/'))throw new Error('Chỉ hỗ trợ tệp ảnh.');
+    if(file.size>10*1024*1024)throw new Error('Mỗi ảnh gốc tối đa 10 MB.');
+    const rec=await storeBinaryFile(file,'market-product-draft');
+    marketProductDraft.images.push('asset:'+rec.id);
+   }
+   saveMarketProductMediaDraft();
+   renderMarketEditImages();
+   const form=input.closest('form[data-autosave-key]');
+   if(form)saveFormDraft(form);
+   toast('Ảnh đã được lưu tạm vào bản nháp.','success');
+  }catch(e){
+   toast(e.message||'Không thể lưu ảnh vào bản nháp.','error');
+  }finally{
+   if(input)input.value='';
+  }
+ })();
+ return marketDraftImageTask;
+}
 async function saveMarketProduct(event){event.preventDefault();const form=event.target,fd=new FormData(form),button=form.querySelector('button[type="submit"]');button.disabled=true;try{
- const files=fd.getAll('images').filter(f=>f.size);if(marketProductDraft.images.length+files.length>6)throw new Error('Tối đa 6 ảnh cho mỗi sản phẩm.');
- const images=[...marketProductDraft.images];for(const file of files){if(file.size>10*1024*1024)throw new Error('Mỗi ảnh gốc tối đa 10 MB.');images.push(await publicImageValue(await readFileDataUrl(file)));}
+ await marketDraftImageTask;
+ if(!marketProductDraft?.images?.length)throw new Error('Cần ít nhất 1 ảnh sản phẩm.');
+ if(marketProductDraft.images.length>6)throw new Error('Tối đa 6 ảnh cho mỗi sản phẩm.');
+ const images=[];
+ for(const src of marketProductDraft.images){
+  images.push(String(src).startsWith('asset:')?await publicImageValue(src):src);
+ }
  const payload={...Object.fromEntries(fd),images,version:marketProductDraft.version,previous_stock:marketProductDraft.stock};
- await marketAPI('/api/market/seller/products'+(marketProductDraft.id?'/'+marketProductDraft.id:''),{method:marketProductDraft.id?'PUT':'POST',body:JSON.stringify(payload)});closeModal();toast('Đã lưu sản phẩm.','success');renderMarketSeller();
+ delete payload.images;
+ payload.images=images;
+ await marketAPI('/api/market/seller/products'+(marketProductDraft.id?'/'+marketProductDraft.id:''),{method:marketProductDraft.id?'PUT':'POST',body:JSON.stringify(payload)});
+ clearFormDraft(form);
+ clearMarketProductMediaDraft(marketProductDraft._draftKey);
+ marketProductDraft=null;
+ closeModal();toast('Đã lưu sản phẩm.','success');renderMarketSeller();
  }catch(e){document.getElementById('market-product-error').textContent=e.message;}finally{button.disabled=false;}}
 async function renderMarketCheckout(pid){
  marketScreen('Đặt mua sản phẩm','Kiểm tra tổng tiền, địa chỉ và điều khoản trước khi tạo đơn.');
@@ -68,9 +147,9 @@ async function renderMarketOrder(oid,admin=false){
  }catch(e){marketError(e);}
 }
 function marketActionDialog(action,admin){const o=marketOrder.order;const reference=['report_payment','confirm_payment','cod_received','refund_sent','admin_confirm_refund','collect_fee','return_fee'].includes(action);const noteRequired=['cancel','dispute','resolve_continue','cancel_unpaid','refund','admin_confirm_refund','restock'].includes(action);
- marketModal(marketActions[action],`<form onsubmit="submitMarketAction(event,'${action}',${admin})"><p class="body">Đơn ${esc(o.id.slice(0,8))} · ${esc(o.product_snapshot.title)}</p>${['refund','refund_sent','confirm_refund','admin_confirm_refund'].includes(action)?`<p class="notice">Hoàn toàn bộ ${money(o.total_amount)}. Thao tác này chỉ ghi nhận quy trình; tiền phải được hoàn bên ngoài DioraLink.</p>`:''}${action==='confirm_payment'?'<p class="notice">Chỉ xác nhận sau khi đã kiểm tra tiền thực nhận trong tài khoản ngân hàng.</p>':''}${action==='receive'?'<p class="notice">Xác nhận khi bạn đã nhận và kiểm tra sản phẩm. Nếu có vấn đề, hãy mở tranh chấp.</p>':''}${action==='ship'?'<label class="market-field">Mã vận đơn SPX<input class="field" name="tracking_number" minlength="6" maxlength="50" pattern="[A-Za-z0-9-]+" required></label>':''}${reference?`<label class="market-field">Mã giao dịch / chứng từ đối soát<input class="field" name="reference" minlength="3" maxlength="200" ${action==='report_payment'?'':'required'}></label>`:''}<label class="market-field">${noteRequired?'Lý do / căn cứ xử lý':'Nội dung trao đổi (nếu có)'}<textarea class="field" name="note" maxlength="3000" ${noteRequired?'required minlength="'+(['dispute','resolve_continue','cancel_unpaid','refund','admin_confirm_refund'].includes(action)?20:10)+'"':''}></textarea></label><label class="market-field">${action==='dispute'?'Ảnh hoặc video bằng chứng (bắt buộc)':'Ảnh hoặc video chứng cứ (tối đa 3 tệp)'}<input class="field" name="evidence" type="file" multiple accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" ${action==='refund_sent'||action==='dispute'?'required':''}></label><button class="btn btn-mint seo-note" type="submit">Xác nhận</button><p id="market-action-error" class="small"></p></form>`);
+ marketModal(marketActions[action],`<form data-autosave-key="market-action:${esc(o.id)}:${esc(action)}" onsubmit="submitMarketAction(event,'${action}',${admin})"><p class="body">Đơn ${esc(o.id.slice(0,8))} · ${esc(o.product_snapshot.title)}</p>${['refund','refund_sent','confirm_refund','admin_confirm_refund'].includes(action)?`<p class="notice">Hoàn toàn bộ ${money(o.total_amount)}. Thao tác này chỉ ghi nhận quy trình; tiền phải được hoàn bên ngoài DioraLink.</p>`:''}${action==='confirm_payment'?'<p class="notice">Chỉ xác nhận sau khi đã kiểm tra tiền thực nhận trong tài khoản ngân hàng.</p>':''}${action==='receive'?'<p class="notice">Xác nhận khi bạn đã nhận và kiểm tra sản phẩm. Nếu có vấn đề, hãy mở tranh chấp.</p>':''}${action==='ship'?'<label class="market-field">Mã vận đơn SPX<input class="field" name="tracking_number" minlength="6" maxlength="50" pattern="[A-Za-z0-9-]+" required></label>':''}${reference?`<label class="market-field">Mã giao dịch / chứng từ đối soát<input class="field" name="reference" minlength="3" maxlength="200" ${action==='report_payment'?'':'required'}></label>`:''}<label class="market-field">${noteRequired?'Lý do / căn cứ xử lý':'Nội dung trao đổi (nếu có)'}<textarea class="field" name="note" maxlength="3000" ${noteRequired?'required minlength="'+(['dispute','resolve_continue','cancel_unpaid','refund','admin_confirm_refund'].includes(action)?20:10)+'"':''}></textarea></label><label class="market-field">${action==='dispute'?'Ảnh hoặc video bằng chứng (bắt buộc)':'Ảnh hoặc video chứng cứ (tối đa 3 tệp)'}<input class="field" name="evidence" type="file" multiple accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" ${action==='refund_sent'||action==='dispute'?'required':''}></label><p class="tiny muted" data-autosave-status>Tự động lưu đang bật. Tệp bằng chứng cần chọn lại nếu bạn đóng biểu mẫu.</p><button class="btn btn-mint seo-note" type="submit">Xác nhận</button><p id="market-action-error" class="small"></p></form>`);
 }
-async function submitMarketAction(event,action,admin){event.preventDefault();const f=event.target,b=f.querySelector('button'),fd=new FormData(f);b.disabled=true;try{const files=fd.getAll('evidence').filter(f=>f.size);if(files.length>3)throw new Error('Tối đa 3 tệp chứng cứ.');if(action==='dispute'&&!files.length)throw new Error('Khiếu nại cần ít nhất một ảnh hoặc video bằng chứng.');const evidence=[];for(const file of files){if(!file.type.startsWith('image/')&&!['video/mp4','video/webm'].includes(file.type))throw new Error('Chỉ hỗ trợ ảnh, MP4 hoặc WebM.');if(file.size>4*1024*1024)throw new Error('Mỗi tệp chứng cứ tối đa 4 MB.');const data=await readFileDataUrl(file);evidence.push(file.type.startsWith('image/')?await publicImageValue(data):data);}const oid=marketOrder.order.id;await marketPost((admin?'/api/admin/market/orders/':'/api/market/orders/')+oid+'/actions',{action,note:fd.get('note'),reference:fd.get('reference'),tracking_number:fd.get('tracking_number'),evidence});closeModal();toast('Đã cập nhật đơn hàng.','success');renderMarketOrder(oid,admin);}catch(e){document.getElementById('market-action-error').textContent=e.message;b.disabled=false;}}
+async function submitMarketAction(event,action,admin){event.preventDefault();const f=event.target,b=f.querySelector('button'),fd=new FormData(f);b.disabled=true;try{const files=fd.getAll('evidence').filter(f=>f.size);if(files.length>3)throw new Error('Tối đa 3 tệp chứng cứ.');if(action==='dispute'&&!files.length)throw new Error('Khiếu nại cần ít nhất một ảnh hoặc video bằng chứng.');const evidence=[];for(const file of files){if(!file.type.startsWith('image/')&&!['video/mp4','video/webm'].includes(file.type))throw new Error('Chỉ hỗ trợ ảnh, MP4 hoặc WebM.');if(file.size>4*1024*1024)throw new Error('Mỗi tệp chứng cứ tối đa 4 MB.');const data=await readFileDataUrl(file);evidence.push(file.type.startsWith('image/')?await publicImageValue(data):data);}const oid=marketOrder.order.id;await marketPost((admin?'/api/admin/market/orders/':'/api/market/orders/')+oid+'/actions',{action,note:fd.get('note'),reference:fd.get('reference'),tracking_number:fd.get('tracking_number'),evidence});clearFormDraft(f);closeModal();toast('Đã cập nhật đơn hàng.','success');renderMarketOrder(oid,admin);}catch(e){document.getElementById('market-action-error').textContent=e.message;b.disabled=false;}}
 function marketRevenueChart(trend){const w=760,h=250,left=80,right=20,top=20,bottom=48,max=Math.max(1,...trend.map(d=>d.goods)),span=w-left-right;const point=(d,i,key)=>[left+(trend.length===1?span/2:i/(trend.length-1)*span),h-bottom-(d[key]/max)*(h-top-bottom)];const line=key=>trend.map((d,i)=>point(d,i,key).join(',')).join(' ');const ticks=[0,.5,1].map(f=>{const y=h-bottom-f*(h-top-bottom);return `<line x1="${left}" y1="${y}" x2="${w-right}" y2="${y}" stroke="#294852"/><text x="${left-8}" y="${y+4}" text-anchor="end" fill="#afc7ca" font-size="12">${new Intl.NumberFormat('vi-VN',{notation:'compact'}).format(max*f)}</text>`;}).join('');const dates=[0,Math.floor((trend.length-1)/2),trend.length-1].filter((v,i,a)=>a.indexOf(v)===i).map(i=>`<text x="${point(trend[i],i,'goods')[0]}" y="${h-14}" text-anchor="middle" fill="#afc7ca" font-size="12">${esc(trend[i].date.slice(5))}</text>`).join('');return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Doanh số tiền hàng và phí nền tảng của đơn hoàn tất theo ngày tạo đơn" class="market-chart">${ticks}<polyline points="${line('goods')}" fill="none" stroke="#81d8d0" stroke-width="3"/><polyline points="${line('platformFee')}" fill="none" stroke="#f5c879" stroke-width="2"/>${trend.map((d,i)=>{const [x,y]=point(d,i,'goods');return `<circle cx="${x}" cy="${y}" r="3" fill="#81d8d0"><title>${d.date}: ${money(d.goods)}, phí ${money(d.platformFee)}</title></circle>`;}).join('')}${dates}</svg><p class="small"><span style="color:#81d8d0">● Tiền hàng hoàn tất</span> <span style="color:#f5c879">● Phí DioraLink</span> · VND</p>`;}
 function marketBarChart(items){const max=Math.max(1,...items.map(i=>i.value));return `<div class="market-bars">${items.map(i=>`<div><div class="between small"><span>${esc(i.name)}</span><b>${i.money?money(i.value):i.value}</b></div><div class="market-bar-track"><div style="width:${i.value/max*100}%"></div></div></div>`).join('')}</div>`;}
 async function renderMarketAdmin(){marketScreen('Kinh doanh Marketplace','Doanh số, phí được hưởng và đối soát từ đơn hàng thật.',`<button class="btn" onclick="loadMarketReport()">Làm mới</button><button class="btn btn-mint" onclick="exportMarketReport()">Xuất XLSX</button>`);document.getElementById('market-content').innerHTML='<form class="market-report-filters card pad" onsubmit="event.preventDefault();loadMarketReport()"><label>Từ ngày tạo đơn<input class="field" id="market-report-from" type="date"></label><label>Đến ngày tạo đơn<input class="field" id="market-report-to" type="date"></label><button class="btn btn-mint" type="submit">Xem báo cáo</button></form><div id="market-report-data" class="seo-section"></div>';await loadMarketReport();}
