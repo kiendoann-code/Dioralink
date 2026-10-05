@@ -526,12 +526,13 @@ function render(){
   document.querySelector('meta[name="robots"]')?.setAttribute('content','noindex,follow');
   const [route,param]=routeParts();
   if(!isAuthenticated() && ['market-checkout','market-order','market-seller'].includes(route))sessionStorage.setItem('dioralink_market_after_login',route+(param?'/'+param:''));
-  const protectedCustomer=['market-checkout','market-orders','customer-dashboard','commission','requests','request','projects','project','saved','messages','complaints'];
+  const protectedCustomer=['market-checkout','market-orders','customer-dashboard','commission','requests','request','projects','project','saved','messages'];
   if(protectedCustomer.includes(route) && !requireRole('customer')) return;
-  const protectedArtisan=['market-seller','market-sales','artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings','complaints'];
+  const protectedArtisan=['market-seller','market-sales','artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings'];
   if(protectedArtisan.includes(route) && !requireRole('artisan')) return;
   const protectedAdmin=['admin-market','admin-market-order','admin-dashboard','admin-commissions','admin-complaints','admin-notifications'];
   if(protectedAdmin.includes(route) && !requireAdmin()) return;
+  if(route==='complaints' && !requireAuth())return;
   if(route==='market-order' && !requireAuth())return;
   const map={'market-checkout':()=>renderMarketCheckout(param),'market-orders':()=>renderMarketOrders(false),'market-sales':()=>renderMarketOrders(true),'market-order':()=>renderMarketOrder(param),'market-seller':renderMarketSeller,'admin-market':renderMarketAdmin,'admin-market-order':()=>renderMarketOrder(param,true),home:renderHome,'customer-dashboard':renderCustomerDashboard,explore:renderExplore,creator:()=>renderCreator(param),commission:renderCommission,requests:renderRequests,request:()=>renderRequest(param),projects:renderProjects,project:()=>renderProject(param),messages:renderMessages,complaints:renderComplaints,saved:renderSaved,account:renderAccount,trust:renderTrust,
     'artisan-dashboard':renderArtisanDashboard,'artisan-requests':renderArtisanRequests,'artisan-request':()=>renderArtisanRequest(param),'artisan-proposals':renderArtisanProposals,'artisan-projects':renderArtisanProjects,'artisan-project':()=>renderArtisanProject(param),'artisan-portfolio':renderArtisanPortfolio,'artisan-earnings':renderArtisanEarnings,
@@ -1561,6 +1562,7 @@ function openVoucherInfo(){document.getElementById('modal-root').innerHTML=`<div
 
 if(location.pathname!=='/ung-dung') render();
 restoreSession().finally(()=>render()); migrateEmbeddedMedia().catch(e=>console.warn('Media migration skipped:',e.message));
+setInterval(()=>{if(expireStaleCommissionRequests())render();},15*60*1000);
 
 initI18N();
 
