@@ -579,7 +579,7 @@ app.put("/api/auth/profile", requireAuth, async (req, res) => {
 
     res.json({
       success: true,
-      user: publicUser(user)
+      user: publicUser(user,req.user.role,req.user.roles)
     });
 
   } catch (error) {
