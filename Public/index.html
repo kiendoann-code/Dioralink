@@ -258,6 +258,16 @@
     @media(max-width:600px){.header-inner{flex-wrap:wrap;padding:10px 14px;gap:8px}.header-inner>.brand{width:100%}.header-actions{width:100%;justify-content:space-between}.header-actions .btn{padding:9px 10px;font-size:9px;letter-spacing:.04em}#auth-header-actions{gap:5px}.language-switch{margin-right:0}.brand-mark{width:28px;height:28px}}
 
     .market-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:24px}.market-photo{display:block;position:relative}.market-photo img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}.market-photo .pill{position:absolute;left:12px;bottom:12px;background:#103640}
+    .market-image-button{display:block;width:100%;padding:0;border:0;background:transparent;cursor:zoom-in;text-align:inherit}
+    .market-image-button img{transition:transform .18s ease,opacity .18s ease}
+    .market-image-button:hover img{transform:scale(1.01);opacity:.94}
+    .market-image-main{border-radius:6px;overflow:hidden}
+    .image-lightbox-backdrop{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:24px;background:rgba(2,11,16,.88);backdrop-filter:blur(10px)}
+    .image-lightbox{position:relative;display:flex;align-items:center;justify-content:center;width:min(1180px,96vw);height:min(88vh,900px)}
+    .image-lightbox img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:8px;box-shadow:0 30px 90px rgba(0,0,0,.48)}
+    .image-lightbox-close{position:absolute;top:0;right:0;z-index:2;width:42px;height:42px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.18);border-radius:50%;background:rgba(5,27,35,.82);color:#fff;cursor:pointer}
+    .image-lightbox-close i{width:20px;height:20px}
+    body.lightbox-open{overflow:hidden}
     .market-card{overflow:hidden}.market-price{font-size:24px;font-weight:800;color:var(--mint);margin:14px 0}.market-price.large{font-size:36px}.market-filters{display:grid;grid-template-columns:2fr 1fr 1fr auto;align-items:end;gap:14px;margin:28px 0}.market-filters label,.market-field,.market-report-filters label{display:grid;gap:8px;font-size:13px;font-weight:600}.market-field{margin:18px 0}.market-main-image{display:block;width:100%;height:auto;aspect-ratio:6/5;object-fit:contain;background:#0c2a35}
     .market-intro{padding:36px 0}.market-intro .hero-title{margin:10px 0}.market-heading{margin-bottom:26px;gap:20px;align-items:flex-start}.market-totals{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}.market-totals .market-price{margin:0}
     .market-detail .section-title,.market-heading .section-title,.market-terms>.section-title{line-height:1.08;margin:12px 0}.market-detail a.btn,.market-home a.btn,.market-terms a.btn{display:inline-flex;align-items:center}.market-detail .small{line-height:1.6}.market-modal{max-width:850px}.market-terms-scroll{max-height:38vh;overflow:auto;padding:18px;background:#071e29;border:1px solid var(--line);border-radius:6px;margin-top:18px;line-height:1.7}.market-terms-scroll h3{margin:20px 0 8px}.market-check{display:flex;gap:12px;align-items:flex-start;line-height:1.6;margin-top:20px}.market-check input{margin-top:6px;min-width:18px;min-height:18px}
@@ -293,6 +303,7 @@
 
 <main id="app" class="shell"></main>
 <div id="modal-root"></div>
+<div id="lightbox-root"></div>
 <div id="toast-root" class="toast-wrap"></div>
 
 <footer class="footer">
@@ -305,8 +316,8 @@
   <div class="shell" style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><span>© 2026 DioraLink</span><span>All rights reserved.</span></div>
 </footer>
 
-<script src="/marketplace.js?v=complaints-20261005-1" defer></script>
-<script src="/app.js?v=complaints-20261005-2" defer></script>
+<script src="/marketplace.js?v=drafts-20261005-1" defer></script>
+<script src="/app.js?v=drafts-20261005-1" defer></script>
 </body>
 </html>
 
