@@ -133,11 +133,14 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
       ON p.user_id=u.id AND p.published=TRUE
     LEFT JOIN market_orders o
       ON o.seller_id=u.id
-    WHERE u.role='artisan'
-       OR EXISTS (
-         SELECT 1 FROM user_roles ur
-         WHERE ur.user_id=u.id AND ur.role='artisan'
-       )
+    WHERE (
+      u.role='artisan'
+      OR EXISTS (
+        SELECT 1 FROM user_roles ur
+        WHERE ur.user_id=u.id AND ur.role='artisan'
+      )
+    )
+      AND NOT (LOWER(BTRIM(u.name))='anh' AND p.user_id IS NULL)
     GROUP BY u.id,u.name,u.city,u.bio,u.avatar,u.updated_at,p.slug,p.profile,p.updated_at
     ORDER BY sales_amount DESC, RANDOM()
   `)).rows.map(directoryProfile);
