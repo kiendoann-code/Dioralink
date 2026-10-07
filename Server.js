@@ -1447,8 +1447,12 @@ app.post('/api/admin/commissions/:id/collect',requireFinanceAdmin,asyncRoute(asy
 
 /* Public pages are rendered on the server; private workspace remains a SPA. */
 app.get('/index.html', (_req, res) => res.redirect(301, '/'));
-app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '1h', setHeaders(res, filePath) {
-  if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '7d', setHeaders(res, filePath) {
+  if (filePath.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-cache');
+    return;
+  }
+  res.setHeader('Cache-Control', 'public, max-age=604800');
 } }));
 const marketplace = createMarketplace({ pool, indexFile: INDEX_FILE, requireAuth, requireAdmin: requireFinanceAdmin });
 app.use(marketplace.router);
