@@ -25,7 +25,7 @@ jobs:
           from pathlib import Path
           src=Path('Public/assets/art/hero.webp')
           im=Image.open(src).convert('RGB')
-          for width,quality in [(640,76),(960,78)]:
+          for width,quality in [(640,76),(768,77),(960,78)]:
               height=round(im.height*width/im.width)
               out=im.resize((width,height),Image.Resampling.LANCZOS)
               out.save(src.with_name(f'hero-{width}.webp'),'WEBP',quality=quality,method=6)
@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Public/assets/art/hero-640.webp Public/assets/art/hero-960.webp Public/fonts-inline.css
+          git add Public/assets/art/hero-640.webp Public/assets/art/hero-768.webp Public/assets/art/hero-960.webp Public/fonts-inline.css
           if git diff --cached --quiet; then
             echo "No changes"
             exit 0
