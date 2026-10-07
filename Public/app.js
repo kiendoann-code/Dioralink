@@ -1014,17 +1014,64 @@ function renderRequests(){
   </section>`;
 }
 
+
+function requestExtraActions(r){
+  const active=['pending','proposal_received'].includes(r.status);
+  let out='';
+  if(active) out+='<button class="btn btn-sm" type="button" onclick="toggleRequestEdit(\''+esc(r.id)+'\')">Tinh chỉnh brief & ngân sách</button>';
+  if(r.creatorMode==='specific'&&r.preferredArtisanId) out+='<button class="btn btn-sm btn-mint" type="button" onclick="openRequestConversation(\''+esc(r.id)+'\',\''+esc(r.preferredArtisanId)+'\')">Nhắn nghệ nhân</button>';
+  return out;
+}
+function requestEditPanel(r){
+  if(!['pending','proposal_received'].includes(r.status))return '';
+  return '<form id="request-edit-panel" class="card pad" style="display:none;margin-bottom:16px" data-autosave-key="request-edit:'+esc(r.id)+'" onsubmit="updateCommissionRequest(event,\''+esc(r.id)+'\')">'+
+    '<div class="between"><div><div class="eyebrow">Tinh chỉnh yêu cầu</div><div class="section-title" style="font-size:27px">BRIEF & NGÂN SÁCH</div></div><button type="button" class="btn btn-sm" onclick="toggleRequestEdit(\''+esc(r.id)+'\')">Đóng</button></div>'+
+    '<div class="grid two" style="margin-top:12px"><div><div class="label">Tên dự án</div><input class="field" name="title" value="'+esc(r.title)+'" required></div><div><div class="label">Ngân sách (VND)</div><input class="field" name="budget" type="number" min="500000" step="50000" value="'+Number(r.budget||0)+'" required></div></div>'+
+    '<div class="grid two" style="margin-top:12px"><div><div class="label">Kích thước</div><input class="field" name="size" value="'+esc(r.size||'')+'" required></div><div><div class="label">Timeline</div><input class="field" name="timeline" value="'+esc(r.timeline||'')+'" required></div></div>'+
+    '<div style="margin-top:12px"><div class="label">Phong cách</div><input class="field" name="style" value="'+esc(r.style||'')+'"></div>'+
+    '<div style="margin-top:12px"><div class="label">Brief cập nhật</div><textarea class="field" name="description" required>'+esc(r.description||'')+'</textarea></div>'+
+    '<p class="tiny muted" style="margin-top:10px">Khi lưu, nghệ nhân đã kết nối sẽ thấy phiên bản mới của brief/ngân sách và có thể cập nhật báo giá.</p>'+
+    '<button class="btn btn-mint" style="width:100%;margin-top:10px" type="submit">Gửi bản cập nhật cho nghệ nhân</button></form>';
+}
+function toggleRequestEdit(){
+  const panel=document.getElementById('request-edit-panel');
+  if(!panel)return;
+  panel.style.display=panel.style.display==='none'?'block':'none';
+}
+async function updateCommissionRequest(event,id){
+  event.preventDefault();
+  if(!requireRole('customer'))return;
+  const r=requestById(id);if(!r)return;
+  const fd=new FormData(event.target);
+  const patch={title:String(fd.get('title')||'').trim(),style:String(fd.get('style')||'').trim(),size:String(fd.get('size')||'').trim(),budget:Number(fd.get('budget')),timeline:String(fd.get('timeline')||'').trim(),description:String(fd.get('description')||'').trim()};
+  const button=event.target.querySelector('button[type="submit"]');if(button)button.disabled=true;
+  try{
+    if(CONFIG.demoMode){Object.assign(r,patch,{updatedAt:new Date().toISOString()});save();}
+    else{await commissionApi('/requests/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(patch)});await syncCommissionWorkspace({force:true});}
+    clearFormDraft(event.target);
+    toast('Đã gửi brief/ngân sách cập nhật cho nghệ nhân.','success');
+    renderRequest(id);
+  }catch(err){toast(err.message||'Không thể cập nhật yêu cầu.','error');}
+  finally{if(button)button.disabled=false;}
+}
+function proposalActionButtons(r,p,selected){
+  let out='<div class="wrap" style="margin-top:12px">';
+  if(Number(p.revisionNo||1)>1) out+='<span class="pill">Báo giá cập nhật lần '+Number(p.revisionNo)+'</span>';
+  out+='<button type="button" class="btn btn-sm" onclick="openRequestConversation(\''+esc(r.id)+'\',\''+esc(p.artisanId)+'\')">Nhắn nghệ nhân</button>';
+  if(!selected&&p.status==='pending') out+='<button type="button" class="btn btn-mint btn-sm" onclick="acceptProposal(\''+esc(r.id)+'\',\''+esc(p.id)+'\')">Chấp nhận báo giá & tạo dự án</button>';
+  return out+'</div>';
+}
 function renderRequest(id){
   const r=requestById(id); if(!r){document.getElementById('app').innerHTML='<section class="page"><div class="empty">Request not found.</div></section>';return;}
   const selected=r.selectedProposal? r.proposals.find(p=>p.id===r.selectedProposal):null;
   document.getElementById('app').innerHTML=`<section class="page">
     <button class="btn btn-sm" onclick="navigate('requests')">← Back</button>
     <div class="section-head"><div><div class="eyebrow">Request ${esc(r.id)}</div><div class="section-title">${esc(r.title)}</div><div class="wrap" style="margin-top:10px">${pill(r.status)}<span class="pill">${esc(r.style)}</span><span class="pill">${esc(r.size)}</span></div></div><div class="card pad" style="min-width:210px"><div class="label">Budget</div><div class="display" style="font-size:33px">${money(r.budget)}</div><div class="small muted" style="margin-top:4px">Timeline ${esc(r.timeline)}</div></div></div>
-    <div class="wrap" style="margin:-4px 0 16px"><button class="btn btn-danger btn-sm" onclick="openComplaint('commission_request','${esc(r.id)}','${esc(r.title)}')"><i data-lucide="shield-alert" style="width:14px"></i> Gửi khiếu nại</button></div>
+    <div class="wrap" style="margin:-4px 0 16px"><button class="btn btn-danger btn-sm" onclick="openComplaint('commission_request','${esc(r.id)}','${esc(r.title)}')"><i data-lucide="shield-alert" style="width:14px"></i> Gửi khiếu nại</button>${requestExtraActions(r)}</div>${requestEditPanel(r)}
     <div class="grid two">
       <div class="card pad"><div class="label">Brief</div><p class="body">${esc(r.description)}</p>${r.attachments?.length?`<div class="divider"></div><div class="label">Reference images</div>${renderAttachmentList(r.attachments)}`:``}<div class="divider"></div><div class="label">Routing</div><div class="small">${r.creatorMode==='specific'?`Specific artisan: <b>${esc(artisanById(r.preferredArtisanId)?.name||'')}</b>`:'Open matching to qualified artisans'}</div></div>
       <div class="card pad"><div class="between"><div><div class="eyebrow">Proposals</div><div class="section-title" style="font-size:29px">${r.proposals.length} RECEIVED</div></div>${selected?pill('approved'):''}</div>
-      ${r.proposals.length?r.proposals.map(p=>{const a=artisanById(p.artisanId); return `<div class="card-soft pad" style="margin-top:12px"><div class="between"><div class="row"><img class="avatar" ${mediaAttrs(a?.avatar,a?.avatarFallback||GUEST_USER.avatar)} alt=""><div><b>${esc(a?.name||'Unknown artisan')}</b><div class="small muted">${esc(a?.handle||'')}</div></div></div>${pill(p.status)}</div><div class="grid three" style="margin-top:12px"><div><div class="label">Quote</div><b>${money(p.quote)}</b></div><div><div class="label">Timeline</div><b>${esc(p.timeline)}</b></div><div><div class="label">Status</div><b>${selected?.id===p.id?'Selected':'Available'}</b></div></div><p class="body" style="margin-top:10px">${esc(p.message)}</p><div class="wrap" style="margin-top:10px">${p.deliverables.map(d=>`<span class="pill">${esc(d)}</span>`).join('')}</div>${!selected&&p.status==='pending'?`<button class="btn btn-mint" style="width:100%;margin-top:13px" onclick="acceptProposal('${r.id}','${p.id}')">Accept proposal & create project</button>`:''}</div>`}).join(''):'<div class="empty" style="margin-top:12px">Waiting for proposals.</div>'}
+      ${r.proposals.length?r.proposals.map(p=>{const a=artisanById(p.artisanId); return `<div class="card-soft pad" style="margin-top:12px"><div class="between"><div class="row"><img class="avatar" ${mediaAttrs(a?.avatar,a?.avatarFallback||GUEST_USER.avatar)} alt=""><div><b>${esc(a?.name||'Unknown artisan')}</b><div class="small muted">${esc(a?.handle||'')}</div></div></div>${pill(p.status)}</div><div class="grid three" style="margin-top:12px"><div><div class="label">Quote</div><b>${money(p.quote)}</b></div><div><div class="label">Timeline</div><b>${esc(p.timeline)}</b></div><div><div class="label">Status</div><b>${selected?.id===p.id?'Selected':'Available'}</b></div></div><p class="body" style="margin-top:10px">${esc(p.message)}</p><div class="wrap" style="margin-top:10px">${p.deliverables.map(d=>`<span class="pill">${esc(d)}</span>`).join('')}</div>${proposalActionButtons(r,p,selected)}</div>`}).join(''):'<div class="empty" style="margin-top:12px">Waiting for proposals.</div>'}
       </div>
     </div>
   </section>`;
