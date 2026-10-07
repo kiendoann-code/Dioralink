@@ -77,7 +77,10 @@ function normalizeRow(row,viewer){
   p.proposals=Array.isArray(p.proposals)?p.proposals:[];
   p.attachments=Array.isArray(p.attachments)?p.attachments:[];
   p.selectedProposal=p.proposals.find(x=>x.status==='accepted')?.id||null;
-  if(viewer?.role==='artisan') p.proposals=p.proposals.filter(x=>artisanUserId(x.artisanId)===viewer.id);
+  if(viewer?.role==='artisan'){
+    p.proposals=p.proposals.filter(x=>artisanUserId(x.artisanId)===viewer.id);
+    if(p.project&&artisanUserId(p.project.artisanId)!==viewer.id) delete p.project;
+  }
   return p;
 }
 function projectFrom(row,viewer){
@@ -96,9 +99,10 @@ function threadMessages(payload,artisanId){
 function conversationAllowed(row,user,artistId){
   if(!row)return false;
   const p=row.payload||{};
-  const linked=row.preferred_artisan_user_id===artistId ||
-    row.participant_artisan_ids?.includes(artistId) ||
-    artisanUserId(p.project?.artisanId)===artistId;
+  const projectArtist=artisanUserId(p.project?.artisanId);
+  const proposal=(p.proposals||[]).find(x=>artisanUserId(x.artisanId)===artistId);
+  const directBeforeClose=row.preferred_artisan_user_id===artistId&&row.status!=='proposal_accepted';
+  const linked=projectArtist===artistId || directBeforeClose || !!proposal&&['pending','accepted'].includes(proposal.status);
   if(!linked)return false;
   if(user.role==='customer')return row.customer_user_id===user.id;
   return user.role==='artisan'&&user.id===artistId;
@@ -114,7 +118,7 @@ async function profiles(pool,rows){
     "WHERE u.id=ANY($1::text[])",[ids])).rows;
   const customers={},artisans=[];
   for(const r of result){
-    customers[r.id]={id:r.id,name:r.name||'Customer',email:r.email||'',avatar:r.avatar||''};
+    customers[r.id]={id:r.id,name:r.name||'Customer',avatar:r.avatar||''};
     const pr=r.profile&&typeof r.profile==='object'?r.profile:{};
     if(r.role==='artisan'||r.is_artisan) artisans.push({
       id:artisanPublicId(r.id),name:pr.name||r.name||'Artisan',handle:pr.handle||'',city:pr.city||r.city||'',
