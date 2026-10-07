@@ -107,7 +107,7 @@ function renderDocument(template,page,artisans) {
   let document=template.replace('<head>',`<head>${preload}`).replace('<body>',page.path==='/'?'<body class="art-site">':'<body>').replace(/<title>[\s\S]*?<\/title>/,'').replace(/<meta name="description"[^>]*>/,'').replace('</head>',`${head}\n</head>`).replace('<main id="app" class="shell"></main>',()=>`<main id="app" class="shell">${breadcrumb}${page.html}</main>`);
   if(page.path==='/'){
     document=document.replace(
-      '<script src="/marketplace.js?v=drafts-20261005-1" defer></script>\n<script src="/app.js?v=perf-mobile-20261007-1" defer></script>',
+      /<script src="\/marketplace\.js\?v=[^"]+" defer><\/script>\s*<script src="\/app\.js\?v=[^"]+" defer><\/script>/,
       '<script src="/public-home.js?v=perf-mobile-20261007-2" defer></script>'
     );
   }
