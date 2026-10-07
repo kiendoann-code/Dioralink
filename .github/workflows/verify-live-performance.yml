@@ -1,0 +1,54 @@
+name: verify-live-performance
+on:
+  push:
+    branches:
+      - perf/postdeploy-verify-20261007
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for production commit and verify live assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 18); do
+            curl -fsSL "https://dioralink.xyz/app.js?verify=46f94f7" -o app-live.js || true
+            curl -fsSL "https://dioralink.xyz/?verify=46f94f7" -o home-live.html || true
+            if grep -q "thirdPartyScriptLoads" app-live.js 2>/dev/null && grep -q "perf-mobile-20261007-1" home-live.html 2>/dev/null; then
+              ok=1
+              echo "LIVE_DEPLOY_OK attempt=$i"
+              break
+            fi
+            echo "deploy not visible yet: attempt=$i"
+            sleep 10
+          done
+          test "$ok" -eq 1
+          echo "HOME_MARKERS"
+          grep -o 'perf-mobile-20261007-1' home-live.html | head -1
+          grep -o 'preload[^>]*hero.webp[^>]*' home-live.html | head -1 || true
+          echo "APP_MARKERS"
+          grep -o 'thirdPartyScriptLoads' app-live.js | head -1
+          grep -o "if(location.pathname==='/ung-dung') migrateEmbeddedMedia()" app-live.js | head -1
+          echo "HEADERS_HOME"
+          curl -fsSI "https://dioralink.xyz/?verify=46f94f7" | grep -iE '^(cache-control|content-type|content-encoding|server|cf-cache-status):' || true
+          echo "HEADERS_APP"
+          curl -fsSI "https://dioralink.xyz/app.js?verify=46f94f7" | grep -iE '^(cache-control|content-type|content-encoding|server|cf-cache-status):' || true
+      - name: Measure post-deploy through PSI v5 proxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          for strategy in mobile desktop; do
+            echo "=== $strategy ==="
+            curl --fail-with-body --silent --show-error --get               "https://modpagespeed.com/psi/v5/runPagespeed"               --data-urlencode "url=https://dioralink.xyz/?psi=46f94f7-$strategy"               --data-urlencode "strategy=$strategy"               -o "$strategy.json"
+            jq --arg strategy "$strategy" '{
+              strategy:$strategy,
+              score:(.lighthouseResult.categories.performance.score*100),
+              fcp_ms:.lighthouseResult.audits["first-contentful-paint"].numericValue,
+              lcp_ms:.lighthouseResult.audits["largest-contentful-paint"].numericValue,
+              tbt_ms:.lighthouseResult.audits["total-blocking-time"].numericValue,
+              cls:.lighthouseResult.audits["cumulative-layout-shift"].numericValue,
+              speed_index_ms:.lighthouseResult.audits["speed-index"].numericValue,
+              interactive_ms:.lighthouseResult.audits["interactive"].numericValue
+            }' "$strategy.json"
+          done
