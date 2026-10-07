@@ -72,7 +72,7 @@ for (const profile of publicArtisans) {
   else state.artisans.push({...profile,verified:false,rating:0,reviews:0,completed:0});
 }
 const restoreAdminOnLoad=state.user?.role==='admin'||location.hash.startsWith('#admin-');
-if(!CONFIG.demoMode){ state.session={authenticated:false,userId:null}; state.user=clone(GUEST_USER); }
+if(!CONFIG.demoMode){ state.session={authenticated:false,userId:null}; state.user=clone(GUEST_USER); state.requests=[]; state.projects=[]; }
 let explore = {query:"",category:"all",budget:50000000};
 let mobileNavOpen = false;
 
@@ -877,7 +877,25 @@ async function pollVisibleCommissionConversation(){
 setInterval(pollVisibleCommissionConversation,5000);
 setInterval(()=>{
   if(CONFIG.demoMode||document.hidden||!isAuthenticated())return;
-  if(['customer-dashboard','requests','projects','artisan-dashboard','artisan-requests','artisan-proposals','artisan-projects'].includes(currentRoute()))syncCommissionWorkspace({force:true,rerender:true});
+  const route=currentRoute();
+  if(['customer-dashboard','requests','projects','artisan-dashboard','artisan-requests','artisan-proposals','artisan-projects'].includes(route)){
+    syncCommissionWorkspace({force:true,rerender:true});
+    return;
+  }
+  if(route==='request'){
+    const panel=document.getElementById('request-edit-panel');
+    if(!panel||panel.style.display==='none')syncCommissionWorkspace({force:true,rerender:true});
+    return;
+  }
+  if(route==='artisan-request'){
+    const active=document.activeElement;
+    if(!active?.closest?.('form'))syncCommissionWorkspace({force:true,rerender:true});
+    return;
+  }
+  if(route==='messages'){
+    const input=document.getElementById('inbox-msg'),files=document.getElementById('inbox-chat-files');
+    if(!input?.value&&!files?.files?.length)syncCommissionWorkspace({force:true,rerender:true});
+  }
 },20000);
 async function sendConversationMessage(){
   if(!requireAuth())return;
