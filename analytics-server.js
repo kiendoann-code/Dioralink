@@ -72,8 +72,9 @@ async function ensureAnalyticsSchema(pool){
       referrer_host TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
+    )
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS analytics_events (
       event_id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL REFERENCES analytics_sessions(session_id) ON DELETE CASCADE,
@@ -85,19 +86,13 @@ async function ensureAnalyticsSchema(pool){
       scroll_depth SMALLINT NOT NULL DEFAULT 0,
       props JSONB NOT NULL DEFAULT '{}'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE INDEX IF NOT EXISTS analytics_sessions_started_idx
-      ON analytics_sessions(started_at DESC);
-    CREATE INDEX IF NOT EXISTS analytics_sessions_visitor_idx
-      ON analytics_sessions(visitor_id,started_at DESC);
-    CREATE INDEX IF NOT EXISTS analytics_events_session_idx
-      ON analytics_events(session_id,created_at);
-    CREATE INDEX IF NOT EXISTS analytics_events_name_idx
-      ON analytics_events(event_name,created_at DESC);
-    CREATE INDEX IF NOT EXISTS analytics_events_page_idx
-      ON analytics_events(page_path,created_at DESC);
+    )
   `);
+  await pool.query('CREATE INDEX IF NOT EXISTS analytics_sessions_started_idx ON analytics_sessions(started_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS analytics_sessions_visitor_idx ON analytics_sessions(visitor_id,started_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS analytics_events_session_idx ON analytics_events(session_id,created_at)');
+  await pool.query('CREATE INDEX IF NOT EXISTS analytics_events_name_idx ON analytics_events(event_name,created_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS analytics_events_page_idx ON analytics_events(page_path,created_at DESC)');
 }
 
 function createAnalyticsRouter({pool,requireAdmin}){
