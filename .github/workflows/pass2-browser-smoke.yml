@@ -1,0 +1,59 @@
+name: pass2-browser-smoke
+on:
+  push:
+    branches:
+      - perf/postdeploy-pass2-20261007
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install browser test dependency
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+      - name: Smoke-test production mobile interactions
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const assert=require('node:assert/strict');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:412,height:915},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+            const errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            await page.goto('https://dioralink.xyz/?smoke=pass2',{waitUntil:'networkidle'});
+            const hero=page.locator('.art-hero-visual img');
+            await hero.waitFor({state:'visible'});
+            const box=await hero.boundingBox();
+            assert(box && box.width>300 && box.height>250,'hero must retain mobile layout');
+            assert.equal(await page.locator('#auth-header-actions button').filter({hasText:'Đăng nhập'}).count(),1,'guest login button must be present');
+            const initialScripts=await page.locator('script[src]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('src')));
+            assert(initialScripts.some(x=>x?.includes('/public-home.js')),'light homepage bootstrap must load');
+            assert(!initialScripts.some(x=>x?.includes('/app.js')),'full app should not load before interaction for guest');
+
+            await page.getByRole('button',{name:'Đăng nhập'}).click();
+            await page.locator('.auth-premium-modal').waitFor({state:'visible',timeout:15000});
+            assert(await page.locator('.auth-premium-modal').isVisible(),'login modal must open after lazy full-app load');
+            assert((await page.locator('script[src]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('src')))).some(x=>x?.includes('/app.js')),'full app must load on login interaction');
+
+            await page.locator('.auth-premium-close').click();
+            await page.waitForTimeout(200);
+            await page.locator('.mobile-menu').click();
+            await page.waitForFunction(()=>getComputedStyle(document.getElementById('mobile-nav')).display!=='none');
+            assert(await page.locator('#mobile-nav').isVisible(),'mobile menu must open');
+
+            const workspace=await browser.newPage({viewport:{width:412,height:915},isMobile:true,hasTouch:true});
+            await workspace.goto('https://dioralink.xyz/ung-dung#account',{waitUntil:'networkidle'});
+            const wsScripts=await workspace.locator('script[src]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('src')));
+            assert(wsScripts.some(x=>x?.includes('/app.js')),'workspace must still load full app directly');
+            assert(await workspace.locator('#app').isVisible(),'workspace app container must render');
+            console.log(JSON.stringify({hero:box,initialScripts,errors,workspaceScripts:wsScripts}));
+            await browser.close();
+            if(errors.length)console.log('PAGE_ERRORS',errors);
+            console.log('PASS2_BROWSER_SMOKE_OK');
+          })().catch(e=>{console.error(e);process.exit(1);});
+          NODE
