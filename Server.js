@@ -85,6 +85,7 @@ const INDEX_FILE = path.join(PUBLIC_DIR, "index.html");
 const { createSeoRouter, ensureSeoSchema, safeImage } = require("./seo");
 const { createMarketplace, ensureMarketplaceSchema } = require("./marketplace");
 const { createAnalyticsRouter, ensureAnalyticsSchema } = require("./analytics-server");
+const { createCommissionWorkflow, ensureCommissionWorkflowSchema } = require("./commission-workflow");
 
 const COOKIE_NAME = "dioralink_session";
 
@@ -1455,6 +1456,8 @@ app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '7d', setHeaders(res,
   }
   res.setHeader('Cache-Control', 'public, max-age=604800');
 } }));
+const commissionWorkflow = createCommissionWorkflow({ pool, requireAuth });
+app.use("/api/commission", commissionWorkflow.router);
 const marketplace = createMarketplace({ pool, indexFile: INDEX_FILE, requireAuth, requireAdmin: requireFinanceAdmin });
 app.use(marketplace.router);
 app.use(createAnalyticsRouter({ pool, requireAdmin: requireFinanceAdmin }));
@@ -1533,6 +1536,7 @@ async function start() {
     await ensureSeoSchema(pool);
     await ensureMarketplaceSchema(pool);
     await ensureAnalyticsSchema(pool);
+    await ensureCommissionWorkflowSchema(pool);
     console.log("Database schema: OK");
 
     app.post("/api/auth/logout", (req, res) => {
