@@ -800,13 +800,70 @@ function renderSaved(){
   const list=state.artisans.filter(a=>state.savedCreators.includes(a.id));
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">SAVED ARTISANS</div></div><button class="btn" onclick="navigate('explore')">Explore</button></div><div class="creator-grid">${list.length?list.map(renderCreatorCard).join(''):'<div class="empty" style="grid-column:1/-1">No saved artisans.</div>'}</div></section>`;
 }
+function artisanConversationKey(id){
+  const raw=String(id||'');
+  return raw.startsWith('ART-')?raw.slice(4):raw;
+}
+function demoConversations(){
+  return state.projects.filter(p=>isCustomer()?p.customerId===state.user.id:p.artisanId===state.user.artisanId).map(p=>{
+    const aid=artisanConversationKey(p.artisanId),a=artisanById(p.artisanId),c=customerById(p.customerId),msgs=p.messages||[];
+    return {key:p.requestId+'|'+aid,requestId:p.requestId,artisanUserId:aid,artisanId:p.artisanId,projectId:p.id,title:p.title,requestStatus:p.status,
+      counterpart:isCustomer()?{name:a?.name||'Artisan',avatar:a?.avatar||''}:{name:c?.name||'Customer',avatar:c?.avatar||''},messages:msgs,lastMessage:msgs[msgs.length-1]||null};
+  });
+}
+function openRequestConversation(requestId,artisanId){
+  activeConversationKey=String(requestId)+'|'+artisanConversationKey(artisanId);
+  navigate('messages');
+}
+function openConversation(key){
+  activeConversationKey=String(key||'');
+  renderMessages();
+}
 function renderMessages(){
-  const mine=state.projects.filter(
-  p=>isCustomer()
-    ?p.customerId===state.user.id
-    :(state.user?.artisanId ? p.artisanId===state.user.artisanId : false)
-);
-  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Inbox</div><div class="section-title">MESSAGES</div></div></div><div class="grid" style="gap:10px;max-width:900px">${mine.length?mine.map(p=>{const a=artisanById(p.artisanId), c=customerById(p.customerId), last=p.messages?.[p.messages.length-1];return `<button class="card pad" style="width:100%;text-align:left;color:inherit" onclick="navigate('${isCustomer()?'project':'artisan-project'}/${p.id}')"><div class="between"><div class="row"><img class="avatar-lg" ${mediaAttrs(isCustomer()?a?.avatar:state.user.avatar,isCustomer()?(a?.avatarFallback||GUEST_USER.avatar):(state.user.avatarFallback||GUEST_USER.avatar))}><div><b>${esc(p.title)}</b><div class="small muted">${esc(isCustomer()?a?.name:(c?.name||'Customer'))}</div></div></div>${pill(p.status)}</div><div class="small" style="margin-top:12px">${esc(last?.text||'No messages yet.')}</div><div class="tiny muted" style="margin-top:5px">${esc(last?.time||'')}</div></button>`}).join(''):'<div class="empty">No conversations.</div>'}</div></section>`;
+  const list=CONFIG.demoMode?demoConversations():commissionConversations;
+  if(!activeConversationKey||!list.some(x=>x.key===activeConversationKey))activeConversationKey=list[0]?.key||'';
+  const active=list.find(x=>x.key===activeConversationKey)||null;
+  const messages=active?.messages||[];
+  document.getElementById('app').innerHTML='<section class="page"><div class="section-head"><div><div class="eyebrow">Inbox</div><div class="section-title">TIN NHẮN</div></div>'+(active?.projectId?'<button class="btn btn-sm" onclick="navigate(\''+(isCustomer()?'project/':'artisan-project/')+esc(active.projectId)+'\')">Mở dự án →</button>':'')+'</div>'+
+    '<div class="grid two" style="align-items:start;grid-template-columns:minmax(260px,.78fr) minmax(0,1.6fr)">'+
+      '<div class="card pad"><div class="label">Cuộc trò chuyện</div><div style="display:grid;gap:8px;margin-top:10px">'+
+        (list.length?list.map(c=>'<button type="button" class="card-soft pad" style="text-align:left;color:inherit;border:'+(c.key===activeConversationKey?'1px solid var(--mint)':'1px solid var(--line)')+'" onclick="openConversation(\''+esc(c.key)+'\')"><div class="row"><img class="avatar" '+mediaAttrs(c.counterpart?.avatar,c.counterpart?.avatar||GUEST_USER.avatar)+'><div style="min-width:0"><b>'+esc(c.counterpart?.name||'Đối tác')+'</b><div class="small muted">'+esc(c.title||'Commission')+'</div></div></div><div class="small" style="margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(c.lastMessage?.text||'Chưa có tin nhắn. Bắt đầu trao đổi tại đây.')+'</div></button>').join(''):'<div class="empty">Chưa có cuộc trò chuyện. Sau khi chọn nghệ nhân hoặc gửi proposal, cuộc trò chuyện sẽ xuất hiện ở đây.</div>')+
+      '</div></div>'+
+      '<div class="card pad">'+(active?
+        '<div class="between"><div><div class="eyebrow">Trao đổi trực tiếp</div><div class="section-title" style="font-size:29px">'+esc(active.title||'Commission chat')+'</div><div class="small muted">'+esc(active.counterpart?.name||'Đối tác')+'</div></div>'+pill(active.requestStatus||'pending')+'</div>'+
+        '<div class="chat" style="margin-top:14px;max-height:520px;overflow:auto">'+(messages.length?messages.map(m=>'<div class="msg '+(m.senderRole===currentRole()?'me':'')+'">'+esc(m.text||'')+renderMessageAttachments(m)+'<div class="msg-meta">'+(m.senderRole===currentRole()?'Bạn':esc(active.counterpart?.name||'Đối tác'))+' · '+esc(m.time||dateTime(m.createdAt))+'</div></div>').join(''):'<div class="empty">Chưa có tin nhắn. Bạn có thể bắt đầu trao đổi ngay.</div>')+'</div>'+
+        '<div class="chat-compose"><input id="inbox-msg" class="field" placeholder="Nhập tin nhắn..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();sendConversationMessage()}"><button class="btn btn-mint" onclick="sendConversationMessage()">Gửi</button></div>'+
+        '<div class="chat-tools"><label class="file-input-label"><i data-lucide="paperclip" style="width:14px"></i> Đính kèm<input id="inbox-chat-files" type="file" multiple accept="image/*,application/pdf,.stl,.obj,.3mf,.blend,.fbx,.glb,.gltf,.step,.stp,.3ds,.dae,.ply" style="display:none" onchange="showSelectedInboxFiles(this)"></label><span id="inbox-file-summary" class="tiny muted"></span></div>'
+        :'<div class="empty">Chọn một cuộc trò chuyện để bắt đầu.</div>')+'</div>'+
+    '</div></section>';
+  window.lucide?.createIcons();
+}
+function showSelectedInboxFiles(input){
+  const files=Array.from(input?.files||[]),el=document.getElementById('inbox-file-summary');
+  if(el)el.textContent=files.length?files.map(f=>f.name+' · '+formatBytes(f.size)).join(' · '):'';
+}
+async function sendConversationMessage(){
+  if(!requireAuth())return;
+  const list=CONFIG.demoMode?demoConversations():commissionConversations,active=list.find(x=>x.key===activeConversationKey);
+  if(!active){toast('Chưa chọn cuộc trò chuyện.','warning');return;}
+  const input=document.getElementById('inbox-msg'),fileInput=document.getElementById('inbox-chat-files');
+  const message=input?.value.trim()||'',files=Array.from(fileInput?.files||[]);
+  if(!message&&!files.length){toast('Hãy nhập tin nhắn hoặc đính kèm tệp.','warning');return;}
+  for(const f of files){if(f.size>8*1024*1024){toast('Mỗi tệp đính kèm tối đa 8MB.','error');return;}}
+  try{
+    if(CONFIG.demoMode){
+      const p=projectById(active.projectId);if(!p)return;
+      const attachments=[];for(const f of files)attachments.push(await storeBinaryFile(f,'chat'));
+      p.messages=p.messages||[];p.messages.push({id:'MSG-'+Date.now(),senderId:state.user.id,senderRole:currentRole(),text:message,time:dateTime(new Date()),attachments});
+      save();
+    }else{
+      const attachments=[];for(const f of files)attachments.push({name:f.name,dataUrl:await readFileDataUrl(f)});
+      await commissionApi('/conversations/'+encodeURIComponent(active.requestId)+'/'+encodeURIComponent(active.artisanId)+'/messages',{method:'POST',body:JSON.stringify({text:message,attachments})});
+      await syncCommissionWorkspace({force:true});
+    }
+    if(input)input.value='';if(fileInput)fileInput.value='';
+    renderMessages();
+  }catch(err){toast(err.message||'Không thể gửi tin nhắn.','error');}
 }
 function renderCreator(id){
   const published=publicArtisans.find(a=>a.id===id);
@@ -886,8 +943,19 @@ async function downloadStoredFile(id,name){try{const db=await openFileDB();const
 function fileIcon(type,name){const n=String(name||'').toLowerCase();if((type||'').startsWith('image/'))return 'image';if(type==='application/pdf'||n.endsWith('.pdf'))return 'file-text';if(/\.(stl|obj|3mf|blend|fbx|glb|gltf|step|stp|3ds|dae|ply)$/i.test(n))return 'box';return 'paperclip';}
 function fileLabel(f){const ext=(String(f.name||'').split('.').pop()||'FILE').toUpperCase();return ext.slice(0,6);}
 function formatBytes(n){const v=Number(n||0);if(v<1024)return v+' B';if(v<1024*1024)return Math.round(v/1024)+' KB';return (v/(1024*1024)).toFixed(1)+' MB';}
-function renderAttachmentList(files=[]){if(!files?.length)return '';return `<div class="file-list">${files.map(f=>{const canDownload=!!(f.storageId||f.id);return canDownload?`<button type="button" class="file-item" style="text-align:left;width:100%" onclick="downloadStoredFile('${esc(f.storageId||f.id||'')}','${esc(f.name||'file')}')"><span class="file-meta"><span class="file-icon"><i data-lucide="${fileIcon(f.type,f.name)}" style="width:16px"></i></span><span style="min-width:0"><span class="file-name">${esc(f.name||'file')}</span><span class="file-size">${fileLabel(f)} · ${formatBytes(f.size)}</span></span></span><i data-lucide="download" style="width:15px;flex:0 0 auto"></i></button>`:`<div class="file-item"><span class="file-meta"><span class="file-icon"><i data-lucide="${fileIcon(f.type,f.name)}" style="width:16px"></i></span><span style="min-width:0"><span class="file-name">${esc(f.name||'file')}</span><span class="file-size">${fileLabel(f)} · ${formatBytes(f.size)}</span></span></span></div>`}).join('')}</div>`;}
-function renderMessageAttachments(m){return m.attachments?.length?`<div class="msg-attachments">${m.attachments.map(f=>`<button type="button" class="msg-attachment" onclick="downloadStoredFile('${esc(f.storageId||f.id||'')}','${esc(f.name||'file')}')"><i data-lucide="${fileIcon(f.type,f.name)}" style="width:14px"></i><span class="file-name">${esc(f.name||'file')}</span><span style="margin-left:auto;opacity:.65;font-size:8px">${formatBytes(f.size)}</span></button>`).join('')}</div>`:'';}
+function renderAttachmentList(files=[]){
+  if(!files?.length)return '';
+  return '<div class="file-list">'+files.map(f=>{
+    const key=registerAttachment(f);
+    return '<button type="button" class="file-item" style="text-align:left;width:100%" onclick="downloadAttachmentRef(\''+esc(key)+'\')"><span class="file-meta"><span class="file-icon"><i data-lucide="'+fileIcon(f.type,f.name)+'" style="width:16px"></i></span><span style="min-width:0"><span class="file-name">'+esc(f.name||'file')+'</span><span class="file-size">'+fileLabel(f)+' · '+formatBytes(f.size)+'</span></span></span><i data-lucide="download" style="width:15px;flex:0 0 auto"></i></button>';
+  }).join('')+'</div>';
+}
+function renderMessageAttachments(m){
+  return m.attachments?.length?'<div class="msg-attachments">'+m.attachments.map(f=>{
+    const key=registerAttachment(f);
+    return '<button type="button" class="msg-attachment" onclick="downloadAttachmentRef(\''+esc(key)+'\')"><i data-lucide="'+fileIcon(f.type,f.name)+'" style="width:14px"></i><span class="file-name">'+esc(f.name||'file')+'</span><span style="margin-left:auto;opacity:.65;font-size:8px">'+formatBytes(f.size)+'</span></button>';
+  }).join('')+'</div>':'';
+}
 
 function renderCommission(){
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">CREATE COMMISSION</div></div><button class="btn" onclick="navigate('requests')">Requests</button></div><form class="grid two" data-autosave-key="commission-new" onsubmit="createRequest(event)"><div class="card pad"><div class="label">Project title</div><input name="title" class="field" required placeholder="e.g. Forest Shrine — 1/12 Diorama"><div class="grid two" style="margin-top:14px"><div><div class="label">Style</div><select name="style" class="field"><option>Fantasy</option><option>Resin</option><option>Mecha</option><option>Gunpla</option><option>Miniature</option><option>Architecture</option><option>Lighting</option></select></div><div><div class="label">Size</div><input name="size" class="field" required placeholder="40 × 30 × 30 cm"></div></div><div class="grid two" style="margin-top:14px"><div><div class="label">Budget (VND)</div><input name="budget" type="number" min="500000" step="50000" class="field" required value="20000000"></div><div><div class="label">Timeline</div><input name="timeline" class="field" required placeholder="45 days"></div></div><div style="margin-top:14px"><div class="label">Brief</div><textarea name="description" class="field" required placeholder="Mood, characters, materials, lighting, references, important constraints..."></textarea></div><div style="margin-top:14px"><div class="label">Reference images</div><input name="referenceImages" class="field" type="file" accept="image/*" multiple required><div class="tiny muted" style="margin-top:6px">At least one image is required.</div></div></div><div class="card pad"><div class="label">Routing</div><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="matching" checked> <b>Open matching</b><div class="small muted" style="margin-top:5px">Send to qualified artisans</div></label><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="specific"> <b>Specific artisan</b><div class="small muted" style="margin-top:5px">Send to a selected artisan</div></label><div style="margin-top:14px"><div class="label">Preferred artisan</div><select name="preferredArtisanId" class="field"><option value="">— Select artisan —</option>${publicArtisans.map(a=>`<option value="${a.id}">${esc(a.name)} ${a.verified?'· Verified':''}</option>`).join('')}</select></div><div class="divider"></div><div class="notice">Your images will be shared with artisans who receive this request.</div><p class="tiny muted" data-autosave-status style="margin-top:16px">Tự động lưu đang bật. Tệp đính kèm cần chọn lại nếu đóng trang.</p><div class="sticky-actions" style="margin-top:12px"><button class="btn btn-mint" style="width:100%">Publish request <i data-lucide="arrow-up-right" style="width:15px;vertical-align:-3px"></i></button></div></div></form></section>`;const pre=sessionStorage.getItem('dioralink_preferred_artisan');if(pre){const el=document.querySelector('[name="preferredArtisanId"]');if(el){el.value=pre;document.querySelector('[value="specific"]').checked=true;}sessionStorage.removeItem('dioralink_preferred_artisan');}window.lucide?.createIcons();
