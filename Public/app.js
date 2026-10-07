@@ -2199,6 +2199,9 @@ async function restoreSession(){
           data.user,
           data.user?.provider||'email'
         );
+        if(['customer','artisan'].includes(state.user.role)){
+          await syncCommissionWorkspace({force:true});
+        }
 
       }
 
