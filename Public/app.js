@@ -1893,7 +1893,8 @@ function milestonePayable(p,m){const v=p.appliedVoucher?.milestoneId===m.id?getV
 function openVoucherInfo(){document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><div class="eyebrow">Promotions</div><b>Available vouchers</b></div><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body">${(state.vouchers||[]).map(v=>`<div class="card-soft pad" style="margin-bottom:9px"><div class="between"><b class="voucher-code">${esc(v.code)}</b><span class="pill pill-mint">Voucher</span></div><div class="small" style="margin-top:6px">${esc(v.description)}</div><div class="tiny muted" style="margin-top:5px">Minimum spend: ${money(v.minSpend)}</div></div>`).join('')}</div></div></div>`;window.lucide?.createIcons();}
 
 if(location.pathname!=='/ung-dung') render();
-restoreSession().finally(()=>render()); migrateEmbeddedMedia().catch(e=>console.warn('Media migration skipped:',e.message));
+restoreSession().finally(()=>render());
+if(location.pathname==='/ung-dung') migrateEmbeddedMedia().catch(e=>console.warn('Media migration skipped:',e.message));
 setInterval(()=>{if(expireStaleCommissionRequests())render();},15*60*1000);
 
 initI18N();
