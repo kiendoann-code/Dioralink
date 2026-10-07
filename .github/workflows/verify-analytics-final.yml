@@ -1,0 +1,43 @@
+name: verify-analytics-final
+on:
+  push:
+    branches:
+      - ops/verify-analytics-final-20261007
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for final analytics client
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 24); do
+            curl -fsSL "https://dioralink.xyz/?finalanalytics=$(date +%s)-$i" -o home.html || true
+            curl -fsSL "https://dioralink.xyz/analytics-client.js?v=behavior-20261007-2&x=$i" -o analytics.js || true
+            if grep -q 'analytics-client.js?v=behavior-20261007-2' home.html \
+              && grep -q 'function activeTick(final=false,force=false)' analytics.js \
+              && grep -q 'scrollable<=1?100' analytics.js; then
+              ok=1
+              echo FINAL_ANALYTICS_LIVE_OK
+              break
+            fi
+            echo "waiting final analytics deploy $i"
+            sleep 10
+          done
+          test "$ok" -eq 1
+          status=$(curl -sS -o /tmp/admin.json -w '%{http_code}' "https://dioralink.xyz/api/admin/analytics/summary?days=7")
+          echo "ADMIN_ANALYTICS_UNAUTH_STATUS=$status"
+          test "$status" = "401"
+      - name: Final mobile PSI sample
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --get             "https://modpagespeed.com/psi/v5/runPagespeed"             --data-urlencode "url=https://dioralink.xyz/?analyticsfinal=$(date +%s)"             --data-urlencode "strategy=mobile"             -o psi.json
+          jq '{
+            score:(.lighthouseResult.categories.performance.score*100),
+            fcp_ms:.lighthouseResult.audits["first-contentful-paint"].numericValue,
+            lcp_ms:.lighthouseResult.audits["largest-contentful-paint"].numericValue,
+            tbt_ms:.lighthouseResult.audits["total-blocking-time"].numericValue,
+            cls:.lighthouseResult.audits["cumulative-layout-shift"].numericValue
+          }' psi.json
