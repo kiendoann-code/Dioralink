@@ -858,14 +858,19 @@ async function pollVisibleCommissionConversation(){
       const active=commissionConversations.find(x=>x.key===activeConversationKey);if(!active)return;
       const data=await commissionApi('/conversations/'+encodeURIComponent(active.requestId)+'/'+encodeURIComponent(active.artisanId)+'/messages');
       active.messages=Array.isArray(data.messages)?data.messages:[];active.lastMessage=active.messages[active.messages.length-1]||null;
-      const input=document.getElementById('inbox-msg');if(!(document.activeElement===input&&input?.value))renderMessages();
+      const input=document.getElementById('inbox-msg'),files=document.getElementById('inbox-chat-files');if(!input?.value&&!files?.files?.length)renderMessages();
       return;
     }
     if(route==='project'||route==='artisan-project'){
       const project=projectById(routeParts()[1]);if(!project)return;
       const data=await commissionApi('/conversations/'+encodeURIComponent(project.requestId)+'/'+encodeURIComponent(project.artisanId)+'/messages');
       project.messages=Array.isArray(data.messages)?data.messages:[];
-      const input=document.getElementById('project-msg');if(!(document.activeElement===input&&input?.value))render();
+      const chat=document.getElementById('chat-box')||document.querySelector('#app .chat');
+      if(chat){
+        const artisan=artisanById(project.artisanId),customer=customerById(project.customerId);
+        chat.innerHTML=project.messages.map(m=>'<div class="msg '+(m.senderRole===currentRole()?'me':'')+'">'+esc(m.text||'')+renderMessageAttachments(m)+'<div class="msg-meta">'+(m.senderRole===currentRole()?'Bạn':esc(isCustomer()?(artisan?.name||'Artisan'):(customer?.name||'Customer')))+' · '+esc(m.time||dateTime(m.createdAt))+'</div></div>').join('');
+        window.lucide?.createIcons();
+      }
     }
   }catch(err){console.debug('Commission conversation poll skipped:',err.message);}
 }
