@@ -109,14 +109,14 @@ async function profiles(pool,rows){
   ]).filter(Boolean))];
   if(!ids.length)return {artisans:[],customers:{}};
   const result=(await pool.query(
-    "SELECT u.id,u.name,u.email,u.avatar,u.city,u.bio,u.role,p.profile FROM users u "+
+    "SELECT u.id,u.name,u.email,u.avatar,u.city,u.bio,u.role,p.profile,EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='artisan') AS is_artisan FROM users u "+
     "LEFT JOIN public_artisan_profiles p ON p.user_id=u.id AND p.published=TRUE "+
     "WHERE u.id=ANY($1::text[])",[ids])).rows;
   const customers={},artisans=[];
   for(const r of result){
     customers[r.id]={id:r.id,name:r.name||'Customer',email:r.email||'',avatar:r.avatar||''};
     const pr=r.profile&&typeof r.profile==='object'?r.profile:{};
-    if(r.role==='artisan'||ids.includes(r.id)) artisans.push({
+    if(r.role==='artisan'||r.is_artisan) artisans.push({
       id:artisanPublicId(r.id),name:pr.name||r.name||'Artisan',handle:pr.handle||'',city:pr.city||r.city||'',
       bio:pr.bio||r.bio||'',avatar:r.avatar||'',hero:'',portfolio:[],specialties:Array.isArray(pr.specialties)?pr.specialties:[],
       startingPrice:Number(pr.startingPrice||0),response:pr.response||'',verified:false,rating:0,reviews:0,completed:0
