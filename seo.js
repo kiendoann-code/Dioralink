@@ -110,7 +110,7 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
   const router=express.Router();
   const template=fs.readFileSync(indexFile,'utf8');
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
-  const listQuery=async()=> (await pool.query(`
+  const list=async()=> (await pool.query(`
     SELECT
       u.id AS user_id,
       u.name AS user_name,
@@ -145,15 +145,6 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     GROUP BY u.id,u.name,u.city,u.bio,u.avatar,u.updated_at,p.slug,p.profile,p.updated_at
     ORDER BY sales_amount DESC, RANDOM()
   `)).rows.map(directoryProfile);
-  let publicArtisanCache={value:null,expiresAt:0};
-  const clearPublicArtisanCache=()=>{publicArtisanCache={value:null,expiresAt:0};};
-  const list=async()=>{
-    const now=Date.now();
-    if(publicArtisanCache.value && publicArtisanCache.expiresAt>now)return publicArtisanCache.value;
-    const value=await listQuery();
-    publicArtisanCache={value,expiresAt:now+15000};
-    return value;
-  };
   router.get('/api/public/artisans',wrap(async(req,res)=>res.json({artisans:await list()})));
   router.post('/api/artisan/public-profile',requireAuth,wrap(async(req,res)=>{
     if(req.user.role!=='artisan') return res.status(403).json({message:'Chỉ nghệ nhân được công khai hồ sơ.'});
@@ -172,13 +163,11 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     profile.avatar=keepImage(profile.avatar);profile.hero=keepImage(profile.hero);profile.portfolio=profile.portfolio.map(keepImage).filter(Boolean);
     const slug=slugify(profile.name)+'-'+crypto.createHash('sha256').update(String(req.user.id)).digest('hex').slice(0,12);
     const result=await pool.query(`INSERT INTO public_artisan_profiles (user_id,slug,profile,published) VALUES ($1,$2,$3,TRUE) ON CONFLICT (user_id) DO UPDATE SET profile=EXCLUDED.profile,published=TRUE,updated_at=NOW() RETURNING user_id,slug,profile,updated_at`,[req.user.id,slug,JSON.stringify(profile)]);
-    clearPublicArtisanCache();
     res.json({artisan:publicProfile(result.rows[0]),message:'Đã công khai hồ sơ.'});
   }));
   router.delete('/api/artisan/public-profile',requireAuth,wrap(async(req,res)=>{
     if(req.user.role!=='artisan') return res.status(403).json({message:'Forbidden'});
     await pool.query('UPDATE public_artisan_profiles SET published=FALSE,updated_at=NOW() WHERE user_id=$1',[req.user.id]);
-    clearPublicArtisanCache();
     res.json({message:'Đã ẩn hồ sơ công khai.'});
   }));
   router.get('/media/nghe-nhan/:slug/:slot',wrap(async(req,res)=>{
@@ -209,13 +198,8 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     let artisans;try{artisans=await list();}catch(error){console.error('Public catalog unavailable:',error.message);return res.status(503).set('Retry-After','120').set('X-Robots-Tag','noindex').type('html').send('<!doctype html><html lang="vi"><meta charset="utf-8"><title>DioraLink tạm thời gián đoạn</title><h1>Vui lòng thử lại sau ít phút.</h1></html>');}
     const page=pageFor(req.path,artisans);
     if(req.path==='/' && getHomeSection){const block=await getHomeSection();page.html=page.html.replace('<!-- ART_MARKETPLACE -->',()=>block);}
-    if(!page.index){
-      res.set('X-Robots-Tag','noindex');
-      res.set('Cache-Control','no-store');
-    }else{
-      res.set('Cache-Control','public, max-age=0, s-maxage=30, stale-while-revalidate=300');
-    }
-    res.status(page.status).type('html').send(renderDocument(template,page,artisans));
+    if(!page.index)res.set('X-Robots-Tag','noindex');
+    res.set('Cache-Control','no-cache').status(page.status).type('html').send(renderDocument(template,page,artisans));
   }));
   router.use((err,req,res,next)=>{console.error('SEO route error:',err.message);res.status(503).set('Retry-After','120').json({message:'Không thể tải hoặc lưu hồ sơ. Vui lòng thử lại.'});});
   return router;
