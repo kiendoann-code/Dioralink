@@ -1,0 +1,35 @@
+name: psi-mobile-diagnostics
+on:
+  push:
+    branches:
+      - perf/mobile-pass2-20261007
+jobs:
+  psi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Capture mobile PSI diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --get             "https://modpagespeed.com/psi/v5/runPagespeed"             --data-urlencode "url=https://dioralink.xyz/?pass2=$(date +%s)"             --data-urlencode "strategy=mobile"             -o mobile.json
+          jq '{
+            score:(.lighthouseResult.categories.performance.score*100),
+            fcp:.lighthouseResult.audits["first-contentful-paint"].numericValue,
+            lcp:.lighthouseResult.audits["largest-contentful-paint"].numericValue,
+            tbt:.lighthouseResult.audits["total-blocking-time"].numericValue,
+            cls:.lighthouseResult.audits["cumulative-layout-shift"].numericValue,
+            si:.lighthouseResult.audits["speed-index"].numericValue,
+            tti:.lighthouseResult.audits["interactive"].numericValue,
+            server_response:.lighthouseResult.audits["server-response-time"],
+            render_blocking:.lighthouseResult.audits["render-blocking-resources"],
+            unused_css:.lighthouseResult.audits["unused-css-rules"],
+            unused_js:.lighthouseResult.audits["unused-javascript"],
+            main_thread:.lighthouseResult.audits["mainthread-work-breakdown"],
+            bootup:.lighthouseResult.audits["bootup-time"],
+            lcp_discovery:.lighthouseResult.audits["lcp-discovery-insight"],
+            lcp_breakdown:.lighthouseResult.audits["lcp-breakdown-insight"],
+            image_delivery:.lighthouseResult.audits["image-delivery-insight"],
+            font_display:.lighthouseResult.audits["font-display-insight"],
+            network_dependency_tree:.lighthouseResult.audits["network-dependency-tree-insight"],
+            third_parties:.lighthouseResult.audits["third-parties-insight"]
+          }' mobile.json
