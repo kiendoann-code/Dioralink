@@ -29,15 +29,29 @@ jobs:
           status=$(curl -sS -o /tmp/admin.json -w '%{http_code}' "https://dioralink.xyz/api/admin/analytics/summary?days=7")
           echo "ADMIN_ANALYTICS_UNAUTH_STATUS=$status"
           test "$status" = "401"
-      - name: Final mobile PSI sample
+      - name: Final mobile PSI samples
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error --get             "https://modpagespeed.com/psi/v5/runPagespeed"             --data-urlencode "url=https://dioralink.xyz/?analyticsfinal=$(date +%s)"             --data-urlencode "strategy=mobile"             -o psi.json
-          jq '{
-            score:(.lighthouseResult.categories.performance.score*100),
-            fcp_ms:.lighthouseResult.audits["first-contentful-paint"].numericValue,
-            lcp_ms:.lighthouseResult.audits["largest-contentful-paint"].numericValue,
-            tbt_ms:.lighthouseResult.audits["total-blocking-time"].numericValue,
-            cls:.lighthouseResult.audits["cumulative-layout-shift"].numericValue
-          }' psi.json
+          : > final.jsonl
+          for i in 1 2 3; do
+            curl --fail-with-body --silent --show-error --get "https://modpagespeed.com/psi/v5/runPagespeed" \
+              --data-urlencode "url=https://dioralink.xyz/?analyticsfinal=$(date +%s)-$i" \
+              --data-urlencode "strategy=mobile" \
+              -o "psi-$i.json"
+            jq -c --argjson run "$i" '{
+              run:$run,
+              score:(.lighthouseResult.categories.performance.score*100),
+              fcp_ms:.lighthouseResult.audits["first-contentful-paint"].numericValue,
+              lcp_ms:.lighthouseResult.audits["largest-contentful-paint"].numericValue,
+              tbt_ms:.lighthouseResult.audits["total-blocking-time"].numericValue,
+              cls:.lighthouseResult.audits["cumulative-layout-shift"].numericValue
+            }' "psi-$i.json" | tee -a final.jsonl
+          done
+          jq -s '{
+            scores:map(.score),
+            score_median:(map(.score)|sort|.[1]),
+            lcp_median_ms:(map(.lcp_ms)|sort|.[1]),
+            fcp_median_ms:(map(.fcp_ms)|sort|.[1]),
+            tbt_median_ms:(map(.tbt_ms)|sort|.[1])
+          }' final.jsonl
