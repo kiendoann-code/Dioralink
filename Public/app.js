@@ -206,7 +206,7 @@ document.addEventListener('click',event=>{
 });
 function apiURL(path){ return (CONFIG.apiBase||"").replace(/\/$/,"")+path; }
 function authUserFromArtisan(a,provider="demo"){ return {id:"USR-ARTISAN-01",name:a?.name||"Artisan",email:"artisan@example.com",phone:"",city:a?.city||"",role:"artisan",avatar:a?.avatar||GUEST_USER.avatar,bio:a?.bio||"",joined:"2026",artisanId:a?.id||"A-001",authenticated:true,provider}; }
-function setGuest(){ state.session={authenticated:false,userId:null}; state.user=clone(GUEST_USER); save(); }
+function setGuest(){ state.session={authenticated:false,userId:null}; state.user=clone(GUEST_USER); save(); window.DioraAnalytics?.setContext({user_role:'guest'}); }
 function isAuthenticated(){ return state.session?.authenticated===true && !!state.user?.id; }
 function requireAuth(){ if(isAuthenticated()) return true; toast("Vui lòng đăng nhập để tiếp tục.","warning"); openAuthModal("login"); return false; }
 function ensureCurrentArtisanProfile(){
@@ -310,6 +310,7 @@ function applyAuthenticatedUser(u,provider='email'){
   }
 
   save();
+  window.DioraAnalytics?.setContext({user_role:['customer','artisan'].includes(state.user.role)?state.user.role:'guest'});
 }
 
 function roleAfterLogin(role){
@@ -380,7 +381,7 @@ const NAV_ARTISAN=[
 ];
 const NAV_ADMIN=[
   ['marketplace','Marketplace','store'],['admin-market','Kinh doanh Marketplace','chart-column'],
-  ['admin-dashboard','Finance','wallet-cards'],['admin-commissions','Commissions','receipt-text'],['admin-complaints','Khiếu nại','shield-alert'],['admin-notifications','Notifications','bell']
+  ['admin-dashboard','Finance','wallet-cards'],['admin-analytics','Analytics','activity'],['admin-commissions','Commissions','receipt-text'],['admin-complaints','Khiếu nại','shield-alert'],['admin-notifications','Notifications','bell']
 ];
 
 function routeParts(){
@@ -640,13 +641,13 @@ function render(){
   if(protectedCustomer.includes(route) && !requireRole('customer')) return;
   const protectedArtisan=['market-seller','market-sales','artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings'];
   if(protectedArtisan.includes(route) && !requireRole('artisan')) return;
-  const protectedAdmin=['admin-market','admin-market-order','admin-dashboard','admin-commissions','admin-complaints','admin-notifications'];
+  const protectedAdmin=['admin-market','admin-market-order','admin-dashboard','admin-analytics','admin-commissions','admin-complaints','admin-notifications'];
   if(protectedAdmin.includes(route) && !requireAdmin()) return;
   if(route==='complaints' && !requireAuth())return;
   if(route==='market-order' && !requireAuth())return;
   const map={'market-checkout':()=>renderMarketCheckout(param),'market-orders':()=>renderMarketOrders(false),'market-sales':()=>renderMarketOrders(true),'market-order':()=>renderMarketOrder(param),'market-seller':renderMarketSeller,'admin-market':renderMarketAdmin,'admin-market-order':()=>renderMarketOrder(param,true),home:renderHome,'customer-dashboard':renderCustomerDashboard,explore:renderExplore,creator:()=>renderCreator(param),commission:renderCommission,requests:renderRequests,request:()=>renderRequest(param),projects:renderProjects,project:()=>renderProject(param),messages:renderMessages,complaints:renderComplaints,saved:renderSaved,account:renderAccount,trust:renderTrust,
     'artisan-dashboard':renderArtisanDashboard,'artisan-requests':renderArtisanRequests,'artisan-request':()=>renderArtisanRequest(param),'artisan-proposals':renderArtisanProposals,'artisan-projects':renderArtisanProjects,'artisan-project':()=>renderArtisanProject(param),'artisan-portfolio':renderArtisanPortfolio,'artisan-earnings':renderArtisanEarnings,
-    'admin-dashboard':renderAdminDashboard,'admin-commissions':renderAdminCommissions,'admin-complaints':renderAdminComplaints,'admin-notifications':renderAdminNotifications};
+    'admin-dashboard':renderAdminDashboard,'admin-analytics':renderAdminAnalytics,'admin-commissions':renderAdminCommissions,'admin-complaints':renderAdminComplaints,'admin-notifications':renderAdminNotifications};
   (map[route]||renderHome)();
   refreshShell();
   window.scrollTo({top:0,behavior:'instant'});
@@ -834,7 +835,7 @@ function renderMessageAttachments(m){return m.attachments?.length?`<div class="m
 function renderCommission(){
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">CREATE COMMISSION</div></div><button class="btn" onclick="navigate('requests')">Requests</button></div><form class="grid two" data-autosave-key="commission-new" onsubmit="createRequest(event)"><div class="card pad"><div class="label">Project title</div><input name="title" class="field" required placeholder="e.g. Forest Shrine — 1/12 Diorama"><div class="grid two" style="margin-top:14px"><div><div class="label">Style</div><select name="style" class="field"><option>Fantasy</option><option>Resin</option><option>Mecha</option><option>Gunpla</option><option>Miniature</option><option>Architecture</option><option>Lighting</option></select></div><div><div class="label">Size</div><input name="size" class="field" required placeholder="40 × 30 × 30 cm"></div></div><div class="grid two" style="margin-top:14px"><div><div class="label">Budget (VND)</div><input name="budget" type="number" min="500000" step="50000" class="field" required value="20000000"></div><div><div class="label">Timeline</div><input name="timeline" class="field" required placeholder="45 days"></div></div><div style="margin-top:14px"><div class="label">Brief</div><textarea name="description" class="field" required placeholder="Mood, characters, materials, lighting, references, important constraints..."></textarea></div><div style="margin-top:14px"><div class="label">Reference images</div><input name="referenceImages" class="field" type="file" accept="image/*" multiple required><div class="tiny muted" style="margin-top:6px">At least one image is required.</div></div></div><div class="card pad"><div class="label">Routing</div><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="matching" checked> <b>Open matching</b><div class="small muted" style="margin-top:5px">Send to qualified artisans</div></label><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="specific"> <b>Specific artisan</b><div class="small muted" style="margin-top:5px">Send to a selected artisan</div></label><div style="margin-top:14px"><div class="label">Preferred artisan</div><select name="preferredArtisanId" class="field"><option value="">— Select artisan —</option>${publicArtisans.map(a=>`<option value="${a.id}">${esc(a.name)} ${a.verified?'· Verified':''}</option>`).join('')}</select></div><div class="divider"></div><div class="notice">Your images will be shared with artisans who receive this request.</div><p class="tiny muted" data-autosave-status style="margin-top:16px">Tự động lưu đang bật. Tệp đính kèm cần chọn lại nếu đóng trang.</p><div class="sticky-actions" style="margin-top:12px"><button class="btn btn-mint" style="width:100%">Publish request <i data-lucide="arrow-up-right" style="width:15px;vertical-align:-3px"></i></button></div></div></form></section>`;const pre=sessionStorage.getItem('dioralink_preferred_artisan');if(pre){const el=document.querySelector('[name="preferredArtisanId"]');if(el){el.value=pre;document.querySelector('[value="specific"]').checked=true;}sessionStorage.removeItem('dioralink_preferred_artisan');}window.lucide?.createIcons();
 }
-async function createRequest(e){if(!requireRole('customer'))return;e.preventDefault();const fd=new FormData(e.target);const files=Array.from(document.querySelector('[name="referenceImages"]')?.files||[]);const mode=fd.get('creatorMode');const preferred=fd.get('preferredArtisanId')||null;if(mode==='specific'&&!preferred){toast('HÃ£y chá»n artisan cá»¥ thá»ƒ hoáº·c chuyá»ƒn sang Open matching.','error');return;}if(!files.length){toast('Vui lÃ²ng gá»­i Ã­t nháº¥t má»™t hÃ¬nh áº£nh tham kháº£o.','error');return;}for(const f of files){if(!f.type.startsWith('image/')){toast('Chá»‰ cháº¥p nháº­n file hÃ¬nh áº£nh á»Ÿ Reference images.','error');return;}if(f.size>8*1024*1024){toast('Má»—i áº£nh khÃ´ng Ä‘Æ°á»£c vÆ°á»£t quÃ¡ 8MB.','error');return;}}const submit=e.target.querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Publishing...';}try{const attachments=[];for(const f of files)attachments.push(await storeBinaryFile(f,'request'));const id='REQ-'+new Date().getFullYear()+'-'+String(state.requests.length+1).padStart(3,'0');const r={id,customerId:state.user.id,title:String(fd.get('title')).trim(),style:String(fd.get('style')),size:String(fd.get('size')).trim(),budget:Number(fd.get('budget')),timeline:String(fd.get('timeline')).trim(),description:String(fd.get('description')).trim(),status:'pending',createdAt:new Date().toISOString(),creatorMode:mode,preferredArtisanId:preferred,attachments,proposals:[]};state.requests.unshift(r);clearFormDraft(e.target);addNotification({title:'Request published',body:`${r.title} has been sent to the Artisan inbox.`,route:`request/${r.id}`});save();toast('Commission request published.','success');navigate('request/'+r.id);}catch(err){toast(err.message||'Unable to save request images.','error');}finally{if(submit){submit.disabled=false;submit.textContent='Publish request';}}}
+async function createRequest(e){if(!requireRole('customer'))return;e.preventDefault();const fd=new FormData(e.target);const files=Array.from(document.querySelector('[name="referenceImages"]')?.files||[]);const mode=fd.get('creatorMode');const preferred=fd.get('preferredArtisanId')||null;if(mode==='specific'&&!preferred){toast('HÃ£y chá»n artisan cá»¥ thá»ƒ hoáº·c chuyá»ƒn sang Open matching.','error');return;}if(!files.length){toast('Vui lÃ²ng gá»­i Ã­t nháº¥t má»™t hÃ¬nh áº£nh tham kháº£o.','error');return;}for(const f of files){if(!f.type.startsWith('image/')){toast('Chá»‰ cháº¥p nháº­n file hÃ¬nh áº£nh á»Ÿ Reference images.','error');return;}if(f.size>8*1024*1024){toast('Má»—i áº£nh khÃ´ng Ä‘Æ°á»£c vÆ°á»£t quÃ¡ 8MB.','error');return;}}const submit=e.target.querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Publishing...';}try{const attachments=[];for(const f of files)attachments.push(await storeBinaryFile(f,'request'));const id='REQ-'+new Date().getFullYear()+'-'+String(state.requests.length+1).padStart(3,'0');const r={id,customerId:state.user.id,title:String(fd.get('title')).trim(),style:String(fd.get('style')),size:String(fd.get('size')).trim(),budget:Number(fd.get('budget')),timeline:String(fd.get('timeline')).trim(),description:String(fd.get('description')).trim(),status:'pending',createdAt:new Date().toISOString(),creatorMode:mode,preferredArtisanId:preferred,attachments,proposals:[]};state.requests.unshift(r);clearFormDraft(e.target);addNotification({title:'Request published',body:`${r.title} has been sent to the Artisan inbox.`,route:`request/${r.id}`});save();window.DioraAnalytics?.track('commission_submitted',{routing:mode,budget:Number(r.budget||0),style:String(r.style||'')});toast('Commission request published.','success');navigate('request/'+r.id);}catch(err){toast(err.message||'Unable to save request images.','error');}finally{if(submit){submit.disabled=false;submit.textContent='Publish request';}}}
 
 function renderRequests(){
   const mine=state.requests.filter(r=>r.customerId===state.user.id);
@@ -921,7 +922,7 @@ async function markDirectPayment(e,projectId,milestoneId){
   let proof=null; if(proofFile&&proofFile.size){if(proofFile.size>5*1024*1024){toast('Payment proof must be 5MB or smaller.','error');return;}proof=await storeBinaryFile(proofFile,'payment-proof');}
   const record={milestoneId,amount:m.amount,customerPaid:calc.total,discount:calc.discount,voucherCode:calc.code,status:'customer_reported',paidAt:new Date().toISOString(),confirmedAt:null,transferReference:ref,proof};
   const existing=p.payments.find(x=>x.milestoneId===milestoneId); if(existing)Object.assign(existing,record);else p.payments.push(record);
-  p.activity.unshift({text:`Customer reported direct payment for ${milestoneId}`,time:dateTime(new Date())}); addNotification({title:'Payment reported',body:`Customer reported a direct payment for ${m.name}.`,route:`artisan-project/${p.id}`}); p.appliedVoucher=null; save(); closeModal(); toast('Payment reported to the artisan.','success'); render();
+  p.activity.unshift({text:`Customer reported direct payment for ${milestoneId}`,time:dateTime(new Date())}); addNotification({title:'Payment reported',body:`Customer reported a direct payment for ${m.name}.`,route:`artisan-project/${p.id}`}); p.appliedVoucher=null; save(); window.DioraAnalytics?.track('payment_reported',{amount:Number(calc.total||0),voucher_used:!!calc.code}); closeModal(); toast('Payment reported to the artisan.','success'); render();
 }
 async function confirmDirectPayment(projectId,milestoneId){
   if(!requireRole('artisan'))return;
@@ -977,7 +978,7 @@ async function adminLogin(e){
     const data=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(data.message||'Admin login failed.');
     state=normalizeState({...state,user:{id:data.admin.id,name:data.admin.name,email:data.admin.email,role:'admin',avatar:'',bio:'',authenticated:true,provider:'admin'},session:{authenticated:true,userId:data.admin.id}});
-    save();closeModal();toast('Admin signed in.','success');navigate('admin-dashboard');
+    save();window.DioraAnalytics?.setContext({user_role:'admin'});closeModal();toast('Admin signed in.','success');navigate('admin-dashboard');
   }catch(error){toast(error?.message||'Admin login failed.','error');}finally{if(submit)submit.disabled=false;}
 }
 async function adminLogout(){
@@ -989,6 +990,66 @@ async function loadAdminFinance(){
   const data=await res.json().catch(()=>({}));
   if(!res.ok)throw new Error(data.message||'Unable to load finance dashboard.');
   return data;
+}
+async function loadAdminAnalytics(days=7){
+  const res=await adminApi('/api/admin/analytics/summary?days='+encodeURIComponent(days));
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.message||'Unable to load analytics.');
+  return data;
+}
+function analyticsDuration(seconds){
+  const n=Math.max(0,Number(seconds||0));
+  if(n<60)return Math.round(n)+'s';
+  const m=Math.floor(n/60),s=Math.round(n%60);
+  return m+'m '+String(s).padStart(2,'0')+'s';
+}
+function analyticsBar(label,value,max=100){
+  const v=Math.max(0,Math.min(max,Number(value||0)));
+  const width=max?Math.max(0,Math.min(100,(v/max)*100)):0;
+  return `<div style="display:grid;grid-template-columns:90px 1fr 55px;gap:10px;align-items:center;margin:10px 0"><span class="small muted">${esc(label)}</span><div style="height:8px;background:rgba(129,216,208,.10);overflow:hidden;border-radius:99px"><div style="height:100%;width:${width}%;background:var(--mint);border-radius:99px"></div></div><b class="small" style="text-align:right">${Math.round(v*10)/10}%</b></div>`;
+}
+function analyticsFunnel(items){
+  const first=Math.max(1,Number(items?.[0]?.sessions||0));
+  return (items||[]).map((item,index)=>{
+    const value=Number(item.sessions||0);
+    const rate=index===0?(value?100:0):(value/first*100);
+    return `<div class="card-soft pad" style="margin-top:8px"><div class="between"><span class="small">${esc(item.step)}</span><b>${value}</b></div><div style="height:6px;background:rgba(129,216,208,.10);margin-top:8px;border-radius:99px;overflow:hidden"><div style="height:100%;width:${Math.min(100,rate)}%;background:var(--mint);border-radius:99px"></div></div><div class="tiny muted" style="margin-top:5px">${Math.round(rate*10)/10}% so với bước đầu</div></div>`;
+  }).join('');
+}
+async function renderAdminAnalytics(days=7){
+  const selected=Math.min(90,Math.max(1,Number(days)||7));
+  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Admin · Behavior analytics</div><div class="section-title">USER BEHAVIOR</div><div class="small muted">First-party anonymous analytics · không lưu email, tên, số điện thoại hay nội dung tin nhắn.</div></div><div class="wrap"><button class="btn btn-sm ${selected===7?'btn-mint':''}" onclick="renderAdminAnalytics(7)">7 ngày</button><button class="btn btn-sm ${selected===30?'btn-mint':''}" onclick="renderAdminAnalytics(30)">30 ngày</button><button class="btn btn-sm ${selected===90?'btn-mint':''}" onclick="renderAdminAnalytics(90)">90 ngày</button></div></div><div id="admin-analytics-content"><div class="empty">Đang tải analytics…</div></div></section>`;
+  try{
+    const data=await loadAdminAnalytics(selected);
+    const k=data.kpis||{},scroll=data.scrollDepth||{},market=data.funnels?.marketplace||[],commission=data.funnels?.commission||[];
+    const top=(data.topPages||[]).map(p=>`<tr><td><code>${esc(p.path)}</code></td><td>${p.views}</td><td>${p.sessions}</td></tr>`).join('');
+    const roles=(data.roles||[]).map(r=>`<span class="pill">${esc(r.role)} · ${r.sessions}</span>`).join('');
+    const devices=(data.devices||[]).map(r=>`<span class="pill">${esc(r.device)} · ${r.sessions}</span>`).join('');
+    document.getElementById('admin-analytics-content').innerHTML=`
+      <div class="grid four">
+        <div class="card metric"><div class="n">${Number(k.bounceRate||0).toFixed(1)}%</div><div class="k">Bounce rate</div></div>
+        <div class="card metric"><div class="n">${analyticsDuration(k.avgSessionSeconds)}</div><div class="k">Avg session duration</div></div>
+        <div class="card metric"><div class="n">${Number(k.pagesPerSession||0).toFixed(2)}</div><div class="k">Pages / session</div></div>
+        <div class="card metric"><div class="n">${Number(k.avgScrollDepth||0).toFixed(1)}%</div><div class="k">Avg scroll depth</div></div>
+      </div>
+      <div class="grid four" style="margin-top:14px">
+        <div class="card metric"><div class="n">${k.sessions||0}</div><div class="k">Sessions</div></div>
+        <div class="card metric"><div class="n">${k.visitors||0}</div><div class="k">Visitors</div></div>
+        <div class="card metric"><div class="n">${Number(k.conversionRate||0).toFixed(1)}%</div><div class="k">Session conversion</div></div>
+        <div class="card metric"><div class="n">${data.rangeDays||selected}d</div><div class="k">Reporting range</div></div>
+      </div>
+      <div class="grid two" style="margin-top:16px">
+        <div class="card pad"><div class="eyebrow">Scroll depth</div><h3 style="margin:8px 0 16px">DEPTH REACHED</h3>${analyticsBar('25%',scroll['25'])}${analyticsBar('50%',scroll['50'])}${analyticsBar('75%',scroll['75'])}${analyticsBar('90%',scroll['90'])}${analyticsBar('100%',scroll['100'])}</div>
+        <div class="card pad"><div class="eyebrow">Segments</div><h3 style="margin:8px 0 16px">ROLE & DEVICE</h3><div class="label">Role</div><div class="wrap" style="margin:8px 0 18px">${roles||'<span class="small muted">Chưa có dữ liệu</span>'}</div><div class="label">Device</div><div class="wrap" style="margin-top:8px">${devices||'<span class="small muted">Chưa có dữ liệu</span>'}</div></div>
+      </div>
+      <div class="grid two" style="margin-top:16px">
+        <div class="card pad"><div class="eyebrow">Marketplace funnel</div><h3 style="margin:8px 0 12px">VIEW → ORDER</h3>${analyticsFunnel(market)||'<div class="small muted">Chưa có dữ liệu.</div>'}</div>
+        <div class="card pad"><div class="eyebrow">Commission funnel</div><h3 style="margin:8px 0 12px">START → SUBMIT</h3>${analyticsFunnel(commission)||'<div class="small muted">Chưa có dữ liệu.</div>'}</div>
+      </div>
+      <div class="card pad" style="margin-top:16px"><div class="between"><div><div class="eyebrow">Top pages</div><h3 style="margin-top:8px">PAGE PERFORMANCE</h3></div><div class="tiny muted">Generated ${new Date(data.generatedAt||Date.now()).toLocaleString('vi-VN')}</div></div><div style="overflow:auto;margin-top:12px"><table class="table"><thead><tr><th>Page</th><th>Views</th><th>Sessions</th></tr></thead><tbody>${top||'<tr><td colspan="3" class="muted">Chưa có dữ liệu.</td></tr>'}</tbody></table></div></div>`;
+  }catch(error){
+    document.getElementById('admin-analytics-content').innerHTML=`<div class="empty">${esc(error.message||'Không thể tải analytics.')}</div>`;
+  }
 }
 function adminStatus(status){
   return `<span class="pill ${status==='collected'?'pill-success':'pill-warning'}">${esc(status==='collected'?'Collected':'Unpaid')}</span>`;
