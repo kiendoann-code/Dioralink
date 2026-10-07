@@ -1307,7 +1307,31 @@ async function openAdminNotification(id,route){
 }
 function copyText(value){navigator.clipboard?.writeText(String(value)).then(()=>toast('Copied.','success')).catch(()=>toast(String(value),'success'));}
 function payMilestone(projectId,milestoneId){openDirectPayment(projectId,milestoneId);}
-async function sendMessage(projectId,role){if(!requireAuth())return;const p=projectById(projectId);const input=document.getElementById('project-msg');const fileInput=document.getElementById('project-chat-files');const demoProject=p&&(p.id==='DL-2026-009'||p.requestId==='REQ-2026-001');const participant=p&&(p.customerId===state.user.id||p.artisanId===(state.user.artisanId||'__none__'));if(!p){toast('Project not found.','error');return;}if(!participant&&!demoProject){toast('You are not a participant in this project.','warning');return;}const text=input?.value.trim()||'';const files=Array.from(fileInput?.files||[]);if(!text&&!files.length){toast('Write a message or attach a file.','warning');return;}for(const f of files){if(f.size>20*1024*1024){toast('Each attachment must be 20MB or smaller.','error');return;}}try{const attachments=[];for(const f of files)attachments.push(await storeBinaryFile(f,'chat'));p.messages=p.messages||[];p.messages.push({id:'MSG-'+Date.now(),senderId:state.user.id,senderRole:role,text,time:dateTime(new Date()),attachments});p.activity=p.activity||[];p.activity.unshift({text:`${role==='artisan'?'Artisan':'Customer'} sent a message`,time:dateTime(new Date())});if(input)input.value='';if(fileInput)fileInput.value='';save();render();}catch(err){toast(err.message||'Unable to send attachment.','error');}}
+async function sendMessage(projectId,role){
+  if(!requireAuth())return;
+  const p=projectById(projectId),input=document.getElementById('project-msg'),fileInput=document.getElementById('project-chat-files');
+  if(!p){toast('Project not found.','error');return;}
+  const participant=p.customerId===state.user.id||p.artisanId===(state.user.artisanId||'__none__');
+  const demoProject=p.id==='DL-2026-009'||p.requestId==='REQ-2026-001';
+  if(!participant&&!demoProject){toast('You are not a participant in this project.','warning');return;}
+  const message=input?.value.trim()||'',files=Array.from(fileInput?.files||[]);
+  if(!message&&!files.length){toast('Write a message or attach a file.','warning');return;}
+  for(const file of files){if(file.size>8*1024*1024){toast('Each attachment must be 8MB or smaller.','error');return;}}
+  try{
+    if(CONFIG.demoMode){
+      const attachments=[];for(const file of files)attachments.push(await storeBinaryFile(file,'chat'));
+      p.messages=p.messages||[];p.messages.push({id:'MSG-'+Date.now(),senderId:state.user.id,senderRole:role,text:message,time:dateTime(new Date()),attachments});
+      p.activity=p.activity||[];p.activity.unshift({text:(role==='artisan'?'Artisan':'Customer')+' sent a message',time:dateTime(new Date())});
+      save();
+    }else{
+      const attachments=[];for(const file of files)attachments.push({name:file.name,dataUrl:await readFileDataUrl(file)});
+      await commissionApi('/conversations/'+encodeURIComponent(p.requestId)+'/'+encodeURIComponent(p.artisanId)+'/messages',{method:'POST',body:JSON.stringify({text:message,attachments})});
+      await syncCommissionWorkspace({force:true});
+    }
+    if(input)input.value='';if(fileInput)fileInput.value='';
+    render();
+  }catch(err){toast(err.message||'Unable to send message.','error');}
+}
 
 function showSelectedFiles(input){const files=Array.from(input?.files||[]);const el=document.getElementById('chat-file-summary');if(el)el.textContent=files.length?files.map(f=>`${f.name} · ${formatBytes(f.size)}`).join(' ·'):'';}
 function complaintMediaMarkup(src){
