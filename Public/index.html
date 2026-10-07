@@ -5,10 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DioraLink — Commission Platform for Customers & Artisans</title>
   <meta name="description" content="DioraLink connects customers with miniature and diorama artisans from discovery to commission, project delivery and payment.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer fetchpriority="low"></script>
+  <script>
+    (() => {
+      const loadFonts=()=>{
+        if(document.getElementById('dioralink-font-stylesheet')) return;
+        const link=document.createElement('link');
+        link.id='dioralink-font-stylesheet';
+        link.rel='stylesheet';
+        link.href='/fonts-inline.css?v=20261007-1';
+        document.head.appendChild(link);
+      };
+      if(document.readyState==='complete') {
+        setTimeout(loadFonts,0);
+      } else {
+        window.addEventListener('load',loadFonts,{once:true});
+      }
+    })();
+  </script>
+  <script>
+    (() => {
+      let lucidePromise;
+      window.ensureLucide = function(){
+        if(window.lucide) return Promise.resolve(window.lucide);
+        if(lucidePromise) return lucidePromise;
+        lucidePromise = new Promise((resolve,reject)=>{
+          const script=document.createElement('script');
+          script.src='https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js';
+          script.async=true;
+          script.onload=()=>{ try{ window.lucide?.createIcons(); }catch(e){} resolve(window.lucide); };
+          script.onerror=()=>reject(new Error('Lucide failed to load'));
+          document.head.appendChild(script);
+        });
+        lucidePromise.catch(()=>{ lucidePromise=null; });
+        return lucidePromise;
+      };
+      const loadLucide=()=>window.ensureLucide().catch(()=>{});
+      if(location.pathname==='/'){
+        window.addEventListener('pointerdown',loadLucide,{once:true,passive:true});
+        window.addEventListener('keydown',loadLucide,{once:true});
+      }else{
+        loadLucide();
+      }
+    })();
+  </script>
   <script>
     window.DIORALINK_CONFIG = {
       apiBase: "",
@@ -384,7 +424,45 @@
     @media(max-width:1000px){.market-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.market-filters{grid-template-columns:1fr 1fr}.header-inner{gap:10px}.nav-btn{padding:9px 10px}}
     @media(max-width:600px){.market-grid{grid-template-columns:1fr}.market-filters{grid-template-columns:1fr}.market-heading,.market-home>.between{flex-direction:column;align-items:flex-start}.market-detail{grid-template-columns:1fr}.market-modal .grid.two{grid-template-columns:1fr}.market-totals{font-size:14px}.market-price.large{font-size:30px}.market-report-filters label{width:100%}.market-report-filters .field{width:100%}.metric .n{font-size:26px;overflow-wrap:anywhere}.artisan-profile-shortcut{align-items:flex-start;flex-direction:column}}
 </style>
-<link rel="stylesheet" href="/art-home.css?v=20261005-3">
+<style id="art-home-inline">
+/* Editorial home. Isolated from checkout/account styles. */
+.art-site{--art-ink:#122c32;--art-paper:#f4f7f3;--art-mint:#88dbca;background:var(--art-paper);color:var(--art-ink)}
+.art-site .header{background:rgba(244,247,243,.94);border-color:#dce4df}.art-site .header .brand-mark{color:#173a3c;border-color:#a5beb4;background:#e2ece5}.art-site .brand-sub{color:#526861}.art-site .nav-btn{color:#45615b}.art-site .nav-btn:hover,.art-site .nav-btn.active{color:#173a3c;background:#dceee5;border-color:#bdcec3}.art-site .header-actions .btn,.art-site .header-actions .icon-btn{color:#183a37;border-color:#bed0c5}.art-site .header-actions .btn-mint{background:#88dbca}.art-site .language-switch{background:#dbe9e1}.art-site #mobile-nav{background:#f4f7f3}.art-site #mobile-nav .nav-btn{color:#173a3c}.art-site .role-badge{color:#183a37}.art-site main.shell{max-width:1440px;padding:0 32px}.art-site .footer{background:#0c282d;margin-top:0;padding-top:56px;color:#b8d0ca}.art-site .footer .brand-name{color:#f4f7f3}
+.art-home{font-family:Inter,"Segoe UI",Arial,sans-serif;font-size:16px;line-height:1.65;color:#122c32}.art-home *{box-sizing:border-box}.art-home h1,.art-home h2,.art-home h3,.art-home p,.art-home figure{margin:0}.art-home h1,.art-home h2,.art-home h3{font-family:Inter,"Segoe UI",Arial,sans-serif;font-weight:650;text-transform:none;overflow-wrap:normal;word-break:normal;letter-spacing:-.045em}.art-home h1{font-size:clamp(44px,5.3vw,78px);line-height:1.15}.art-home h2{font-size:clamp(32px,3.5vw,52px);line-height:1.2}.art-home h3{font-size:24px;line-height:1.35;letter-spacing:-.025em}.art-home p{color:#536962}.art-kicker{font-size:10px!important;letter-spacing:.14em;line-height:1.8!important;font-weight:700;color:inherit!important}.art-opening{display:grid;grid-template-columns:1.55fr 1fr;gap:44px;align-items:end;padding:62px 18px 52px}.art-opening .art-kicker{margin-bottom:20px}.art-opening h1>span{color:#65847a}.art-title-arrow{display:inline-flex;vertical-align:middle;background:#88dbca;border-radius:60px;font-size:52px;line-height:1;width:105px;height:55px;align-items:center;justify-content:center;margin-left:24px;transition:transform .3s}.art-title-arrow:hover{transform:translateX(8px)}.art-opening-note{padding:0 0 12px 60px}.art-opening-note p{font-size:16px;line-height:1.9;margin-bottom:24px}.art-text-link{display:inline-flex;gap:22px;align-items:center;font-size:13px;font-weight:650;line-height:1.6;border-bottom:1px solid #9baea3;padding-bottom:6px}.art-text-link span{font-size:24px;line-height:1}.art-text-link:hover{color:#26796b;border-color:#26796b}
+.art-hero{display:grid;grid-template-columns:1.1fr 1fr;min-height:540px;border-radius:12px;overflow:hidden}.art-hero-visual{position:relative;min-height:540px;background:#dceee5;overflow:hidden}.art-hero-visual>img{position:absolute;width:100%;height:100%;object-fit:cover;transition:transform 1s ease}.art-hero-visual:hover>img{transform:scale(1.035)}.art-hero-visual figcaption{position:absolute;bottom:20px;left:22px;right:22px;display:flex;justify-content:space-between;gap:12px;font-size:9px;letter-spacing:.12em;color:#173a3c;padding:10px 12px;background:rgba(245,250,244,.82);border-radius:4px;backdrop-filter:blur(8px)}.art-hero-panel{background:#88dbca;padding:40px;display:flex;flex-direction:column;justify-content:space-between;gap:48px}.art-panel-top{display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:.14em;font-weight:700}.art-star{display:inline-block;font-size:64px;line-height:1;font-weight:400}.art-hero-panel h2{margin:15px 0 22px;font-size:clamp(34px,3.8vw,55px)}.art-hero-panel p{color:#23524b;font-size:14px;max-width:360px}.art-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}.art-button{display:inline-flex;align-items:center;justify-content:space-between;gap:28px;min-height:48px;padding:12px 20px;font-size:12px;font-weight:650;border:1px solid transparent;border-radius:3px;line-height:1.5;transition:transform .25s,box-shadow .25s}.art-button>span{font-size:21px;line-height:1}.art-button:hover{transform:translateY(-3px);box-shadow:0 8px 20px #122c3218}.art-button.dark{background:#122c32;color:#f4f7f3}.art-button.outline{border-color:#255047;color:#173a3c}.art-button.mint{background:#88dbca;color:#122c32}
+.art-ribbon{border-bottom:1px solid #d8e2d9;overflow:hidden;padding:27px 0;white-space:nowrap}.art-ribbon>div{display:flex;width:max-content;gap:46px;align-items:center;animation:artMarquee 38s linear infinite}.art-ribbon span{font-size:13px;font-weight:600;letter-spacing:.13em}.art-ribbon b{color:#77aa99;font-size:24px;font-weight:400}.art-ribbon:hover>div{animation-play-state:paused}@keyframes artMarquee{to{transform:translateX(-50%)}}
+.art-section{padding:76px 18px}.art-section-head{display:flex;justify-content:space-between;gap:30px;align-items:end;margin-bottom:36px}.art-section-head .art-kicker{margin-bottom:17px}.art-products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}.art-product-image{position:relative;aspect-ratio:4/3;overflow:hidden;background:#e1e9e0;border-radius:8px}.art-product-image img{width:100%;height:100%;object-fit:cover;transition:transform .5s}.art-product:hover img{transform:scale(1.045)}.art-product-image>span{position:absolute;left:14px;top:14px;background:#f4f7f3e8;padding:5px 10px;font-size:10px;border-radius:30px}.art-product-info{position:relative;padding:18px 32px 0 0}.art-product-info h3{font-size:20px;letter-spacing:-.025em}.art-product-info p{font-size:12px;margin:7px 0}.art-product-info strong{font-size:14px}.art-product-info>span{position:absolute;right:0;top:18px;font-size:26px}.art-market-invitation{display:grid;grid-template-columns:240px 1fr auto;align-items:center;gap:40px;padding:24px;background:#e5eee5;border-radius:10px}.art-mini-preview{height:250px;border-radius:6px;position:relative}.art-mini-preview>span{position:absolute;bottom:10px;left:10px;background:#f4f7f3c9;font-size:9px;padding:4px 7px}.art-market-invitation h3{font-size:32px;margin:12px 0}.art-market-invitation p{font-size:13px;margin-bottom:20px}.art-big-star{font-size:130px;color:#9dc8b6;margin:0 30px;line-height:1}
+.art-categories{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px}.art-category-image{aspect-ratio:1/1.13;background-color:#e4ece6;border-radius:8px;position:relative;overflow:hidden;transition:transform .4s,box-shadow .4s;background-image:url('/assets/art/collections.webp');background-repeat:no-repeat;background-size:200% 200%}.art-image-diorama{background-image:url('/assets/art/collections.webp');background-size:200% 200%;background-position:0 0}.art-image-miniature{background-position:100% 0}.art-image-figure{background-position:0 100%}.art-image-sculpture{background-position:100% 100%}.art-category:hover .art-category-image{transform:translateY(-6px);box-shadow:0 16px 30px #12362914}.art-index{position:absolute;top:14px;left:14px;font-size:11px;background:#f4f7f3c9;border-radius:20px;padding:3px 9px}.art-round{position:absolute;bottom:14px;right:14px;border-radius:50%;background:#f4f7f3;width:36px;height:36px;display:grid;place-items:center;font-size:24px}.art-category-caption{padding:18px 0}.art-category-caption h3{font-size:21px}.art-category-caption p{font-size:12px;margin-top:5px}.art-caption{display:block;font-size:10px;line-height:1.8;color:#687e74;margin-top:12px!important}
+.art-community{display:grid;grid-template-columns:1fr 1.2fr;gap:70px;background:#e9f0e9;border-top:1px solid #dbe5db;border-bottom:1px solid #dbe5db;padding:64px 40px;border-radius:10px}.art-community-copy{display:flex;align-items:flex-start;flex-direction:column}.art-community-copy h2{margin:22px 0;font-size:clamp(32px,3.1vw,46px)}.art-community-copy>p:not(.art-kicker){font-size:14px;max-width:270px;margin-bottom:35px}.art-creators{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.art-creator{background:#f4f7f3;border-radius:8px;overflow:hidden}.art-creator-cover{height:160px;background:#d1e2d4}.art-creator-cover>img{width:100%;height:100%;object-fit:cover;transition:transform .5s}.art-creator:hover .art-creator-cover>img{transform:scale(1.04)}.art-creator-info{display:flex;align-items:center;gap:10px;padding:16px}.art-creator-info>img{border-radius:50%;object-fit:cover;width:36px;height:36px}.art-creator-info h3{font-size:14px;letter-spacing:-.015em}.art-creator-info p{font-size:10px;margin-top:5px}.art-creator-info>span{margin-left:auto}.art-creator-initial{font-size:70px;display:grid;place-items:center;height:100%;color:#537668}.art-join{grid-column:1/-1;text-align:center;display:flex;flex-direction:column;align-items:center;padding:12px 15px}.art-join p{font-size:13px;margin:12px 0 22px;max-width:270px}.art-orbit{height:155px;width:210px;position:relative;margin-bottom:18px;display:grid;place-items:center}.art-orbit>span{display:grid;place-items:center;background:#8ad5bf;border-radius:50%;width:112px;height:112px;color:#183d34;font-size:85px;animation:artFloat 6s ease-in-out infinite}.art-orbit i{position:absolute;inset:0;border:1px solid #b6cabb;border-radius:50%;transform:rotate(-25deg)}.art-orbit b{position:absolute;right:8px;bottom:5px;width:44px;height:44px;border-radius:50%;background:#122c32;color:#f4f7f3;font-size:30px;font-weight:400}.art-spotlight{margin:76px 0 0;background:#102e33;color:#f4f7f3;border-radius:10px;padding:55px;display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center;overflow:hidden}.art-spotlight h2{margin:22px 0}.art-spotlight p:not(.art-kicker){color:#b4cec6;font-size:14px;margin:0 0 26px}.art-process-link{display:block;font-size:12px;color:#b4cec6;margin-top:18px}.art-spotlight-image{position:relative}.art-spotlight-image img{display:block;width:100%;height:auto;border-radius:50%;box-shadow:0 0 75px #8ad5bf18;animation:artFloat 7s ease-in-out infinite}.art-spotlight-image .art-caption{text-align:center;color:#b4cec6;margin-top:26px!important}.art-closing{padding:85px 20px;text-align:center}.art-closing .art-star{font-size:40px;color:#6aaf98}.art-closing h2{font-size:clamp(30px,3.5vw,48px);margin:23px 0 27px}@keyframes artFloat{50%{transform:translateY(-10px)}}
+.art-reveal{transition:opacity .65s ease,transform .65s ease}.art-motion .art-reveal[data-enter="waiting"]{opacity:0;transform:translateY(20px)}.art-home a:focus-visible{outline:3px solid #187f6d;outline-offset:6px}.art-home a{touch-action:manipulation}
+/* More legible headings throughout the existing public site. */
+.hero-title,.section-title{font-family:Inter,"Segoe UI",Arial,sans-serif;line-height:1.17;letter-spacing:-.035em;text-transform:none}.section-title{font-size:clamp(28px,3.5vw,44px);margin-top:12px;margin-bottom:16px}.hero-title{font-size:clamp(40px,5.5vw,76px)}a.btn{display:inline-flex;align-items:center;justify-content:center;line-height:1.5}.seo-card-title{line-height:1.4}
+@media(max-width:1100px){.art-opening-note{padding-left:12px}.art-hero-panel{padding:28px}.art-hero,.art-hero-visual{min-height:490px}.art-title-arrow{width:76px;height:43px;font-size:42px;margin-left:12px}.art-community{gap:35px}.art-big-star{font-size:90px;margin:0 10px}.art-market-invitation{gap:25px;grid-template-columns:190px 1fr auto}.art-mini-preview{height:220px}.art-categories{gap:16px}}
+@media(max-width:780px){.art-site main.shell{padding:0 18px}.art-opening{padding:40px 4px 30px;gap:24px;grid-template-columns:1fr}.art-opening-note{padding:0;display:flex;align-items:center;justify-content:space-between;gap:20px}.art-opening-note p{font-size:13px;margin:0}.art-opening-note .art-text-link{font-size:11px;gap:8px}.art-hero{grid-template-columns:1fr}.art-hero-visual{min-height:0;height:auto;aspect-ratio:1.2}.art-hero-panel{min-height:350px;padding:28px;gap:35px}.art-hero-panel h2{font-size:40px}.art-star{font-size:48px}.art-section{padding:50px 4px}.art-section-head{gap:20px;margin-bottom:25px}.art-section-head h2{font-size:34px}.art-section-head>.art-text-link{font-size:11px;gap:10px}.art-products{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.art-market-invitation{grid-template-columns:120px 1fr;gap:22px;padding:18px}.art-mini-preview{height:220px}.art-big-star{display:none}.art-market-invitation h3{font-size:24px}.art-market-invitation p{font-size:12px}.art-categories{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 16px}.art-community{padding:34px 24px;grid-template-columns:1fr;gap:35px}.art-community-copy>p:not(.art-kicker){max-width:none}.art-creators{gap:14px}.art-spotlight{margin-top:50px;padding:32px 25px;grid-template-columns:1fr;gap:40px}.art-spotlight-image{max-width:430px;width:100%;margin:auto}.art-closing{padding:55px 8px}.art-kicker{font-size:9px!important}}
+@media(max-width:420px){.art-opening h1{font-size:41px}.art-title-arrow{font-size:31px;width:54px;height:34px;margin-left:8px}.art-opening-note{align-items:flex-start;flex-direction:column;gap:16px}.art-section-head{align-items:flex-start;flex-direction:column;gap:20px}.art-hero-panel{padding:24px}.art-hero-panel h2{font-size:35px}.art-actions{gap:10px}.art-button{padding:11px 15px;gap:16px}.art-market-invitation{grid-template-columns:1fr}.art-mini-preview{height:180px;background-size:200% 350%}.art-creator-info{padding:12px;gap:8px}.art-creator-info>img{display:none}.art-category-caption h3{font-size:19px}.art-products{grid-template-columns:1fr}.art-ribbon>div{gap:28px}.art-ribbon span{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.art-home *, .art-home *:before,.art-home *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.art-motion .art-reveal[data-enter="waiting"]{opacity:1;transform:none}}
+
+
+/* Featured artisan profile cards, adapted from the supplied card reference. */
+.hot-creator-grid{display:grid;grid-template-columns:repeat(2,minmax(260px,1fr));gap:22px}
+.hot-creator-card{--main-color:#102e33;--submain-color:#6c817a;--card-bg:#fff;position:relative;min-height:384px;display:flex;flex-direction:column;align-items:center;border-radius:20px;background:var(--card-bg);overflow:hidden;box-shadow:0 16px 35px rgba(18,44,50,.08)}
+.hot-creator-cover{height:192px;width:100%;display:block;background:#d7e5dd;overflow:hidden}
+.hot-creator-cover img{width:100%;height:100%;object-fit:cover;transition:transform .45s ease}
+.hot-creator-card:hover .hot-creator-cover img{transform:scale(1.04)}
+.hot-creator-cover-fallback{height:100%;display:grid;place-items:center;font-size:11px;letter-spacing:.22em;color:#58756c}
+.hot-creator-avatar{position:absolute;width:114px;height:114px;background:var(--card-bg);border-radius:50%;display:flex;justify-content:center;align-items:center;top:135px;box-shadow:0 7px 22px rgba(18,44,50,.12)}
+.hot-creator-avatar img{width:100px;height:100px;border-radius:50%;object-fit:cover}
+.hot-creator-avatar>span{width:100px;height:100px;border-radius:50%;display:grid;place-items:center;background:#88dbca;color:#173a3c;font-size:38px;font-weight:700}
+.hot-creator-title{margin-top:64px!important;font-weight:600!important;font-size:18px!important;color:var(--main-color);letter-spacing:-.02em!important;text-align:center}
+.hot-creator-subtitle{margin-top:8px!important;padding:0 16px;font-size:12px!important;color:var(--submain-color)!important;text-align:center;min-height:20px}
+.hot-creator-actions{display:flex;gap:8px;margin-top:16px;padding-bottom:20px}
+.hot-creator-btn{min-width:82px;height:32px;padding:0 11px;display:inline-flex;align-items:center;justify-content:center;border:2px solid var(--main-color);border-radius:5px;font-weight:750;font-size:10px;color:var(--main-color);background:var(--card-bg);text-transform:uppercase;letter-spacing:.05em;transition:all .2s}
+.hot-creator-btn-solid{background:var(--main-color);color:var(--card-bg)}
+.hot-creator-btn:hover{background:var(--main-color);color:var(--card-bg)}
+.hot-creator-btn-solid:hover{background:var(--card-bg);color:var(--main-color)}
+@media(max-width:780px){.hot-creator-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.hot-creator-grid{grid-template-columns:1fr}.hot-creator-card{max-width:360px;width:100%;margin:auto}}
+</style>
 <script src="/art-home.js?v=20261005-3" defer></script>
 </head>
 <body>
@@ -396,7 +474,7 @@
       <div class="brand-mark"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></svg></div>
       <div>
         <div class="brand-name">DIORALINK</div>
-        <div class="brand-sub">Miniature commission platform</div>
+        <div class="brand-sub">Nền tảng đặt làm mô hình thu nhỏ</div>
       </div>
     </a>
 
@@ -404,7 +482,7 @@
 
     <div class="header-actions">
       <button class="icon-btn mobile-menu" onclick="toggleMobileNav()" title="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-      <span id="auth-header-actions"></span>
+      <span id="auth-header-actions"><span class="language-switch" aria-label="Language"><button type="button" class="active" onclick="setLanguage('vi')">VI</button><button type="button" onclick="setLanguage('en')">EN</button></span><button class="btn btn-sm" onclick="openAuthModal('login')">Đăng nhập</button><button class="btn btn-sm btn-mint" onclick="openAuthModal('register')">Đăng ký</button></span>
     </div>
   </div>
   <div id="mobile-nav" style="display:none;border-top:1px solid var(--line);padding:10px 14px"></div>
@@ -417,10 +495,10 @@
 
 <footer class="footer">
   <div class="shell footer-grid">
-    <div><div class="brand-name">DIORALINK</div><div class="small muted" style="margin-top:7px;max-width:340px;line-height:1.6">Custom miniature & diorama commissions.</div></div>
-    <div><div class="footer-title">Explore</div><a class="footer-link" href="/marketplace">Marketplace</a><a class="footer-link" href="/nghe-nhan">Nghệ nhân</a><a class="footer-link" href="/dich-vu">Dịch vụ</a><a class="footer-link" href="/quy-trinh">Quy trình</a></div>
-    <div><div class="footer-title">Account</div><button class="footer-link" onclick="openAuthModal('login')">Sign in</button><button class="footer-link" onclick="openAuthModal('register')">Register</button></div>
-    <div><div class="footer-title">Support</div><button class="footer-link" onclick="openSupportModal()">Help center</button><a class="footer-link" href="/dieu-khoan-mua-hang">Mua hàng và tranh chấp</a><button class="footer-link" onclick="openLegalModal('terms')">Terms</button><button class="footer-link" onclick="openLegalModal('privacy')">Privacy</button><button class="footer-link" onclick="openAdminLogin()">Admin</button></div>
+    <div><div class="brand-name">DIORALINK</div><div class="small muted" style="margin-top:7px;max-width:340px;line-height:1.6">Đặt làm mô hình thu nhỏ & diorama theo yêu cầu.</div></div>
+    <div><div class="footer-title">Khám phá</div><a class="footer-link" href="/marketplace">Marketplace</a><a class="footer-link" href="/nghe-nhan">Nghệ nhân</a><a class="footer-link" href="/dich-vu">Dịch vụ</a><a class="footer-link" href="/quy-trinh">Quy trình</a></div>
+    <div><div class="footer-title">Tài khoản</div><button class="footer-link" onclick="openAuthModal('login')">Đăng nhập</button><button class="footer-link" onclick="openAuthModal('register')">Đăng ký</button></div>
+    <div><div class="footer-title">Hỗ trợ</div><button class="footer-link" onclick="openSupportModal()">Trung tâm trợ giúp</button><a class="footer-link" href="/dieu-khoan-mua-hang">Mua hàng và tranh chấp</a><button class="footer-link" onclick="openLegalModal('terms')">Điều khoản</button><button class="footer-link" onclick="openLegalModal('privacy')">Bảo mật</button><button class="footer-link" onclick="openAdminLogin()">Admin</button></div>
   </div>
   <div class="shell" style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><span>© 2026 DioraLink</span><span>All rights reserved.</span></div>
 </footer>
