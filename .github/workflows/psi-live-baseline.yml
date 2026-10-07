@@ -7,24 +7,22 @@ jobs:
   pagespeed:
     runs-on: ubuntu-latest
     steps:
-      - name: Measure production with Google PageSpeed Insights API
+      - name: Discover public PSI proxy endpoint
         shell: bash
         run: |
           set -euo pipefail
-          for strategy in mobile desktop; do
-            echo "=== $strategy ==="
-            curl --fail-with-body --silent --show-error --get               "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"               --data-urlencode "url=https://dioralink.xyz/"               --data-urlencode "strategy=$strategy"               --data-urlencode "category=performance"               -o "$strategy.json"
-            jq '{
-              strategy:"$strategy",
-              score:(.lighthouseResult.categories.performance.score*100),
-              fcp_ms:.lighthouseResult.audits["first-contentful-paint"].numericValue,
-              lcp_ms:.lighthouseResult.audits["largest-contentful-paint"].numericValue,
-              tbt_ms:.lighthouseResult.audits["total-blocking-time"].numericValue,
-              cls:.lighthouseResult.audits["cumulative-layout-shift"].numericValue,
-              speed_index_ms:.lighthouseResult.audits["speed-index"].numericValue,
-              interactive_ms:.lighthouseResult.audits["interactive"].numericValue,
-              field_lcp_ms:.loadingExperience.metrics.LARGEST_CONTENTFUL_PAINT_MS.percentile,
-              field_inp_ms:.loadingExperience.metrics.INTERACTION_TO_NEXT_PAINT.percentile,
-              field_cls:.loadingExperience.metrics.CUMULATIVE_LAYOUT_SHIFT_SCORE.percentile
-            }' --arg strategy "$strategy" "$strategy.json"
-          done
+          curl -fsSL "https://modpagespeed.com/analyze/" -o page.html
+          echo "INLINE MATCHES"
+          grep -nEi "fetch\(|pagespeedonline|runPagespeed|/api/" page.html | head -80 || true
+          echo "SCRIPT SOURCES"
+          grep -oE '<script[^>]+src="[^"]+"' page.html | sed -E 's/.*src="([^"]+)".*/\1/' | tee scripts.txt || true
+          while IFS= read -r src; do
+            [ -z "$src" ] && continue
+            case "$src" in
+              http*) url="$src" ;;
+              /*) url="https://modpagespeed.com$src" ;;
+              *) url="https://modpagespeed.com/analyze/$src" ;;
+            esac
+            echo "=== $url ==="
+            curl -fsSL "$url" | grep -nEi "fetch\(|pagespeedonline|runPagespeed|/api/" | head -80 || true
+          done < scripts.txt
