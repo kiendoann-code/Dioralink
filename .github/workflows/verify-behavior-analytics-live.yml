@@ -1,0 +1,117 @@
+name: verify-behavior-analytics-live
+on:
+  push:
+    branches:
+      - ops/verify-behavior-analytics-20261007
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Wait for analytics production deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 24); do
+            curl -fsSL "https://dioralink.xyz/?analyticsverify=80cd5ba-$i" -o live.html || true
+            curl -fsSL "https://dioralink.xyz/analytics-client.js?v=behavior-20261007-1&verify=$i" -o analytics.js || true
+            if grep -q 'analytics-client.js?v=behavior-20261007-1' live.html 2>/dev/null \
+              && grep -q "dioralink_analytics_visitor_v1" analytics.js 2>/dev/null; then
+              ok=1
+              echo "ANALYTICS_LIVE_OK attempt=$i"
+              break
+            fi
+            echo "analytics deploy not visible yet: attempt=$i"
+            sleep 10
+          done
+          test "$ok" -eq 1
+          curl -fsSL "https://dioralink.xyz/api/analytics/config" | tee analytics-config.json
+      - name: Verify first-party event persistence and dedup
+        shell: bash
+        run: |
+          set -euo pipefail
+          SESSION="smoke_$(date +%s)_analytics"
+          VISITOR="smoke_visitor_$(date +%s)"
+          EVENT="smoke_event_$(date +%s)"
+          cat > payload.json <<JSON
+          {
+            "sessionId":"$SESSION",
+            "visitorId":"$VISITOR",
+            "events":[
+              {"eventId":"$EVENT","name":"page_view","path":"/__analytics_smoke__","role":"guest","device":"mobile","scrollDepth":0,"activeMs":0,"props":{"source":"smoke","medium":"test"}}
+            ]
+          }
+          JSON
+          first=$(curl -fsS -X POST "https://dioralink.xyz/api/analytics/events" -H "content-type: application/json" --data-binary @payload.json)
+          second=$(curl -fsS -X POST "https://dioralink.xyz/api/analytics/events" -H "content-type: application/json" --data-binary @payload.json)
+          echo "FIRST=$first"
+          echo "SECOND=$second"
+          echo "$first" | jq -e '.accepted==1'
+          echo "$second" | jq -e '.accepted==0'
+          echo ANALYTICS_PERSISTENCE_DEDUP_OK
+      - name: Install browser test dependency
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+      - name: Browser smoke tracking and UX
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const assert=require('node:assert/strict');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:412,height:915},isMobile:true,hasTouch:true});
+            const errors=[];
+            const analyticsResponses=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            page.on('response',r=>{if(r.url().includes('/api/analytics/events'))analyticsResponses.push(r.status());});
+            await page.goto('https://dioralink.xyz/?behaviorSmoke=1',{waitUntil:'networkidle'});
+            assert(await page.locator('.art-hero-visual img').isVisible(),'hero remains visible');
+            assert.equal(await page.locator('script[src*="/analytics-client.js"]').count(),1,'analytics client loaded once');
+            await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight*0.55));
+            await page.waitForTimeout(3200);
+            assert(analyticsResponses.some(s=>s===202),'analytics batch must be accepted');
+            assert.equal(errors.length,0,'no page errors');
+
+            await page.locator('#auth-header-actions').getByRole('button',{name:'Đăng nhập'}).click();
+            await page.locator('.auth-premium-modal').waitFor({state:'visible',timeout:15000});
+            assert(await page.locator('.auth-premium-modal').isVisible(),'login remains functional');
+
+            const workspace=await browser.newPage({viewport:{width:412,height:915},isMobile:true,hasTouch:true});
+            await workspace.goto('https://dioralink.xyz/ung-dung#account',{waitUntil:'networkidle'});
+            assert.equal(await workspace.locator('script[src*="/analytics-client.js"]').count(),1,'analytics also loads in workspace');
+            assert(await workspace.locator('#app').isVisible(),'workspace still renders');
+            console.log(JSON.stringify({analyticsResponses,errors}));
+            console.log('ANALYTICS_BROWSER_SMOKE_OK');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1);});
+          NODE
+      - name: Mobile PageSpeed regression check
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > results.jsonl
+          for i in 1 2 3; do
+            curl --fail-with-body --silent --show-error --get               "https://modpagespeed.com/psi/v5/runPagespeed"               --data-urlencode "url=https://dioralink.xyz/?analyticspsi=$(date +%s)-$i"               --data-urlencode "strategy=mobile"               -o "psi-$i.json"
+            jq -c --argjson run "$i" '{
+              run:$run,
+              score:(.lighthouseResult.categories.performance.score*100),
+              fcp_ms:.lighthouseResult.audits["first-contentful-paint"].numericValue,
+              lcp_ms:.lighthouseResult.audits["largest-contentful-paint"].numericValue,
+              tbt_ms:.lighthouseResult.audits["total-blocking-time"].numericValue,
+              cls:.lighthouseResult.audits["cumulative-layout-shift"].numericValue,
+              speed_index_ms:.lighthouseResult.audits["speed-index"].numericValue
+            }' "psi-$i.json" | tee -a results.jsonl
+          done
+          jq -s '{
+            scores:map(.score),
+            score_median:(map(.score)|sort|.[1]),
+            score_min:(map(.score)|min),
+            lcp_median_ms:(map(.lcp_ms)|sort|.[1]),
+            fcp_median_ms:(map(.fcp_ms)|sort|.[1]),
+            tbt_median_ms:(map(.tbt_ms)|sort|.[1])
+          }' results.jsonl
