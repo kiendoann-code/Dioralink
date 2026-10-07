@@ -99,17 +99,18 @@ function pageFor(pathname, artisans) {
 }
 function renderDocument(template,page,artisans) {
   const url=ORIGIN+page.path;
+  const preload=page.path==='/'?'<link rel="preload" href="/assets/art/hero.webp" as="image" type="image/webp" fetchpriority="high">':'';
   const schemas=page.index?[{'@type':'Organization','@id':ORIGIN+'/#organization',name:'DioraLink',url:ORIGIN+'/',description:'Nền tảng kết nối khách hàng và creator trong lĩnh vực diorama, miniature, custom figure và 3D creation.'},{'@type':'WebSite','@id':ORIGIN+'/#website',url:ORIGIN+'/',name:'DioraLink',inLanguage:'vi-VN',publisher:{'@id':ORIGIN+'/#organization'}},{'@type':'WebPage','@id':url+'#webpage',url,name:page.title,description:page.description,inLanguage:'vi-VN',isPartOf:{'@id':ORIGIN+'/#website'}},{'@type':'BreadcrumbList',itemListElement:page.breadcrumbs.map(([name,path],i)=>({'@type':'ListItem',position:i+1,name,item:ORIGIN+path}))}]:[];
   if(page.index && page.structuredData)schemas.push(...page.structuredData);
   const head=`<title>${escapeHtml(page.title)}</title>\n<meta name="description" content="${escapeHtml(page.description)}">\n<meta name="robots" content="${page.index?'index,follow,max-image-preview:large':'noindex,follow'}">\n<link rel="canonical" href="${escapeHtml(url)}">\n<meta property="og:type" content="website"><meta property="og:locale" content="vi_VN"><meta property="og:site_name" content="DioraLink"><meta property="og:title" content="${escapeHtml(page.title)}"><meta property="og:description" content="${escapeHtml(page.description)}"><meta property="og:url" content="${escapeHtml(url)}">${page.image?`<meta property="og:image" content="${escapeHtml(new URL(page.image,ORIGIN).href)}">`:''}\n<meta name="twitter:card" content="summary">${schemas.length?`<script type="application/ld+json">${json({'@context':'https://schema.org','@graph':schemas})}</script>`:''}\n<script>window.DIORALINK_PUBLIC_PAGE=${json({route:page.route,path:page.path,status:page.status,artisans})};</script>`;
   const breadcrumb=page.index && page.path!=='/'?`<nav class="seo-breadcrumb" aria-label="Đường dẫn">${page.breadcrumbs.map(([name,path],i)=>i===page.breadcrumbs.length-1?`<span aria-current="page">${escapeHtml(name)}</span>`:`<a href="${path}">${escapeHtml(name)}</a><span aria-hidden="true"> / </span>`).join('')}</nav>`:'';
-  return template.replace('<body>',page.path==='/'?'<body class="art-site">':'<body>').replace(/<title>[\s\S]*?<\/title>/,'').replace(/<meta name="description"[^>]*>/,'').replace('</head>',`${head}\n</head>`).replace('<main id="app" class="shell"></main>',()=>`<main id="app" class="shell">${breadcrumb}${page.html}</main>`);
+  return template.replace('<body>',page.path==='/'?'<body class="art-site">':'<body>').replace(/<title>[\s\S]*?<\/title>/,'').replace(/<meta name="description"[^>]*>/,'').replace('</head>',`${preload}${head}\n</head>`).replace('<main id="app" class="shell"></main>',()=>`<main id="app" class="shell">${breadcrumb}${page.html}</main>`);
 }
 function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEntries}) {
   const router=express.Router();
   const template=fs.readFileSync(indexFile,'utf8');
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
-  const list=async()=> (await pool.query(`
+  const listQuery=async()=> (await pool.query(`
     SELECT
       u.id AS user_id,
       u.name AS user_name,
@@ -144,6 +145,15 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     GROUP BY u.id,u.name,u.city,u.bio,u.avatar,u.updated_at,p.slug,p.profile,p.updated_at
     ORDER BY sales_amount DESC, RANDOM()
   `)).rows.map(directoryProfile);
+  let publicArtisanCache={value:null,expiresAt:0};
+  const clearPublicArtisanCache=()=>{publicArtisanCache={value:null,expiresAt:0};};
+  const list=async()=>{
+    const now=Date.now();
+    if(publicArtisanCache.value && publicArtisanCache.expiresAt>now)return publicArtisanCache.value;
+    const value=await listQuery();
+    publicArtisanCache={value,expiresAt:now+15000};
+    return value;
+  };
   router.get('/api/public/artisans',wrap(async(req,res)=>res.json({artisans:await list()})));
   router.post('/api/artisan/public-profile',requireAuth,wrap(async(req,res)=>{
     if(req.user.role!=='artisan') return res.status(403).json({message:'Chỉ nghệ nhân được công khai hồ sơ.'});
@@ -162,11 +172,13 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     profile.avatar=keepImage(profile.avatar);profile.hero=keepImage(profile.hero);profile.portfolio=profile.portfolio.map(keepImage).filter(Boolean);
     const slug=slugify(profile.name)+'-'+crypto.createHash('sha256').update(String(req.user.id)).digest('hex').slice(0,12);
     const result=await pool.query(`INSERT INTO public_artisan_profiles (user_id,slug,profile,published) VALUES ($1,$2,$3,TRUE) ON CONFLICT (user_id) DO UPDATE SET profile=EXCLUDED.profile,published=TRUE,updated_at=NOW() RETURNING user_id,slug,profile,updated_at`,[req.user.id,slug,JSON.stringify(profile)]);
+    clearPublicArtisanCache();
     res.json({artisan:publicProfile(result.rows[0]),message:'Đã công khai hồ sơ.'});
   }));
   router.delete('/api/artisan/public-profile',requireAuth,wrap(async(req,res)=>{
     if(req.user.role!=='artisan') return res.status(403).json({message:'Forbidden'});
     await pool.query('UPDATE public_artisan_profiles SET published=FALSE,updated_at=NOW() WHERE user_id=$1',[req.user.id]);
+    clearPublicArtisanCache();
     res.json({message:'Đã ẩn hồ sơ công khai.'});
   }));
   router.get('/media/nghe-nhan/:slug/:slot',wrap(async(req,res)=>{
@@ -197,8 +209,13 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     let artisans;try{artisans=await list();}catch(error){console.error('Public catalog unavailable:',error.message);return res.status(503).set('Retry-After','120').set('X-Robots-Tag','noindex').type('html').send('<!doctype html><html lang="vi"><meta charset="utf-8"><title>DioraLink tạm thời gián đoạn</title><h1>Vui lòng thử lại sau ít phút.</h1></html>');}
     const page=pageFor(req.path,artisans);
     if(req.path==='/' && getHomeSection){const block=await getHomeSection();page.html=page.html.replace('<!-- ART_MARKETPLACE -->',()=>block);}
-    if(!page.index)res.set('X-Robots-Tag','noindex');
-    res.set('Cache-Control','no-cache').status(page.status).type('html').send(renderDocument(template,page,artisans));
+    if(!page.index){
+      res.set('X-Robots-Tag','noindex');
+      res.set('Cache-Control','no-store');
+    }else{
+      res.set('Cache-Control','public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+    }
+    res.status(page.status).type('html').send(renderDocument(template,page,artisans));
   }));
   router.use((err,req,res,next)=>{console.error('SEO route error:',err.message);res.status(503).set('Retry-After','120').json({message:'Không thể tải hoặc lưu hồ sơ. Vui lòng thử lại.'});});
   return router;
