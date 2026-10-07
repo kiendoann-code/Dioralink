@@ -56,10 +56,15 @@
   }catch(e){}
 
   if(needsFull){
-    loadFull().catch(()=>{});
+    loadFull().then(()=>window.ensureLucide?.()).catch(()=>{});
   }else{
     const warm=()=>loadFull().catch(()=>{});
     window.addEventListener('pointerdown',warm,{once:true,passive:true});
     window.addEventListener('keydown',warm,{once:true});
+    window.addEventListener('load',()=>{
+      fetch('/api/auth/me',{method:'GET',credentials:'include'})
+        .then(res=>res.ok?loadFull().then(()=>window.ensureLucide?.()):null)
+        .catch(()=>{});
+    },{once:true});
   }
 })();
