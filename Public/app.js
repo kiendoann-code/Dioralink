@@ -960,7 +960,50 @@ function renderMessageAttachments(m){
 function renderCommission(){
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">CREATE COMMISSION</div></div><button class="btn" onclick="navigate('requests')">Requests</button></div><form class="grid two" data-autosave-key="commission-new" onsubmit="createRequest(event)"><div class="card pad"><div class="label">Project title</div><input name="title" class="field" required placeholder="e.g. Forest Shrine — 1/12 Diorama"><div class="grid two" style="margin-top:14px"><div><div class="label">Style</div><select name="style" class="field"><option>Fantasy</option><option>Resin</option><option>Mecha</option><option>Gunpla</option><option>Miniature</option><option>Architecture</option><option>Lighting</option></select></div><div><div class="label">Size</div><input name="size" class="field" required placeholder="40 × 30 × 30 cm"></div></div><div class="grid two" style="margin-top:14px"><div><div class="label">Budget (VND)</div><input name="budget" type="number" min="500000" step="50000" class="field" required value="20000000"></div><div><div class="label">Timeline</div><input name="timeline" class="field" required placeholder="45 days"></div></div><div style="margin-top:14px"><div class="label">Brief</div><textarea name="description" class="field" required placeholder="Mood, characters, materials, lighting, references, important constraints..."></textarea></div><div style="margin-top:14px"><div class="label">Reference images</div><input name="referenceImages" class="field" type="file" accept="image/*" multiple required><div class="tiny muted" style="margin-top:6px">At least one image is required.</div></div></div><div class="card pad"><div class="label">Routing</div><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="matching" checked> <b>Open matching</b><div class="small muted" style="margin-top:5px">Send to qualified artisans</div></label><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="specific"> <b>Specific artisan</b><div class="small muted" style="margin-top:5px">Send to a selected artisan</div></label><div style="margin-top:14px"><div class="label">Preferred artisan</div><select name="preferredArtisanId" class="field"><option value="">— Select artisan —</option>${publicArtisans.map(a=>`<option value="${a.id}">${esc(a.name)} ${a.verified?'· Verified':''}</option>`).join('')}</select></div><div class="divider"></div><div class="notice">Your images will be shared with artisans who receive this request.</div><p class="tiny muted" data-autosave-status style="margin-top:16px">Tự động lưu đang bật. Tệp đính kèm cần chọn lại nếu đóng trang.</p><div class="sticky-actions" style="margin-top:12px"><button class="btn btn-mint" style="width:100%">Publish request <i data-lucide="arrow-up-right" style="width:15px;vertical-align:-3px"></i></button></div></div></form></section>`;const pre=sessionStorage.getItem('dioralink_preferred_artisan');if(pre){const el=document.querySelector('[name="preferredArtisanId"]');if(el){el.value=pre;document.querySelector('[value="specific"]').checked=true;}sessionStorage.removeItem('dioralink_preferred_artisan');}window.lucide?.createIcons();
 }
-async function createRequest(e){if(!requireRole('customer'))return;e.preventDefault();const fd=new FormData(e.target);const files=Array.from(document.querySelector('[name="referenceImages"]')?.files||[]);const mode=fd.get('creatorMode');const preferred=fd.get('preferredArtisanId')||null;if(mode==='specific'&&!preferred){toast('Hãy chọn artisan cụ thể hoặc chuyển sang Open matching.','error');return;}if(!files.length){toast('Vui lòng gửi ít nhất một hình ảnh tham khảo.','error');return;}for(const f of files){if(!f.type.startsWith('image/')){toast('Chỉ chấp nhận file hình ảnh ở Reference images.','error');return;}if(f.size>8*1024*1024){toast('Mỗi ảnh không được vượt quá 8MB.','error');return;}}const submit=e.target.querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Publishing...';}try{const attachments=[];for(const f of files)attachments.push(await storeBinaryFile(f,'request'));const id='REQ-'+new Date().getFullYear()+'-'+String(state.requests.length+1).padStart(3,'0');const r={id,customerId:state.user.id,title:String(fd.get('title')).trim(),style:String(fd.get('style')),size:String(fd.get('size')).trim(),budget:Number(fd.get('budget')),timeline:String(fd.get('timeline')).trim(),description:String(fd.get('description')).trim(),status:'pending',createdAt:new Date().toISOString(),creatorMode:mode,preferredArtisanId:preferred,attachments,proposals:[]};state.requests.unshift(r);clearFormDraft(e.target);addNotification({title:'Request published',body:`${r.title} has been sent to the Artisan inbox.`,route:`request/${r.id}`});save();window.DioraAnalytics?.track('commission_submitted',{routing:mode,budget:Number(r.budget||0),style:String(r.style||'')});toast('Commission request published.','success');navigate('request/'+r.id);}catch(err){toast(err.message||'Unable to save request images.','error');}finally{if(submit){submit.disabled=false;submit.textContent='Publish request';}}}
+async function createRequest(e){
+  if(!requireRole('customer'))return;
+  e.preventDefault();
+  const fd=new FormData(e.target),files=Array.from(document.querySelector('[name="referenceImages"]')?.files||[]);
+  const mode=fd.get('creatorMode'),preferred=fd.get('preferredArtisanId')||null;
+  if(mode==='specific'&&!preferred){toast('Hãy chọn artisan cụ thể hoặc chuyển sang Open matching.','error');return;}
+  if(!files.length){toast('Vui lòng gửi ít nhất một hình ảnh tham khảo.','error');return;}
+  for(const file of files){
+    if(!file.type.startsWith('image/')){toast('Chỉ chấp nhận file hình ảnh ở Reference images.','error');return;}
+    if(file.size>8*1024*1024){toast('Mỗi ảnh không được vượt quá 8MB.','error');return;}
+  }
+  const submit=e.target.querySelector('button[type="submit"]');
+  if(submit){submit.disabled=true;submit.textContent='Publishing...';}
+  let createdId='';
+  try{
+    const payload={title:String(fd.get('title')).trim(),style:String(fd.get('style')),size:String(fd.get('size')).trim(),budget:Number(fd.get('budget')),
+      timeline:String(fd.get('timeline')).trim(),description:String(fd.get('description')).trim(),creatorMode:mode,preferredArtisanId:preferred};
+    if(CONFIG.demoMode){
+      const attachments=[];for(const file of files)attachments.push(await storeBinaryFile(file,'request'));
+      createdId='REQ-'+new Date().getFullYear()+'-'+String(state.requests.length+1).padStart(3,'0');
+      state.requests.unshift({id:createdId,customerId:state.user.id,...payload,status:'pending',createdAt:new Date().toISOString(),attachments,proposals:[]});
+      save();
+    }else{
+      const created=await commissionApi('/requests',{method:'POST',body:JSON.stringify(payload)});
+      createdId=created.request.id;
+      for(const file of files){
+        await commissionApi('/requests/'+encodeURIComponent(createdId)+'/attachment',{method:'POST',body:JSON.stringify({name:file.name,dataUrl:await readFileDataUrl(file)})});
+      }
+      await syncCommissionWorkspace({force:true});
+    }
+    clearFormDraft(e.target);
+    const r=requestById(createdId);
+    addNotification({title:'Request published',body:(r?.title||payload.title)+' has been sent to the Artisan inbox.',route:'request/'+createdId});
+    save();
+    window.DioraAnalytics?.track('commission_submitted',{routing:mode,budget:Number(payload.budget||0),style:String(payload.style||'')});
+    toast('Commission request published.','success');
+    navigate('request/'+createdId);
+  }catch(err){
+    if(createdId&&!CONFIG.demoMode){try{await commissionApi('/requests/'+encodeURIComponent(createdId),{method:'DELETE'});}catch(e){}}
+    toast(err.message||'Unable to publish commission request.','error');
+  }finally{
+    if(submit){submit.disabled=false;submit.textContent='Publish request';}
+  }
+}
 
 function renderRequests(){
   const mine=state.requests.filter(r=>r.customerId===state.user.id);
@@ -986,19 +1029,28 @@ function renderRequest(id){
     </div>
   </section>`;
 }
-function acceptProposal(requestId,proposalId){
-  if(!requireRole('customer')) return;
-  const r=requestById(requestId); const p=r?.proposals.find(x=>x.id===proposalId); if(!r||!p) return;
-  expireStaleCommissionRequests();
-  if(r.status==='expired'){toast('Yêu cầu đã tự động hủy vì quá 3 ngày chưa tạo thành đơn.','warning');render();return;}
-  r.selectedProposal=proposalId;r.status='proposal_accepted';p.status='accepted';r.proposals.forEach(x=>{if(x.id!==proposalId)x.status='declined'});
-  const id='DL-'+new Date().getFullYear()+'-'+String(state.projects.length+10).padStart(3,'0');
-  if(!state.projects.some(x=>x.requestId===r.id)){
-    const b=p.quote; const ms=[['M1','Concept & Scope',20],['M2','Base & Structure',20],['M3','Sculpt & Composition',20],['M4','Paint, Resin & Lighting',25],['M5','Final Assembly & Delivery',15]].map(x=>({id:x[0],name:x[1],percentage:x[2],amount:Math.round(b*x[2]/100),status:'pending',evidence:'',approvedAt:null}));
-    state.projects.unshift({id,requestId:r.id,customerId:r.customerId,artisanId:p.artisanId,title:r.title,budget:b,progress:0,status:'awaiting_production',currentMilestone:1,dueDate:'',milestones:ms,files:[],messages:[{id:'MSG-'+Date.now(),senderId:p.artisanId,senderRole:'artisan',text:'Cảm ơn bạn đã chọn proposal. Mình sẽ bắt đầu từ milestone M1.',time:dateTime(new Date())}],payments:[],activity:[{text:'Proposal accepted → Project created',time:dateTime(new Date())}]});
-    addNotification({title:'Project created',body:`${artisanById(p.artisanId)?.name} đã được chọn cho ${r.title}.`,route:`project/${id}`});
-  }
-  save();toast('Proposal accepted. Project created.','success');navigate('project/'+state.projects.find(x=>x.requestId===r.id).id);
+async function acceptProposal(requestId,proposalId){
+  if(!requireRole('customer'))return;
+  const r=requestById(requestId),proposal=r?.proposals.find(x=>x.id===proposalId);
+  if(!r||!proposal)return;
+  if(r.status==='expired'){toast('Yêu cầu đã tự động hủy vì quá 3 ngày chưa tạo thành đơn.','warning');return;}
+  try{
+    if(!CONFIG.demoMode){
+      const data=await commissionApi('/requests/'+encodeURIComponent(requestId)+'/proposals/'+encodeURIComponent(proposalId)+'/accept',{method:'POST'});
+      await syncCommissionWorkspace({force:true});
+      toast(data.message||'Đã chấp nhận báo giá và tạo dự án.','success');
+      const project=state.projects.find(x=>x.requestId===requestId);
+      navigate('project/'+(project?.id||data.project?.id||''));
+      return;
+    }
+    r.selectedProposal=proposalId;r.status='proposal_accepted';proposal.status='accepted';r.proposals.forEach(x=>{if(x.id!==proposalId)x.status='declined';});
+    const projectId='DL-'+new Date().getFullYear()+'-'+String(state.projects.length+10).padStart(3,'0');
+    if(!state.projects.some(x=>x.requestId===r.id)){
+      const b=proposal.quote,ms=[['M1','Concept & Scope',20],['M2','Base & Structure',20],['M3','Sculpt & Composition',20],['M4','Paint, Resin & Lighting',25],['M5','Final Assembly & Delivery',15]].map(x=>({id:x[0],name:x[1],percentage:x[2],amount:Math.round(b*x[2]/100),status:'pending',evidence:'',approvedAt:null}));
+      state.projects.unshift({id:projectId,requestId:r.id,customerId:r.customerId,artisanId:proposal.artisanId,title:r.title,budget:b,progress:0,status:'awaiting_production',currentMilestone:1,dueDate:'',milestones:ms,files:[],messages:[{id:'MSG-'+Date.now(),senderId:proposal.artisanId,senderRole:'artisan',text:'Cảm ơn bạn đã chọn proposal. Mình sẽ bắt đầu từ milestone M1.',time:dateTime(new Date())}],payments:[],activity:[{text:'Proposal accepted → Project created',time:dateTime(new Date())}]});
+    }
+    save();toast('Proposal accepted. Project created.','success');navigate('project/'+state.projects.find(x=>x.requestId===r.id).id);
+  }catch(err){toast(err.message||'Không thể chấp nhận báo giá.','error');}
 }
 
 function renderProjects(){
