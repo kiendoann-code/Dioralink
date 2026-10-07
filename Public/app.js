@@ -470,7 +470,11 @@ function routeURL(route){
 }
 function navigate(route){
   const target=routeURL(route);
-  if(target===location.pathname+location.hash){render();return;}
+  if(target===location.pathname+location.hash){
+    render();
+    if(isCommissionRoute())syncCommissionWorkspace({force:true,rerender:true});
+    return;
+  }
   if(target.startsWith('/ung-dung#') && location.pathname==='/ung-dung') location.hash=route;
   else location.assign(target);
 }
@@ -677,7 +681,10 @@ function initI18N(){
   applyLanguage();
 }
 
-window.addEventListener('hashchange', render);
+window.addEventListener('hashchange',()=>{
+  render();
+  if(isCommissionRoute())syncCommissionWorkspace({force:true,rerender:true});
+});
 
 function render(){
   expireStaleCommissionRequests();
@@ -843,6 +850,30 @@ function showSelectedInboxFiles(input){
   const files=Array.from(input?.files||[]),el=document.getElementById('inbox-file-summary');
   if(el)el.textContent=files.length?files.map(f=>f.name+' · '+formatBytes(f.size)).join(' · '):'';
 }
+async function pollVisibleCommissionConversation(){
+  if(CONFIG.demoMode||document.hidden||!isAuthenticated()||!['customer','artisan'].includes(currentRole()))return;
+  const route=currentRoute();
+  try{
+    if(route==='messages'){
+      const active=commissionConversations.find(x=>x.key===activeConversationKey);if(!active)return;
+      const data=await commissionApi('/conversations/'+encodeURIComponent(active.requestId)+'/'+encodeURIComponent(active.artisanId)+'/messages');
+      active.messages=Array.isArray(data.messages)?data.messages:[];active.lastMessage=active.messages[active.messages.length-1]||null;
+      const input=document.getElementById('inbox-msg');if(!(document.activeElement===input&&input?.value))renderMessages();
+      return;
+    }
+    if(route==='project'||route==='artisan-project'){
+      const project=projectById(routeParts()[1]);if(!project)return;
+      const data=await commissionApi('/conversations/'+encodeURIComponent(project.requestId)+'/'+encodeURIComponent(project.artisanId)+'/messages');
+      project.messages=Array.isArray(data.messages)?data.messages:[];
+      const input=document.getElementById('project-msg');if(!(document.activeElement===input&&input?.value))render();
+    }
+  }catch(err){console.debug('Commission conversation poll skipped:',err.message);}
+}
+setInterval(pollVisibleCommissionConversation,5000);
+setInterval(()=>{
+  if(CONFIG.demoMode||document.hidden||!isAuthenticated())return;
+  if(['customer-dashboard','requests','projects','artisan-dashboard','artisan-requests','artisan-proposals','artisan-projects'].includes(currentRoute()))syncCommissionWorkspace({force:true,rerender:true});
+},20000);
 async function sendConversationMessage(){
   if(!requireAuth())return;
   const list=CONFIG.demoMode?demoConversations():commissionConversations,active=list.find(x=>x.key===activeConversationKey);
