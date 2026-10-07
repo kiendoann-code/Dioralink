@@ -1,0 +1,80 @@
+name: verify-pass2-live-performance
+on:
+  push:
+    branches:
+      - perf/postdeploy-pass2-20261007
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for pass2 production deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 24); do
+            curl -fsSL "https://dioralink.xyz/?verify=dfca0a0-$i" -o live.html || true
+            if grep -q 'public-home.js?v=perf-mobile-20261007-2' live.html 2>/dev/null \
+              && grep -q 'hero-768.webp 768w' live.html 2>/dev/null \
+              && ! grep -q 'src="/app.js?v=perf-mobile-20261007-1" defer' live.html 2>/dev/null; then
+              ok=1
+              echo "PASS2_LIVE_OK attempt=$i"
+              break
+            fi
+            echo "pass2 not visible yet: attempt=$i"
+            sleep 10
+          done
+          test "$ok" -eq 1
+          echo "ROOT_SCRIPT_TAGS"
+          grep -oE '<script[^>]+src="[^"]+"' live.html || true
+          echo "HERO"
+          grep -oE '<img src="/assets/art/hero-[^>]+>' live.html | head -1 || true
+          echo "HEADERS"
+          curl -fsSI "https://dioralink.xyz/assets/art/hero-640.webp" | grep -iE '^(cache-control|content-type|content-length|content-encoding|cf-cache-status):' || true
+      - name: Run three mobile PSI samples
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > mobile-results.jsonl
+          for i in 1 2 3; do
+            stamp="$(date +%s)-$i"
+            curl --fail-with-body --silent --show-error --get               "https://modpagespeed.com/psi/v5/runPagespeed"               --data-urlencode "url=https://dioralink.xyz/?pass2live=$stamp"               --data-urlencode "strategy=mobile"               -o "mobile-$i.json"
+            jq -c --argjson run "$i" '{
+              run:$run,
+              score:(.lighthouseResult.categories.performance.score*100),
+              fcp_ms:.lighthouseResult.audits["first-contentful-paint"].numericValue,
+              lcp_ms:.lighthouseResult.audits["largest-contentful-paint"].numericValue,
+              tbt_ms:.lighthouseResult.audits["total-blocking-time"].numericValue,
+              cls:.lighthouseResult.audits["cumulative-layout-shift"].numericValue,
+              speed_index_ms:.lighthouseResult.audits["speed-index"].numericValue,
+              interactive_ms:.lighthouseResult.audits["interactive"].numericValue,
+              unused_js_bytes:(.lighthouseResult.audits["unused-javascript"].details.overallSavingsBytes // 0),
+              image_savings_bytes:(.lighthouseResult.audits["image-delivery-insight"].details.debugData.wastedBytes // 0),
+              lcp_render_delay_ms:(.lighthouseResult.audits["lcp-breakdown-insight"].details.items[0].items[] | select(.subpart=="elementRenderDelay") | .duration)
+            }' "mobile-$i.json" | tee -a mobile-results.jsonl
+          done
+          echo "MOBILE_SUMMARY"
+          jq -s '{
+            scores:map(.score),
+            score_median:(map(.score)|sort|.[1]),
+            score_min:(map(.score)|min),
+            score_max:(map(.score)|max),
+            lcp_median_ms:(map(.lcp_ms)|sort|.[1]),
+            fcp_median_ms:(map(.fcp_ms)|sort|.[1]),
+            speed_index_median_ms:(map(.speed_index_ms)|sort|.[1]),
+            render_delay_median_ms:(map(.lcp_render_delay_ms)|sort|.[1]),
+            tbt_median_ms:(map(.tbt_ms)|sort|.[1])
+          }' mobile-results.jsonl
+      - name: Run desktop regression sample
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --get             "https://modpagespeed.com/psi/v5/runPagespeed"             --data-urlencode "url=https://dioralink.xyz/?pass2desktop=$(date +%s)"             --data-urlencode "strategy=desktop"             -o desktop.json
+          jq '{
+            score:(.lighthouseResult.categories.performance.score*100),
+            fcp_ms:.lighthouseResult.audits["first-contentful-paint"].numericValue,
+            lcp_ms:.lighthouseResult.audits["largest-contentful-paint"].numericValue,
+            tbt_ms:.lighthouseResult.audits["total-blocking-time"].numericValue,
+            cls:.lighthouseResult.audits["cumulative-layout-shift"].numericValue,
+            speed_index_ms:.lighthouseResult.audits["speed-index"].numericValue
+          }' desktop.json
