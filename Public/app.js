@@ -1320,6 +1320,42 @@ function renderArtisanEarnings(){const list=artisanProjects();const confirmed=li
 
 
 let googleInitialized=false;
+const thirdPartyScriptLoads=new Map();
+function loadThirdPartyScript(src,id){
+  if(id){
+    const existing=document.getElementById(id);
+    if(existing){
+      if(existing.dataset.loaded==='1')return Promise.resolve(existing);
+      const existingPromise=thirdPartyScriptLoads.get(src);
+      if(existingPromise)return existingPromise;
+    }
+  }
+  if(thirdPartyScriptLoads.has(src))return thirdPartyScriptLoads.get(src);
+  const promise=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src=src;
+    if(id)script.id=id;
+    script.async=true;
+    script.defer=true;
+    script.onload=()=>{script.dataset.loaded='1';resolve(script);};
+    script.onerror=()=>reject(new Error('Không thể tải dịch vụ đăng nhập bên thứ ba.'));
+    document.head.appendChild(script);
+  });
+  thirdPartyScriptLoads.set(src,promise);
+  promise.catch(()=>thirdPartyScriptLoads.delete(src));
+  return promise;
+}
+async function ensureGoogleIdentity(){
+  if(window.google?.accounts?.id)return;
+  await loadThirdPartyScript('https://accounts.google.com/gsi/client','dioralink-google-gsi');
+  if(!window.google?.accounts?.id)throw new Error('Google Sign-In chưa sẵn sàng.');
+}
+async function ensureFacebookSdk(){
+  if(window.FB)return;
+  if(!CONFIG.facebookAppId||CONFIG.facebookAppId.includes('YOUR_FACEBOOK'))throw new Error('Chưa cấu hình Facebook App ID.');
+  await loadThirdPartyScript('https://connect.facebook.net/en_US/sdk.js','dioralink-facebook-sdk');
+  if(!window.FB)throw new Error('Facebook SDK chưa sẵn sàng.');
+}
 let authMode="login"; let authRegisterRole="customer"; let authLoginRole="customer";
 function openAuthModal(mode="login"){authMode=mode;renderAuthModal();}
 function switchAuthMode(mode){authMode=mode;renderAuthModal();}
@@ -1661,7 +1697,7 @@ function openPasswordReset(){document.getElementById('modal-root').innerHTML=`<d
 async function submitPasswordReset(e){e.preventDefault();const email=e.target.email.value.trim().toLowerCase();try{if(CONFIG.demoMode){closeModal();toast('Password reset link sent.','success');return;}const res=await fetch(apiURL('/api/auth/forgot-password'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email})});if(!res.ok)throw new Error('Unable to send reset link.');closeModal();toast('Password reset link sent.','success');}catch(err){toast(err.message,'warning');}}
 
 
-function loginGoogle(){
+async function loginGoogle(){
   if(CONFIG.demoMode){
     authSocial('google');
     return;
@@ -1675,9 +1711,11 @@ function loginGoogle(){
     return;
   }
 
-  if(!window.google?.accounts?.id){
-    toast('Google Sign-In is still loading.','error');
-    console.error('GOOGLE GSI ERROR: google.accounts.id is unavailable');
+  try{
+    await ensureGoogleIdentity();
+  }catch(error){
+    console.error('GOOGLE GSI LOAD ERROR:',error);
+    toast(error?.message||'Không thể tải Google Sign-In.','error');
     return;
   }
 
@@ -1694,7 +1732,7 @@ function loginGoogle(){
       console.log('Google GIS initialized.');
     }
 
-    const oldButton=document.querySelector('.social-google');
+    const oldButton=document.querySelector('.auth-google, .social-google');
 
     if(!oldButton){
       console.error('GOOGLE UI ERROR: .social-google button not found');
@@ -1771,7 +1809,32 @@ function loginGoogle(){
 }
 
 async function handleGoogleCredential(response){try{const result=await fetch(apiURL('/api/auth/google'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({credential:response.credential,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Google authentication failed');const u=data.session?.user||data.user||{};applyAuthenticatedUser(u,'google');closeModal();toast('Signed in with Google.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Google authentication failed','warning');}}
-function loginFacebook(){if(CONFIG.demoMode){authSocial('facebook');return;}if(!CONFIG.facebookAppId||CONFIG.facebookAppId.includes('YOUR_FACEBOOK')){toast('Chưa cấu hình Facebook App ID.','warning');return;}if(!window.FB){toast('Facebook SDK chưa sẵn sàng.','warning');return;}FB.login(async response=>{if(!response?.authResponse){toast('Facebook login đã bị huỷ.','warning');return;}try{const result=await fetch(apiURL('/api/auth/facebook'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accessToken:response.authResponse.accessToken,role:authMode==='register'?authRegisterRole:authLoginRole})});const data=await result.json().catch(()=>({}));if(!result.ok)throw new Error(data.message||'Facebook authentication failed');const u=data.session?.user||data.user||{};applyAuthenticatedUser(u,'facebook');closeModal();toast('Signed in with Facebook.','success');navigate(roleAfterLogin(state.user.role||authRegisterRole));}catch(error){toast(error.message||'Facebook authentication failed','warning');}}, {scope:'public_profile,email'});}
+async function loginFacebook(){
+  if(CONFIG.demoMode){authSocial('facebook');return;}
+  if(!CONFIG.facebookAppId||CONFIG.facebookAppId.includes('YOUR_FACEBOOK')){toast('Chưa cấu hình Facebook App ID.','warning');return;}
+  try{
+    await ensureFacebookSdk();
+  }catch(error){
+    console.error('FACEBOOK SDK LOAD ERROR:',error);
+    toast(error?.message||'Không thể tải Facebook SDK.','warning');
+    return;
+  }
+  FB.login(async response=>{
+    if(!response?.authResponse){toast('Facebook login đã bị huỷ.','warning');return;}
+    try{
+      const result=await fetch(apiURL('/api/auth/facebook'),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accessToken:response.authResponse.accessToken,role:authMode==='register'?authRegisterRole:authLoginRole})});
+      const data=await result.json().catch(()=>({}));
+      if(!result.ok)throw new Error(data.message||'Facebook authentication failed');
+      const u=data.session?.user||data.user||{};
+      applyAuthenticatedUser(u,'facebook');
+      closeModal();
+      toast('Signed in with Facebook.','success');
+      navigate(roleAfterLogin(state.user.role||authRegisterRole));
+    }catch(error){
+      toast(error.message||'Facebook authentication failed','warning');
+    }
+  },{scope:'public_profile,email'});
+}
 async function restoreSession(){
 
   if(CONFIG.demoMode) return;
