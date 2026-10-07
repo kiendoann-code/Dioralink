@@ -237,8 +237,9 @@
 
   function scrollDepth(){
     const doc=document.documentElement;
-    const max=Math.max(1,doc.scrollHeight-innerHeight);
-    const depth=Math.min(100,Math.round((scrollY/max)*100));
+    const scrollable=doc.scrollHeight-innerHeight;
+    const max=Math.max(1,scrollable);
+    const depth=scrollable<=1?100:Math.min(100,Math.round((scrollY/max)*100));
     for(const threshold of [25,50,75,90,100]){
       if(depth>=threshold&&!scrollSeen.has(threshold)){
         scrollSeen.add(threshold);
@@ -247,11 +248,11 @@
     }
   }
 
-  function activeTick(final=false){
+  function activeTick(final=false,force=false){
     const now=Date.now();
     const delta=Math.max(0,Math.min(HEARTBEAT_MS,now-lastActiveAt));
     lastActiveAt=now;
-    if(document.visibilityState==='visible'&&document.hasFocus()&&delta>0){
+    if((force||(document.visibilityState==='visible'&&document.hasFocus()))&&delta>0){
       track('engagement',{final},{activeMs:delta});
     }
   }
@@ -397,10 +398,10 @@
 
     setInterval(()=>activeTick(false),HEARTBEAT_MS);
     document.addEventListener('visibilitychange',()=>{
-      if(document.visibilityState==='hidden'){activeTick(true);track('page_hide');flush(true);}
+      if(document.visibilityState==='hidden'){activeTick(true,true);track('page_hide');flush(true);}
       else lastActiveAt=Date.now();
     });
-    window.addEventListener('pagehide',()=>{activeTick(true);flush(true);});
+    window.addEventListener('pagehide',()=>{activeTick(true,true);flush(true);});
 
     const providerStart=()=>loadExternalProviders();
     if(document.readyState==='complete')setTimeout(providerStart,4000);
