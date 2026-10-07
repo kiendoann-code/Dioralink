@@ -72,8 +72,11 @@ jobs:
             await page.goto('https://dioralink.xyz/?behaviorSmoke=1',{waitUntil:'networkidle'});
             assert(await page.locator('.art-hero-visual img').isVisible(),'hero remains visible');
             assert.equal(await page.locator('script[src*="/analytics-client.js"]').count(),1,'analytics client loaded once');
+            assert.equal(await page.evaluate(()=>typeof window.DioraAnalytics),'object','analytics global must exist');
             await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight*0.55));
-            await page.waitForTimeout(3200);
+            await page.waitForTimeout(300);
+            await page.evaluate(()=>window.DioraAnalytics.flush());
+            await page.waitForTimeout(800);
             assert(analyticsResponses.some(s=>s===202),'analytics batch must be accepted');
             assert.equal(errors.length,0,'no page errors');
 
