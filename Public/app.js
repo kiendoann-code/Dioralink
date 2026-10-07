@@ -159,7 +159,7 @@ function loadState(){
   try{ const raw=localStorage.getItem(CONFIG.storageKey); if(raw) return normalizeState(JSON.parse(raw)); }catch(e){}
   return clone(SEED);
 }
-function save(){ try{ localStorage.setItem(CONFIG.storageKey, JSON.stringify(state)); refreshShell(); return true; }catch(e){ if(e?.name==='QuotaExceededError'||e?.code===22){ toast('Storage is full. Uploaded media is stored separately; please reload the page and try again.','warning'); return false; } throw e; } }
+function save(){ try{ const snapshot=CONFIG.demoMode?state:{...state,requests:[],projects:[]}; localStorage.setItem(CONFIG.storageKey, JSON.stringify(snapshot)); refreshShell(); return true; }catch(e){ if(e?.name==='QuotaExceededError'||e?.code===22){ toast('Storage is full. Uploaded media is stored separately; please reload the page and try again.','warning'); return false; } throw e; } }
 const FORM_DRAFT_PREFIX='dioralink_form_draft_v1';
 function formDraftStorageKey(key){
   return FORM_DRAFT_PREFIX+':'+String(state.user?.id||'guest')+':'+String(key||'form');
