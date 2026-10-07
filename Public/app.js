@@ -272,7 +272,7 @@ document.addEventListener('click',event=>{
 });
 function apiURL(path){ return (CONFIG.apiBase||"").replace(/\/$/,"")+path; }
 function authUserFromArtisan(a,provider="demo"){ return {id:"USR-ARTISAN-01",name:a?.name||"Artisan",email:"artisan@example.com",phone:"",city:a?.city||"",role:"artisan",avatar:a?.avatar||GUEST_USER.avatar,bio:a?.bio||"",joined:"2026",artisanId:a?.id||"A-001",authenticated:true,provider}; }
-function setGuest(){ state.session={authenticated:false,userId:null}; state.user=clone(GUEST_USER); save(); window.DioraAnalytics?.setContext({user_role:'guest'}); }
+function setGuest(){ state.session={authenticated:false,userId:null}; state.user=clone(GUEST_USER); commissionConversations=[];commissionCustomers={};commissionWorkspaceUser=''; save(); window.DioraAnalytics?.setContext({user_role:'guest'}); }
 function isAuthenticated(){ return state.session?.authenticated===true && !!state.user?.id; }
 function requireAuth(){ if(isAuthenticated()) return true; toast("Vui lòng đăng nhập để tiếp tục.","warning"); openAuthModal("login"); return false; }
 function ensureCurrentArtisanProfile(){
@@ -377,6 +377,7 @@ function applyAuthenticatedUser(u,provider='email'){
 
   save();
   window.DioraAnalytics?.setContext({user_role:['customer','artisan'].includes(state.user.role)?state.user.role:'guest'});
+  queueCommissionSync();
 }
 
 function roleAfterLogin(role){
@@ -692,13 +693,14 @@ function render(){
   document.querySelector('meta[name="robots"]')?.setAttribute('content','noindex,follow');
   const [route,param]=routeParts();
   if(!isAuthenticated() && ['market-checkout','market-order','market-seller'].includes(route))sessionStorage.setItem('dioralink_market_after_login',route+(param?'/'+param:''));
-  const protectedCustomer=['market-checkout','market-orders','customer-dashboard','commission','requests','request','projects','project','saved','messages'];
+  const protectedCustomer=['market-checkout','market-orders','customer-dashboard','commission','requests','request','projects','project','saved'];
   if(protectedCustomer.includes(route) && !requireRole('customer')) return;
   const protectedArtisan=['market-seller','market-sales','artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings'];
   if(protectedArtisan.includes(route) && !requireRole('artisan')) return;
   const protectedAdmin=['admin-market','admin-market-order','admin-dashboard','admin-analytics','admin-commissions','admin-complaints','admin-notifications'];
   if(protectedAdmin.includes(route) && !requireAdmin()) return;
   if(route==='complaints' && !requireAuth())return;
+  if(route==='messages' && (!requireAuth() || !['customer','artisan'].includes(currentRole())))return;
   if(route==='market-order' && !requireAuth())return;
   const map={'market-checkout':()=>renderMarketCheckout(param),'market-orders':()=>renderMarketOrders(false),'market-sales':()=>renderMarketOrders(true),'market-order':()=>renderMarketOrder(param),'market-seller':renderMarketSeller,'admin-market':renderMarketAdmin,'admin-market-order':()=>renderMarketOrder(param,true),home:renderHome,'customer-dashboard':renderCustomerDashboard,explore:renderExplore,creator:()=>renderCreator(param),commission:renderCommission,requests:renderRequests,request:()=>renderRequest(param),projects:renderProjects,project:()=>renderProject(param),messages:renderMessages,complaints:renderComplaints,saved:renderSaved,account:renderAccount,trust:renderTrust,
     'artisan-dashboard':renderArtisanDashboard,'artisan-requests':renderArtisanRequests,'artisan-request':()=>renderArtisanRequest(param),'artisan-proposals':renderArtisanProposals,'artisan-projects':renderArtisanProjects,'artisan-project':()=>renderArtisanProject(param),'artisan-portfolio':renderArtisanPortfolio,'artisan-earnings':renderArtisanEarnings,
