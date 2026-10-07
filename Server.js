@@ -28,7 +28,7 @@ app.set("trust proxy", 1);
 app.use(express.json({ limit: "18mb" }));
 app.use(cookieParser());
 /* =========================================================
-   AUTH â€” LOGOUT (EARLY ROUTE)
+   AUTH — LOGOUT (EARLY ROUTE)
    Must be registered before SPA/API 404 handlers.
 ========================================================= */
 app.post("/api/auth/logout", (req, res) => {
