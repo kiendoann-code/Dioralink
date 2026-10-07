@@ -35,7 +35,7 @@ jobs:
             assert(initialScripts.some(x=>x?.includes('/public-home.js')),'light homepage bootstrap must load');
             assert(!initialScripts.some(x=>x?.includes('/app.js')),'full app should not load before interaction for guest');
 
-            await page.getByRole('button',{name:'Đăng nhập'}).click();
+            await page.locator('#auth-header-actions').getByRole('button',{name:'Đăng nhập'}).click();
             await page.locator('.auth-premium-modal').waitFor({state:'visible',timeout:15000});
             assert(await page.locator('.auth-premium-modal').isVisible(),'login modal must open after lazy full-app load');
             assert((await page.locator('script[src]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('src')))).some(x=>x?.includes('/app.js')),'full app must load on login interaction');
