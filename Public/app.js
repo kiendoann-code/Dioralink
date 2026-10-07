@@ -76,6 +76,72 @@ if(!CONFIG.demoMode){ state.session={authenticated:false,userId:null}; state.use
 let explore = {query:"",category:"all",budget:50000000};
 let mobileNavOpen = false;
 
+let commissionConversations=[];
+let commissionCustomers={};
+let commissionSyncPromise=null;
+let commissionWorkspaceUser='';
+let activeConversationKey='';
+const attachmentRegistry=new Map();
+
+function isCommissionRoute(route=currentRoute()){
+  return ['customer-dashboard','commission','requests','request','projects','project','messages','artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project'].includes(route);
+}
+async function commissionApi(path,options={}){
+  const init={credentials:'include',...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}};
+  const res=await fetch(apiURL('/api/commission'+path),init);
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.message||('Commission API error '+res.status));
+  return data;
+}
+function registerAttachment(f){
+  const key=String(f?.id||f?.storageId||('ATT-'+Math.random().toString(36).slice(2)));
+  attachmentRegistry.set(key,f||{});
+  return key;
+}
+async function downloadAttachmentRef(key){
+  const f=attachmentRegistry.get(String(key));
+  if(!f){toast('File is no longer available.','error');return;}
+  if(f.dataUrl){
+    const a=document.createElement('a');a.href=f.dataUrl;a.download=f.name||'download';document.body.appendChild(a);a.click();a.remove();return;
+  }
+  return downloadStoredFile(f.storageId||f.id,f.name||'download');
+}
+async function syncCommissionWorkspace({force=false,rerender=false}={}){
+  if(CONFIG.demoMode||!isAuthenticated()||!['customer','artisan'].includes(currentRole()))return null;
+  const key=state.user.id+'|'+currentRole();
+  if(!force&&commissionWorkspaceUser===key&&commissionSyncPromise)return commissionSyncPromise;
+  if(commissionSyncPromise&&commissionWorkspaceUser===key)return commissionSyncPromise;
+  commissionWorkspaceUser=key;
+  commissionSyncPromise=(async()=>{
+    const data=await commissionApi('/workspace');
+    state.requests=Array.isArray(data.requests)?data.requests:[];
+    state.projects=Array.isArray(data.projects)?data.projects:[];
+    commissionConversations=Array.isArray(data.conversations)?data.conversations:[];
+    commissionCustomers=data.participants?.customers||{};
+    for(const profile of data.participants?.artisans||[]){
+      const existing=state.artisans.find(a=>a.id===profile.id);
+      if(existing){
+        const hero=existing.hero,portfolio=existing.portfolio,slug=existing.slug,paymentProfile=existing.paymentProfile;
+        Object.assign(existing,profile);
+        if(hero)existing.hero=hero;if(portfolio?.length)existing.portfolio=portfolio;if(slug)existing.slug=slug;if(paymentProfile)existing.paymentProfile=paymentProfile;
+      }else state.artisans.push(profile);
+    }
+    save();
+    if(rerender&&isCommissionRoute())render();
+    return data;
+  })().catch(err=>{console.error('COMMISSION SYNC ERROR',err);if(rerender)toast(err.message||'Không thể đồng bộ request/project.','warning');return null;}).finally(()=>{commissionSyncPromise=null;});
+  return commissionSyncPromise;
+}
+function queueCommissionSync(){
+  if(CONFIG.demoMode||!isAuthenticated()||!['customer','artisan'].includes(currentRole()))return;
+  setTimeout(()=>syncCommissionWorkspace({force:true,rerender:isCommissionRoute()}),0);
+}
+async function persistProjectSnapshot(p){
+  if(CONFIG.demoMode||!p?.id)return;
+  try{await commissionApi('/projects/'+encodeURIComponent(p.id),{method:'PUT',body:JSON.stringify(p)});}
+  catch(err){console.error('PROJECT SYNC ERROR',err);toast('Thay đổi đã lưu cục bộ nhưng chưa đồng bộ lên server.','warning');}
+}
+
 function clone(v){ return JSON.parse(JSON.stringify(v)); }
 function normalizeState(input){
   const base=clone(SEED);
@@ -328,6 +394,7 @@ function artisanById(id){ return state.artisans.find(a=>a.id===id); }
 function requestById(id){ return state.requests.find(r=>r.id===id); }
 function projectById(id){ return state.projects.find(p=>p.id===id); }
 function expireStaleCommissionRequests(){
+  if(!CONFIG.demoMode)return false;
   const now=Date.now();
   let changed=false;
   for(const r of state.requests||[]){
@@ -355,7 +422,7 @@ function expireStaleCommissionRequests(){
   if(changed)save();
   return changed;
 }
-function customerById(id){ return id===SEED.user.id ? SEED.user : (id==='USR-CUSTOMER-01' ? {name:'Quỳnh Anh',avatar:SEED.user.avatar,email:'quynhanh@example.com'} : {name:'Customer',avatar:'',email:''}); }
+function customerById(id){ return commissionCustomers[id] || (id===SEED.user.id ? SEED.user : (id==='USR-CUSTOMER-01' ? {name:'Quỳnh Anh',avatar:SEED.user.avatar,email:'quynhanh@example.com'} : {name:'Customer',avatar:'',email:''})); }
 function isAdmin(){ return state.user?.role==='admin' && state.session?.authenticated===true; }
 function currentRole(){ return state.user?.role||'guest'; }
 function hasRole(role){ return Array.isArray(state.user?.roles)?state.user.roles.includes(role):currentRole()===role; }
