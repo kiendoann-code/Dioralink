@@ -84,6 +84,7 @@ const PUBLIC_DIR = path.join(__dirname, "Public");
 const INDEX_FILE = path.join(PUBLIC_DIR, "index.html");
 const { createSeoRouter, ensureSeoSchema, safeImage } = require("./seo");
 const { createMarketplace, ensureMarketplaceSchema } = require("./marketplace");
+const { createAnalyticsRouter, ensureAnalyticsSchema } = require("./analytics-server");
 
 const COOKIE_NAME = "dioralink_session";
 
@@ -1456,6 +1457,7 @@ app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '7d', setHeaders(res,
 } }));
 const marketplace = createMarketplace({ pool, indexFile: INDEX_FILE, requireAuth, requireAdmin: requireFinanceAdmin });
 app.use(marketplace.router);
+app.use(createAnalyticsRouter({ pool, requireAdmin: requireFinanceAdmin }));
 app.use(createSeoRouter({ pool, indexFile: INDEX_FILE, requireAuth, getHomeSection: marketplace.getHomeSection, getSitemapEntries: marketplace.getSitemapEntries }));
 
 /* =========================
@@ -1530,6 +1532,7 @@ async function start() {
 
     await ensureSeoSchema(pool);
     await ensureMarketplaceSchema(pool);
+    await ensureAnalyticsSchema(pool);
     console.log("Database schema: OK");
 
     app.post("/api/auth/logout", (req, res) => {
