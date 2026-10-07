@@ -1,0 +1,19 @@
+name: capture-google-font-css
+on:
+  push:
+    branches:
+      - perf/mobile-pass2-20261007
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch browser Google Fonts CSS
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL             -A "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36"             "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap"             -o fonts.css
+          echo "FONT_CSS_BASE64_BEGIN"
+          base64 -w0 fonts.css
+          echo
+          echo "FONT_CSS_BASE64_END"
+          echo "BYTES=$(wc -c < fonts.css)"
