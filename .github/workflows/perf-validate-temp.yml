@@ -1,0 +1,20 @@
+name: perf-validate-temp
+on:
+  push:
+    branches:
+      - perf/mobile-safe-20261007
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: node --check Server.js
+      - run: node --check seo.js
+      - run: node --check home.js
+      - run: node --check Public/app.js
