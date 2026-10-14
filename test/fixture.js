@@ -5,6 +5,7 @@ function fixture({withProfile=true}={}) {
   const row={user_id:'user-123',slug:'xuong-thu-nho-abc123',profile:{name:'Xưởng Thu Nhỏ',handle:'@xuong',city:'Hà Nội',bio:'Thiết kế và chế tác mô hình kiến trúc thu nhỏ theo ý tưởng riêng của khách hàng.',specialties:['Architecture','Miniature'],startingPrice:3000000,response:'1 ngày',avatar:'',hero:'',portfolio:[]},updated_at:new Date('2026-10-04T00:00:00Z'),published:true};
   const rows=withProfile?[row]:[];
   const pool={async query(sql,values=[]){
+    sql=sql.trim();
     if(sql.startsWith('SELECT') && sql.includes('WHERE user_id=$1'))return {rows:rows.filter(r=>r.user_id===values[0])};
     if(sql.startsWith('SELECT') && sql.includes('WHERE slug=$1'))return {rows:rows.filter(r=>r.slug===values[0] && r.published)};
     if(sql.startsWith('SELECT'))return {rows:rows.filter(r=>r.published)};
@@ -29,3 +30,4 @@ function fixture({withProfile=true}={}) {
 }
 module.exports={fixture};
 if(require.main===module){const {app}=fixture({withProfile:process.env.EMPTY_CATALOG!=='1'});app.listen(3100,'0.0.0.0',()=>console.log('SEO fixture http://localhost:3100'));}
+

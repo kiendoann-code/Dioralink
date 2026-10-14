@@ -1184,12 +1184,17 @@ app.post('/api/finance/commission/confirm',requireAuth,(req,res,next)=>{
 
     const projectRef=financeText(req.body?.projectRef,120);
     const milestoneRef=financeText(req.body?.milestoneRef,80);
-    const projectTitle=financeText(req.body?.projectTitle,200);
-    const milestoneName=financeText(req.body?.milestoneName,200);
-    const customerRef=financeText(req.body?.customerRef,120);
-    const grossAmount=financeMoney(req.body?.grossAmount);
-    const discountAmount=Math.max(0,Number(req.body?.discount||0));
-    const netAmount=financeMoney(req.body?.netAmount);
+    const workflow=(await pool.query("SELECT * FROM commission_workflows WHERE payload->'project'->>'id'=$1",[projectRef])).rows[0];
+    const persistedProject=workflow?.payload?.project;
+    const persistedMilestone=persistedProject?.milestones?.find(m=>m.id===milestoneRef);
+    const persistedPayment=persistedProject?.payments?.find(p=>p.milestoneId===milestoneRef);
+    if(!persistedProject||persistedProject.artisanId!=='ART-'+req.user.id||persistedProject.walletRequired||!persistedMilestone||!persistedPayment||persistedPayment.wallet||!['customer_reported','confirmed'].includes(persistedPayment.status))return res.status(409).json({message:'Chỉ đối soát giao dịch chuyển khoản cũ đã được khách báo trên hệ thống.'});
+    const projectTitle=financeText(persistedProject.title,200);
+    const milestoneName=financeText(persistedMilestone.name,200);
+    const customerRef=workflow.customer_user_id;
+    const grossAmount=financeMoney(persistedMilestone.amount);
+    const discountAmount=Math.max(0,Number(persistedPayment.discount||0));
+    const netAmount=financeMoney(persistedPayment.customerPaid||persistedPayment.amount);
     const transferReference=financeText(req.body?.transferReference,120);
 
     if(!projectRef || !milestoneRef){
@@ -1227,6 +1232,11 @@ app.post('/api/finance/commission/confirm',requireAuth,(req,res,next)=>{
     try{
       await client.query('BEGIN');
 
+      const locked=(await client.query('SELECT * FROM commission_workflows WHERE id=$1 FOR UPDATE',[workflow.id])).rows[0];
+      const legacy=locked.payload.project.payments.find(p=>p.milestoneId===milestoneRef);
+      if(locked.payload.project.walletRequired||(await client.query('SELECT 1 FROM diora_holds WHERE ref=$1',['commission:'+projectRef+':'+milestoneRef])).rows.length)throw Object.assign(new Error('Giao dịch đang sử dụng Ví Diora.'),{status:409});
+      legacy.status='confirmed';legacy.confirmedAt=new Date().toISOString();
+      await client.query('UPDATE commission_workflows SET payload=$2 WHERE id=$1',[workflow.id,JSON.stringify(locked.payload)]);
       const inserted=(await client.query(
         `INSERT INTO platform_commissions(
           artisan_user_id,customer_ref,project_ref,project_title,milestone_ref,milestone_name,
@@ -1348,38 +1358,22 @@ app.post('/api/complaints',requireAuth,asyncRoute(async(req,res)=>{
   if(!rawEvidence.length)return res.status(400).json({message:'Vui lòng đính kèm ít nhất một ảnh hoặc video bằng chứng.'});
 
   const evidence=rawEvidence.map(complaintMedia);
-
-  if(subjectType==='marketplace_order'){
-    const order=(await pool.query(
-      'SELECT buyer_id,seller_id FROM market_orders WHERE id=$1 LIMIT 1',
-      [subjectRef]
-    )).rows[0];
-    if(!order || (order.buyer_id!==req.user.id && order.seller_id!==req.user.id)){
-      return res.status(404).json({message:'Không tìm thấy đơn hàng thuộc tài khoản của bạn.'});
+  const complaint=await require('./wallet').tx(pool,async client=>{
+    if(subjectType==='marketplace_order'){
+      const order=(await client.query('SELECT * FROM market_orders WHERE id=$1 FOR UPDATE',[subjectRef])).rows[0];
+      if(!order||(order.buyer_id!==req.user.id&&order.seller_id!==req.user.id))throw Object.assign(new Error('Không tìm thấy đơn hàng thuộc tài khoản của bạn.'),{status:404});
+      await client.query('UPDATE market_orders SET dispute_open=TRUE,updated_at=NOW() WHERE id=$1',[subjectRef]);
+    }else{
+      const query=subjectType==='commission_project'?"SELECT * FROM commission_workflows WHERE payload->'project'->>'id'=$1 FOR UPDATE":"SELECT * FROM commission_workflows WHERE id=$1 FOR UPDATE";
+      const workflow=(await client.query(query,[subjectRef])).rows[0];
+      const artisanId=String(workflow?.payload?.project?.artisanId||'').replace(/^ART-/, '');
+      const participant=subjectType==='commission_project'?artisanId===req.user.id:(workflow?.preferred_artisan_user_id===req.user.id||(workflow?.participant_artisan_ids||[]).includes(req.user.id));
+      if(!workflow||(workflow.customer_user_id!==req.user.id&&!participant))throw Object.assign(new Error('Bạn không thuộc yêu cầu/dự án này.'),{status:403});
     }
-  }
-
-  const complaint=(await pool.query(
-    `INSERT INTO platform_complaints(
-       complainant_user_id,complainant_role,subject_type,subject_ref,reason,evidence
-     ) VALUES($1,$2,$3,$4,$5,$6)
-     RETURNING *`,
-    [req.user.id,req.user.role,subjectType,subjectRef,reason,JSON.stringify(evidence)]
-  )).rows[0];
-
-  const admins=(await pool.query('SELECT id FROM platform_admins WHERE active=TRUE')).rows;
-  for(const admin of admins){
-    await pool.query(
-      `INSERT INTO admin_notifications(admin_id,title,body,route)
-       VALUES($1,$2,$3,$4)`,
-      [
-        admin.id,
-        'Khiếu nại mới',
-        `${req.user.name} gửi khiếu nại cho ${subjectType} ${subjectRef}.`,
-        'admin-complaints'
-      ]
-    );
-  }
+    const row=(await client.query(`INSERT INTO platform_complaints(complainant_user_id,complainant_role,subject_type,subject_ref,reason,evidence) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[req.user.id,req.user.role,subjectType,subjectRef,reason,JSON.stringify(evidence)])).rows[0];
+    await client.query("INSERT INTO admin_notifications(admin_id,title,body,route) SELECT id,$1,$2,'admin-complaints' FROM platform_admins WHERE active=TRUE",['Khiếu nại mới',`${req.user.name} gửi khiếu nại cho ${subjectType} ${subjectRef}.`]);
+    return row;
+  });
 
   res.status(201).json({complaint,message:'Đã gửi khiếu nại để DioraLink xét duyệt.'});
 }));
@@ -1456,6 +1450,8 @@ app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '7d', setHeaders(res,
   }
   res.setHeader('Cache-Control', 'public, max-age=604800');
 } }));
+const {ensureWalletSchema,createWallet}=require('./wallet');
+app.use(createWallet({pool,requireAuth,requireAdmin:requireFinanceAdmin}));
 const commissionWorkflow = createCommissionWorkflow({ pool, requireAuth });
 app.use("/api/commission", commissionWorkflow.router);
 const marketplace = createMarketplace({ pool, indexFile: INDEX_FILE, requireAuth, requireAdmin: requireFinanceAdmin });
@@ -1537,6 +1533,8 @@ async function start() {
     await ensureMarketplaceSchema(pool);
     await ensureAnalyticsSchema(pool);
     await ensureCommissionWorkflowSchema(pool);
+    await ensureFinanceSchema();
+    await ensureWalletSchema(pool);
     console.log("Database schema: OK");
 
     app.post("/api/auth/logout", (req, res) => {
@@ -1581,6 +1579,7 @@ app.listen(PORT, "0.0.0.0", () => {
 }
 
 start();
+
 
 
 

@@ -1,15 +1,13 @@
 'use strict';
 const crypto=require('node:crypto');
-const TERMS_VERSION='marketplace-2026-10-05-v1';
+const TERMS_VERSION='2026-10-14-wallet-v1';
 const TERMS=[
- ['Sản phẩm và giá bán','Marketplace dành cho sản phẩm làm sẵn. Nghệ nhân chịu trách nhiệm về quyền bán, nguồn gốc, ảnh thật, tình trạng, kích thước, chất liệu, tồn kho và mô tả chính xác. Giá tiền hàng, phí giao hàng và tổng thanh toán được hiển thị trước khi đặt; nghệ nhân không được tự ý đổi giá của đơn đã tạo.'],
- ['Thanh toán chuyển khoản hoặc COD','Với chuyển khoản, chờ nghệ nhân xác nhận nhận đơn rồi chuyển đúng tổng tiền vào thông tin ngân hàng trong đơn, ghi đúng mã đơn và lưu chứng từ. Thông báo “đã chuyển” của khách không đồng nghĩa ngân hàng đã xác nhận tiền. Với COD, khách thanh toán số tiền hiển thị trong đơn khi nhận hàng; nghệ nhân tự đối soát tiền thu hộ với SPX. DioraLink không giữ tiền ký quỹ và không tự động thu, chuyển hoặc hoàn tiền.'],
- ['Giao hàng SPX','Sau khi chấp nhận đơn, nghệ nhân có trách nhiệm đóng gói bảo vệ sản phẩm, tạo vận đơn SPX và cung cấp mã cho khách trước khi chuyển đơn sang “Đang giao”. Mã và tình trạng trên DioraLink do người bán cập nhật, không phải xác nhận tự động từ SPX. Nghệ nhân cần khai báo giá trị và làm việc với SPX theo chính sách vận chuyển áp dụng. Không phát sinh khoản thu ngoài tổng đơn nếu chưa được khách đồng ý.'],
- ['Nhận hàng và hủy đơn','Khách kiểm tra thông tin người nhận, theo dõi vận đơn và phối hợp nhận hàng. Nên lưu ảnh kiện hàng, tem vận đơn, sản phẩm và video mở kiện nếu có; thiếu video không tự động làm mất quyền khiếu nại. Đơn chưa được chấp nhận có thể hủy trực tiếp. Sau khi chấp nhận, yêu cầu hủy, hàng sai mô tả, thiếu, hỏng hoặc thất lạc được xử lý qua mục tranh chấp; không mặc định mọi trường hợp đều không hoàn tiền.'],
- ['Khiếu nại và xử lý tranh chấp','Mở đơn hàng, chọn “Yêu cầu hỗ trợ / tranh chấp”, mô tả vấn đề và gửi chứng cứ. Hai bên phản hồi trong lịch sử đơn; quản trị viên xem mô tả tại lúc mua, chứng từ thanh toán, ảnh và mã vận đơn để hỗ trợ thương lượng. Trong thời gian tranh chấp đang mở, các bước hoàn tất đơn và thu phí nền tảng bị tạm dừng. Quản trị có thể ghi nhận phương án tiếp tục đơn, hủy đơn chưa thanh toán, hoặc hoàn toàn bộ khoản đã thanh toán. Quyết định xử lý, lý do và bằng chứng được lưu lại cho hai bên.'],
- ['Hoàn tiền và quyền của các bên','Nếu thống nhất hoàn tiền, nghệ nhân thực hiện hoàn bên ngoài nền tảng và cung cấp chứng từ; chỉ ghi nhận “Đã hoàn tiền” khi khách xác nhận hoặc quản trị kiểm chứng và ghi rõ căn cứ. Trường hợp trả hàng, hai bên thống nhất người chịu phí và tình trạng hàng trước khi hoàn lại tồn kho. DioraLink không tự động hoàn tiền thay nghệ nhân. Cơ chế nội bộ không hạn chế quyền yêu cầu cơ quan có thẩm quyền, hòa giải, trọng tài hoặc tòa án giải quyết theo pháp luật; không loại trừ trách nhiệm bắt buộc của người bán và nền tảng.'],
- ['Phí nền tảng và đối soát','Theo bảng phí DioraLink, phí trên tiền hàng của mỗi đơn (không gồm phí giao hàng): dưới 2.000.000₫ là 10%; từ 2.000.000₫ đến 5.000.000₫ là 8%; trên 5.000.000₫ đến 10.000.000₫ là 7%; trên 10.000.000₫ là 5%. Tỷ lệ được lưu khi đặt hàng. Nghệ nhân nhận tiền trực tiếp và có trách nhiệm đối soát, nộp phí nền tảng; đây là chia doanh thu, không phải lợi nhuận sau chi phí sản xuất, thuế hay vận chuyển. Đơn hủy hoặc hoàn toàn bộ không ghi nhận phí được hưởng; khoản phí đã thu cần được đối soát hoàn lại.'],
- ['Thông tin cá nhân và chấp thuận','Tên, số điện thoại và địa chỉ giao hàng chỉ được cung cấp cho người bán và quản trị để thực hiện, hỗ trợ đơn; nghệ nhân chỉ sử dụng cho mục đích này và giao nhận với SPX. Không công khai thông tin thanh toán hay chứng cứ tranh chấp ra trang sản phẩm. Khi đặt hàng, khách chủ động xác nhận đã đọc điều khoản và kiểm tra thông tin đơn. Phiên bản điều khoản và thời điểm đồng ý được lưu cùng đơn hàng.']
+ ['Thanh toán bằng Ví Diora','Đơn mới giữ đủ tổng tiền trong Ví Diora khi đặt hàng. Tiền được chuyển vào ví nghệ nhân sau khi khách xác nhận nhận hàng, trừ phí dịch vụ.'],
+ ['Nạp và rút tiền','Nạp chỉ được cộng sau khi admin đối soát ngân hàng. Nhập đúng mã nạp và số tiền. DioraLink không chịu trách nhiệm đối với sai sót do người gửi nhập sai thông tin; vui lòng liên hệ hỗ trợ với chứng từ để kiểm tra. Rút tiền được xử lý bởi admin; số tiền yêu cầu rút sẽ tạm giữ.'],
+ ['Ẩn danh người mua','Nghệ nhân chỉ thấy mã khách theo đơn; tên, điện thoại và địa chỉ nhận hàng do nền tảng quản lý và dùng để điều phối giao hàng. Khách vẫn xem được thông tin nghệ nhân.'],
+ ['Giao hàng','Admin điều phối vận đơn và cập nhật mã SPX. Không gửi thông tin liên hệ cá nhân trong trao đổi.'],
+ ['Hủy và tranh chấp','Khách có thể hủy đơn đang chờ xác nhận để hoàn số tiền giữ. Khi có tranh chấp, tiền chưa giải ngân tiếp tục được giữ để admin xem xét chứng cứ. Giao dịch đã giải ngân cần được đối soát và xử lý riêng, không tự động hoàn.'],
+ ['Phí dịch vụ','Phí trên tiền hàng: 10% dưới 2 triệu; 8% từ 2 đến 5 triệu; 7% trên 5 đến 10 triệu; 5% trên 10 triệu đồng. Phí vận chuyển được tách riêng.']
 ];
 const text=(v,n=3000)=>typeof v==='string'?v.trim().slice(0,n):'';
 function fail(message,status=400){const e=new Error(message);e.status=status;throw e;}
@@ -55,3 +53,4 @@ function aggregate(rows,p){
  return {period:{from:p.from,to:p.to},totals,trend:[...days.values()],sellers:[...sellers.values()].sort((a,b)=>b.goods-a.goods),products:[...products.values()].sort((a,b)=>b.goods-a.goods),orders:rows};
 }
 module.exports={TERMS_VERSION,TERMS,text,fail,integer,feeRate,amounts,shippingAddress,fingerprint,period,aggregate};
+

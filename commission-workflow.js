@@ -2,6 +2,8 @@
 
 const express = require('express');
 const crypto = require('node:crypto');
+const {alias,assertCommunication,privateMessages,filenameText}=require('./communication-policy');
+const {tx,settle}=require('./wallet');
 
 const ACTIVE = new Set(['pending','proposal_received']);
 const MAX_FILE = 8 * 1024 * 1024;
@@ -26,8 +28,9 @@ function parseDataUrl(v,max=MAX_FILE){
   return {mime,size,dataUrl:v};
 }
 function milestones(b){
+  let allocated=0;
   return [['M1','Concept & Scope',20],['M2','Base & Structure',20],['M3','Sculpt & Composition',20],['M4','Paint, Resin & Lighting',25],['M5','Final Assembly & Delivery',15]]
-    .map(x=>({id:x[0],name:x[1],percentage:x[2],amount:Math.round(b*x[2]/100),status:'pending',evidence:'',approvedAt:null}));
+    .map((x,i)=>{const amount=i===4?b-allocated:Math.round(b*x[2]/100);allocated+=amount;return {id:x[0],name:x[1],percentage:x[2],amount,status:'pending',evidence:'',approvedAt:null};});
 }
 async function ensureCommissionWorkflowSchema(pool){
   await pool.query(
@@ -77,7 +80,10 @@ function normalizeRow(row,viewer){
   p.proposals=Array.isArray(p.proposals)?p.proposals:[];
   p.attachments=Array.isArray(p.attachments)?p.attachments:[];
   p.selectedProposal=p.proposals.find(x=>x.status==='accepted')?.id||null;
+  delete p.threads;
   if(viewer?.role==='artisan'){
+    p.customerId=alias(row.id);
+    if(p.project){p.project.customerId=alias(row.id);p.project.messages=privateMessages(p.project.messages,row.id,viewer);}
     p.proposals=p.proposals.filter(x=>artisanUserId(x.artisanId)===viewer.id);
     if(p.project&&artisanUserId(p.project.artisanId)!==viewer.id) delete p.project;
   }
@@ -156,7 +162,7 @@ function createCommissionWorkflow({pool,requireAuth}){
       for(const aid of aids){
         if(req.user.role==='artisan'&&aid!==req.user.id)continue;
         if(!conversationAllowed(r,req.user,aid))continue;
-        const msgs=threadMessages(payload,aid);
+        const msgs=privateMessages(threadMessages(payload,aid),r.id,req.user);
         const a=participants.artisans.find(x=>x.id===artisanPublicId(aid));
         const c=participants.customers[r.customer_user_id];
         const prop=(payload.proposals||[]).find(x=>artisanUserId(x.artisanId)===aid);
@@ -164,12 +170,13 @@ function createCommissionWorkflow({pool,requireAuth}){
           key:r.id+'|'+aid,requestId:r.id,artisanUserId:aid,artisanId:artisanPublicId(aid),
           projectId:artisanUserId(payload.project?.artisanId)===aid?payload.project?.id||null:null,
           title:payload.title||r.id,quote:Number(prop?.quote||payload.budget||0),proposalStatus:prop?.status||null,
-          requestStatus:r.status,counterpart:req.user.role==='customer'?{name:a?.name||'Artisan',avatar:a?.avatar||''}:{name:c?.name||'Customer',avatar:c?.avatar||''},
+          requestStatus:r.status,counterpart:req.user.role==='customer'?{name:a?.name||'Artisan',avatar:a?.avatar||''}:{name:alias(r.id),avatar:''},
           messages:msgs,lastMessage:msgs[msgs.length-1]||null
         });
       }
     }
     conversations.sort((a,b)=>new Date(b.lastMessage?.createdAt||0)-new Date(a.lastMessage?.createdAt||0));
+    if(req.user.role==='artisan'){participants.customers=Object.fromEntries(rows.map(r=>[alias(r.id),{id:alias(r.id),name:alias(r.id),avatar:''}]));participants.artisans=participants.artisans.filter(a=>rows.some(r=>(r.participant_artisan_ids||[]).includes(artisanUserId(a.id))||r.preferred_artisan_user_id===artisanUserId(a.id)));}
     res.json({requests,projects,conversations,participants});
   }));
 
@@ -181,6 +188,7 @@ function createCommissionWorkflow({pool,requireAuth}){
     if(mode==='specific'&&(!preferred||!(await isArtisan(pool,preferred))))return res.status(400).json({message:'Nghệ nhân được chọn không hợp lệ.'});
     const payload={title:text(body.title,200),style:text(body.style,100),size:text(body.size,120),budget:money(body.budget,500000),
       timeline:text(body.timeline,120),description:text(body.description,8000),attachments:[],proposals:[],project:null,threads:{}};
+    assertCommunication(payload.title,payload.style,payload.size,payload.timeline,payload.description);
     if(!payload.title||!payload.size||!payload.timeline||!payload.description)return res.status(400).json({message:'Vui lòng điền đủ thông tin request.'});
     const rid=id('REQ');
     const row=(await pool.query(
@@ -195,6 +203,7 @@ function createCommissionWorkflow({pool,requireAuth}){
     const row=await rowById(pool,req.params.id);
     if(!row||row.customer_user_id!==req.user.id)return res.status(404).json({message:'Không tìm thấy request.'});
     if(!ACTIVE.has(row.status))return res.status(409).json({message:'Request không còn nhận chỉnh sửa.'});
+    assertCommunication(filenameText(req.body?.name));
     const f=parseDataUrl(req.body?.dataUrl);
     if(!f.mime.startsWith('image/'))return res.status(400).json({message:'Reference phải là hình ảnh.'});
     const payload=row.payload||{};payload.attachments=Array.isArray(payload.attachments)?payload.attachments:[];
@@ -211,6 +220,7 @@ function createCommissionWorkflow({pool,requireAuth}){
     const p=row.payload||{},b=req.body||{};
     p.title=text(b.title??p.title,200);p.style=text(b.style??p.style,100);p.size=text(b.size??p.size,120);
     p.budget=money(b.budget??p.budget,500000);p.timeline=text(b.timeline??p.timeline,120);p.description=text(b.description??p.description,8000);
+    assertCommunication(p.title,p.style,p.size,p.timeline,p.description);
     const updated=(await pool.query("UPDATE commission_workflows SET payload=$1,updated_at=NOW() WHERE id=$2 RETURNING *",[JSON.stringify(p),row.id])).rows[0];
     res.json({request:normalizeRow(updated,req.user),message:'Đã gửi brief cập nhật để nghệ nhân xem lại.'});
   }));
@@ -237,6 +247,7 @@ function createCommissionWorkflow({pool,requireAuth}){
       let prop=proposalFor(p,req.user.id);
       const quote=money(req.body?.quote,500000),timeline=text(req.body?.timeline,120),message=text(req.body?.message,4000);
       const deliverables=Array.isArray(req.body?.deliverables)?req.body.deliverables.slice(0,20).map(x=>text(x,160)).filter(Boolean):[];
+      assertCommunication(timeline,message,...deliverables);
       if(!timeline||!message||!deliverables.length){await client.query('ROLLBACK');return res.status(400).json({message:'Thiếu timeline, lời nhắn hoặc hạng mục bàn giao.'});}
       if(prop&&prop.status!=='pending'){await client.query('ROLLBACK');return res.status(409).json({message:'Báo giá đã được chốt.'});}
       if(prop){
@@ -270,7 +281,7 @@ function createCommissionWorkflow({pool,requireAuth}){
       props.forEach(x=>{if(x.status==='pending')x.status=x.id===prop.id?'accepted':'declined';});
       const aid=artisanUserId(prop.artisanId),budget=Number(prop.quote||0),pid=id('DL');
       p.project={id:pid,requestId:row.id,customerId:row.customer_user_id,artisanId:artisanPublicId(aid),title:p.title,budget,progress:0,status:'awaiting_production',
-        currentMilestone:1,dueDate:'',milestones:milestones(budget),files:[],payments:[],activity:[{text:'Proposal accepted → Project created',time:new Date().toISOString()}],messages:[]};
+        walletRequired:true,currentMilestone:1,dueDate:'',milestones:milestones(budget),files:[],payments:[],activity:[{text:'Proposal accepted → Project created',time:new Date().toISOString()}],messages:[]};
       p.threads=p.threads&&typeof p.threads==='object'?p.threads:{};p.threads[aid]=Array.isArray(p.threads[aid])?p.threads[aid]:[];
       const hello={id:'MSG-'+crypto.randomUUID(),senderId:artisanPublicId(aid),senderRole:'artisan',text:'Cảm ơn bạn đã chọn báo giá. Hai bên có thể trao đổi trực tiếp tại đây.',attachments:[],createdAt:new Date().toISOString(),time:new Date().toLocaleString('vi-VN')};
       p.threads[aid].push(hello);p.project.messages=p.threads[aid];
@@ -286,7 +297,7 @@ function createCommissionWorkflow({pool,requireAuth}){
   router.get('/conversations/:requestId/:artisanId/messages',requireAuth,wrap(async(req,res)=>{
     const row=await rowById(pool,req.params.requestId),aid=artisanUserId(req.params.artisanId);
     if(!conversationAllowed(row,req.user,aid))return res.status(403).json({message:'Bạn không thuộc cuộc trò chuyện này.'});
-    res.json({messages:threadMessages(row.payload||{},aid)});
+    res.json({messages:privateMessages(threadMessages(row.payload||{},aid),row.id,req.user)});
   }));
 
   router.post('/conversations/:requestId/:artisanId/messages',requireAuth,wrap(async(req,res)=>{
@@ -296,6 +307,7 @@ function createCommissionWorkflow({pool,requireAuth}){
       const row=await rowById(pool,req.params.requestId,true,client);
       if(!conversationAllowed(row,req.user,aid)){await client.query('ROLLBACK');return res.status(403).json({message:'Bạn không thuộc cuộc trò chuyện này.'});}
       const body=req.body||{},msg=text(body.text,5000),raw=Array.isArray(body.attachments)?body.attachments.slice(0,5):[];
+      assertCommunication(msg,...raw.map(f=>filenameText(f.name)));
       if(!msg&&!raw.length){await client.query('ROLLBACK');return res.status(400).json({message:'Hãy nhập tin nhắn hoặc đính kèm tệp.'});}
       let total=0;const attachments=raw.map(f=>{const parsed=parseDataUrl(f.dataUrl);total+=parsed.size;return {id:'ATT-'+crypto.randomUUID(),name:text(f.name,240)||'attachment',type:parsed.mime,size:parsed.size,dataUrl:parsed.dataUrl};});
       if(total>MAX_MESSAGE_TOTAL){await client.query('ROLLBACK');return res.status(400).json({message:'Tổng tệp trong một tin nhắn tối đa 12 MB.'});}
@@ -310,23 +322,49 @@ function createCommissionWorkflow({pool,requireAuth}){
   }));
 
   router.put('/projects/:projectId',requireAuth,wrap(async(req,res)=>{
-    const rows=(await pool.query("SELECT * FROM commission_workflows WHERE payload->'project'->>'id'=$1 LIMIT 1",[req.params.projectId])).rows;
-    const row=rows[0];
-    if(!row)return res.status(404).json({message:'Không tìm thấy dự án.'});
-    const p=row.payload||{},project=p.project,aid=artisanUserId(project?.artisanId);
-    if(row.customer_user_id!==req.user.id&&aid!==req.user.id)return res.status(403).json({message:'Không có quyền cập nhật dự án.'});
-    const b=req.body||{};
-    ['status','progress','currentMilestone','dueDate','milestones','files','payments','activity','appliedVoucher','cancelledAt','cancelledMilestoneId'].forEach(k=>{if(b[k]!==undefined)project[k]=b[k];});
-    project.messages=threadMessages(p,aid);p.project=project;
-    await pool.query("UPDATE commission_workflows SET payload=$1,updated_at=NOW() WHERE id=$2",[JSON.stringify(p),row.id]);
-    res.json({project,message:'Đã đồng bộ trạng thái dự án.'});
+    const project=await tx(pool,async c=>{
+      const row=(await c.query("SELECT * FROM commission_workflows WHERE payload->'project'->>'id'=$1 FOR UPDATE",[req.params.projectId])).rows[0];
+      if(!row)throw Object.assign(new Error('Không tìm thấy dự án.'),{status:404});
+      const p=row.payload,project=p.project,aid=artisanUserId(project.artisanId),buyer=req.user.id===row.customer_user_id,artist=req.user.id===aid;
+      const deny=m=>{throw Object.assign(new Error(m),{status:409});};
+      if(!buyer&&!artist)throw Object.assign(new Error('Không có quyền cập nhật.'),{status:403});
+      const b=req.body||{};
+      if(project.status==='cancelled_by_customer')deny('Dự án đã dừng.');
+      const cancel=buyer&&b.status==='cancelled_by_customer';
+      for(const [i,m] of project.milestones.entries()){
+        const incoming=(b.milestones||[]).find(x=>x.id===m.id);if(!incoming||incoming.status===m.status)continue;
+        if(cancel&&incoming.status==='cancelled'&&m.status!=='approved'){
+          if(m.status==='pending')await settle(c,'commission:'+project.id+':'+m.id,true);
+          m.status='cancelled';continue;
+        }
+        const allowed=(artist&&m.status==='pending'&&incoming.status==='in_progress')||(artist&&m.status==='in_progress'&&incoming.status==='submitted')||(buyer&&m.status==='submitted'&&incoming.status==='approved');
+        if(!allowed)deny('Trạng thái milestone không hợp lệ. Tải lại dự án.');
+        if(incoming.status==='in_progress'){
+          if(i>0&&project.milestones[i-1].status!=='approved')deny('Hoàn tất mốc trước khi bắt đầu mốc tiếp theo.');
+          if(project.walletRequired){const hold=(await c.query('SELECT status FROM diora_holds WHERE ref=$1',['commission:'+project.id+':'+m.id])).rows[0];if(hold?.status!=='held')deny('Khách hàng cần giữ tiền cho mốc này trong Ví Diora trước khi bắt đầu.');}
+        }
+        assertCommunication(incoming.evidence||'');m.status=incoming.status;
+        if(artist)m.evidence=text(incoming.evidence,4000);
+        if(m.status==='approved')m.approvedAt=new Date().toISOString();
+      }
+      if(artist&&b.dueDate!==undefined)project.dueDate=text(b.dueDate,50);
+      if(Array.isArray(b.files)){b.files.forEach(f=>assertCommunication(filenameText(f.name)));project.files=b.files.slice(0,100).map(f=>({id:text(f.id,100),name:text(f.name,240),size:money(f.size),uploader:artist?'artisan':'customer'}));}
+      project.progress=project.milestones.filter(m=>m.status==='approved').reduce((n,m)=>n+m.percentage,0);
+      project.currentMilestone=Math.max(1,project.milestones.findIndex(m=>m.status!=='approved')+1);
+      project.status=cancel?'cancelled_by_customer':project.progress===100?'completed':project.milestones.some(m=>m.status!=='pending')?'in_production':'awaiting_production';
+      if(cancel){project.cancelledAt=new Date().toISOString();project.cancelledMilestoneId=text(b.cancelledMilestoneId,20);}
+      project.messages=threadMessages(p,aid);
+      await c.query('UPDATE commission_workflows SET payload=$2,updated_at=NOW() WHERE id=$1',[row.id,JSON.stringify(p)]);
+      return normalizeRow({...row,payload:p},req.user).project;
+    });res.json({project,message:'Đã đồng bộ trạng thái dự án.'});
   }));
 
   router.use((err,req,res,next)=>{
-    console.error('Commission workflow error:',err);
+    if(!err.status)console.error('Commission workflow error:',err);
     if(res.headersSent)return next(err);
     res.status(err.status||500).json({message:err.message||'Không thể xử lý commission workflow.'});
   });
   return {router};
 }
 module.exports={createCommissionWorkflow,ensureCommissionWorkflowSchema};
+

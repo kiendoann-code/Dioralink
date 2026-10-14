@@ -1,0 +1,8 @@
+'use strict';
+const crypto=require('node:crypto');
+function alias(scope){return 'KH-'+crypto.createHash('sha256').update(String(scope)).digest('hex').slice(0,10).toUpperCase();}
+function contactReason(value){const s=String(value||'').normalize('NFKC').normalize('NFD').replace(/\p{M}/gu,'').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g,'').toLowerCase().replace(/đ/g,'d');if((s.match(/[0-9]/g)||[]).length>8)return 'Tin nhắn không được chứa quá 8 chữ số.';if(/(?:https?:|www\s*\.|[a-z0-9][a-z0-9-]*\s*\.\s*[a-z]{2,63}\b|[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+)/i.test(s))return 'Không gửi đường dẫn hoặc địa chỉ email trong trao đổi.';const words=['zalo','dalo','deplao','facebook','fb','phobo','mail','email','gmail','telegram','whatsapp','instagram','messenger'];const tokens=s.replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/);if(tokens.some(t=>words.includes(t)))return 'Vui lòng trao đổi và thanh toán trên DioraLink.';for(const w of words){const pattern=new RegExp('(?:^|[^a-z0-9])'+w.split('').join('[^a-z0-9]*')+'(?:$|[^a-z0-9])','i');if(pattern.test(s))return 'Vui lòng trao đổi và thanh toán trên DioraLink.';}return '';}
+function filenameText(v){return String(v||'').replace(/\.[a-z0-9]{1,8}$/i,'');}
+function assertCommunication(...values){for(const v of values){const reason=contactReason(v);if(reason)throw Object.assign(new Error(reason),{status:400});}}
+function privateMessages(messages,scope,viewer){return (messages||[]).map(m=>({...m,...(viewer?.role==='artisan'&&m.senderRole==='customer'?{senderId:alias(scope),senderName:alias(scope)}:{})}));}
+module.exports={alias,contactReason,assertCommunication,privateMessages,filenameText};
