@@ -1068,6 +1068,27 @@ async function ensureFinanceSchema(){
       );
     }
   }
+
+  // Optional one-time additional admin bootstrap.
+  // Existing admin accounts are never updated or reset here.
+  const additionalEmail=String(process.env.ADDITIONAL_ADMIN_EMAIL||'').trim().toLowerCase();
+  const additionalPassword=String(process.env.ADDITIONAL_ADMIN_PASSWORD||'');
+  if(additionalEmail && additionalPassword && additionalEmail!==adminEmail){
+    const additionalName=String(process.env.ADDITIONAL_ADMIN_NAME||'DioraLink Space Admin').trim() || 'DioraLink Space Admin';
+    const existingAdditional=(await pool.query(
+      `SELECT id FROM platform_admins WHERE LOWER(email)=LOWER($1) LIMIT 1`,
+      [additionalEmail]
+    )).rows[0];
+
+    if(!existingAdditional){
+      const additionalHash=await bcrypt.hash(additionalPassword,12);
+      await pool.query(
+        `INSERT INTO platform_admins(email,password_hash,display_name,active)
+         VALUES($1,$2,$3,TRUE) ON CONFLICT (email) DO NOTHING`,
+        [additionalEmail,additionalHash,additionalName]
+      );
+    }
+  }
 }
 
 function financeAdminSecret(){
