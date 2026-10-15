@@ -1302,7 +1302,11 @@ async function renderAdminAnalytics(days=7){
   try{
     const data=await loadAdminAnalytics(selected);
     const k=data.kpis||{},scroll=data.scrollDepth||{},market=data.funnels?.marketplace||[],commission=data.funnels?.commission||[];
-    const top=(data.topPages||[]).map(p=>`<tr><td><code>${esc(p.path)}</code></td><td>${p.views}</td><td>${p.sessions}</td></tr>`).join('');
+    const top=(data.topPages||[]).map(p=>{
+      const s=p.scrollDepth||{};
+      const rate=n=>Number(s[n]||0).toFixed(1)+'%';
+      return `<tr><td><code>${esc(p.path)}</code></td><td>${p.views}</td><td>${p.sessions}</td><td>${Number(p.avgScrollDepth||0).toFixed(1)}%</td><td>${rate('25')}</td><td>${rate('50')}</td><td>${rate('75')}</td><td>${rate('90')}</td><td>${rate('100')}</td></tr>`;
+    }).join('');
     const roles=(data.roles||[]).map(r=>`<span class="pill">${esc(r.role)} · ${r.sessions}</span>`).join('');
     const devices=(data.devices||[]).map(r=>`<span class="pill">${esc(r.device)} · ${r.sessions}</span>`).join('');
     document.getElementById('admin-analytics-content').innerHTML=`
@@ -1326,7 +1330,7 @@ async function renderAdminAnalytics(days=7){
         <div class="card pad"><div class="eyebrow">Marketplace funnel</div><h3 style="margin:8px 0 12px">VIEW → ORDER</h3>${analyticsFunnel(market)||'<div class="small muted">Chưa có dữ liệu.</div>'}</div>
         <div class="card pad"><div class="eyebrow">Commission funnel</div><h3 style="margin:8px 0 12px">START → SUBMIT</h3>${analyticsFunnel(commission)||'<div class="small muted">Chưa có dữ liệu.</div>'}</div>
       </div>
-      <div class="card pad" style="margin-top:16px"><div class="between"><div><div class="eyebrow">Top pages</div><h3 style="margin-top:8px">PAGE PERFORMANCE</h3></div><div class="tiny muted">Generated ${new Date(data.generatedAt||Date.now()).toLocaleString('vi-VN')}</div></div><div style="overflow:auto;margin-top:12px"><table class="table"><thead><tr><th>Page</th><th>Views</th><th>Sessions</th></tr></thead><tbody>${top||'<tr><td colspan="3" class="muted">Chưa có dữ liệu.</td></tr>'}</tbody></table></div></div>`;
+      <div class="card pad" style="margin-top:16px"><div class="between"><div><div class="eyebrow">Top pages</div><h3 style="margin-top:8px">PAGE PERFORMANCE</h3></div><div class="tiny muted">Generated ${new Date(data.generatedAt||Date.now()).toLocaleString('vi-VN')}</div></div><div class="tiny muted" style="margin-top:8px">Độ sâu cuộn theo từng trang · tỷ lệ % phiên đã xem trang và đạt mốc cuộn tương ứng.</div><div style="overflow:auto;margin-top:12px"><table class="table"><thead><tr><th>Page</th><th>Views</th><th>Sessions</th><th>Avg depth</th><th>25%</th><th>50%</th><th>75%</th><th>90%</th><th>100%</th></tr></thead><tbody>${top||'<tr><td colspan="9" class="muted">Chưa có dữ liệu.</td></tr>'}</tbody></table></div></div>`;
   }catch(error){
     document.getElementById('admin-analytics-content').innerHTML=`<div class="empty">${esc(error.message||'Không thể tải analytics.')}</div>`;
   }

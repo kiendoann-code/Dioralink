@@ -233,6 +233,11 @@
     },{acquisition:session.isNew});
     session.isNew=false;
     specializedPageEvents(next);
+    // Measure pages without a scrollbar too, after layout settles.
+    // Scroll thresholds still fire only once per page view.
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      if(currentPageKey===next)scrollDepth();
+    }));
   }
 
   function scrollDepth(){

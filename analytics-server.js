@@ -246,10 +246,26 @@ function createAnalyticsRouter({pool,requireAdmin}){
           GROUP BY device ORDER BY sessions DESC
         `,[days]),
         pool.query(`
-          SELECT page_path,COUNT(*)::int AS views,COUNT(DISTINCT session_id)::int AS sessions
-          FROM analytics_events
-          WHERE event_name='page_view' AND created_at>=NOW()-($1::text||' days')::interval
-          GROUP BY page_path ORDER BY views DESC LIMIT 12
+          WITH viewed AS (
+            SELECT page_path,session_id,COUNT(*)::int AS views
+            FROM analytics_events
+            WHERE event_name='page_view' AND created_at>=NOW()-($1::text||' days')::interval
+            GROUP BY page_path,session_id
+          ), depth AS (
+            SELECT page_path,session_id,MAX(scroll_depth)::int AS max_depth
+            FROM analytics_events
+            WHERE event_name='scroll_depth' AND created_at>=NOW()-($1::text||' days')::interval
+            GROUP BY page_path,session_id
+          )
+          SELECT v.page_path,SUM(v.views)::int AS views,COUNT(*)::int AS sessions,
+            ROUND(AVG(COALESCE(d.max_depth,0))::numeric,1) AS avg_scroll_depth,
+            COUNT(*) FILTER (WHERE COALESCE(d.max_depth,0)>=25)::int AS s25,
+            COUNT(*) FILTER (WHERE COALESCE(d.max_depth,0)>=50)::int AS s50,
+            COUNT(*) FILTER (WHERE COALESCE(d.max_depth,0)>=75)::int AS s75,
+            COUNT(*) FILTER (WHERE COALESCE(d.max_depth,0)>=90)::int AS s90,
+            COUNT(*) FILTER (WHERE COALESCE(d.max_depth,0)>=100)::int AS s100
+          FROM viewed v LEFT JOIN depth d USING(page_path,session_id)
+          GROUP BY v.page_path ORDER BY views DESC LIMIT 12
         `,[days]),
         pool.query(`
           SELECT event_name,COUNT(*)::int AS events,COUNT(DISTINCT session_id)::int AS sessions
@@ -303,7 +319,19 @@ function createAnalyticsRouter({pool,requireAdmin}){
         },
         roles:roleR.rows.map(r=>({role:r.role,sessions:Number(r.sessions)})),
         devices:deviceR.rows.map(r=>({device:r.device,sessions:Number(r.sessions)})),
-        topPages:pagesR.rows.map(r=>({path:r.page_path,views:Number(r.views),sessions:Number(r.sessions)})),
+        topPages:pagesR.rows.map(r=>({
+          path:r.page_path,
+          views:Number(r.views),
+          sessions:Number(r.sessions),
+          avgScrollDepth:Number(r.avg_scroll_depth||0),
+          scrollDepth:{
+            '25':pct(r.s25,r.sessions),
+            '50':pct(r.s50,r.sessions),
+            '75':pct(r.s75,r.sessions),
+            '90':pct(r.s90,r.sessions),
+            '100':pct(r.s100,r.sessions)
+          }
+        })),
         events:eventMap,
         funnels:{
           marketplace:[
