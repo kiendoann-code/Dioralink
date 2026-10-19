@@ -186,7 +186,7 @@ function createCommissionWorkflow({pool,requireAuth}){
     const body=req.body||{},mode=body.creatorMode==='specific'?'specific':'matching';
     const preferred=mode==='specific'?artisanUserId(body.preferredArtisanId):null;
     if(mode==='specific'&&(!preferred||!(await isArtisan(pool,preferred))))return res.status(400).json({message:'Nghệ nhân được chọn không hợp lệ.'});
-    const payload={title:text(body.title,200),style:text(body.style,100),size:text(body.size,120),budget:money(body.budget,500000),
+    const payload={title:text(body.title,200),style:text(body.style,100),size:text(body.size,120),budget:money(body.budget,1),
       timeline:text(body.timeline,120),description:text(body.description,8000),attachments:[],proposals:[],project:null,threads:{}};
     assertCommunication(payload.title,payload.style,payload.size,payload.timeline,payload.description);
     if(!payload.title||!payload.size||!payload.timeline||!payload.description)return res.status(400).json({message:'Vui lòng điền đủ thông tin request.'});
@@ -219,7 +219,7 @@ function createCommissionWorkflow({pool,requireAuth}){
     if(!ACTIVE.has(row.status))return res.status(409).json({message:'Request đã chốt hoặc hết hạn.'});
     const p=row.payload||{},b=req.body||{};
     p.title=text(b.title??p.title,200);p.style=text(b.style??p.style,100);p.size=text(b.size??p.size,120);
-    p.budget=money(b.budget??p.budget,500000);p.timeline=text(b.timeline??p.timeline,120);p.description=text(b.description??p.description,8000);
+    p.budget=money(b.budget??p.budget,1);p.timeline=text(b.timeline??p.timeline,120);p.description=text(b.description??p.description,8000);
     assertCommunication(p.title,p.style,p.size,p.timeline,p.description);
     const updated=(await pool.query("UPDATE commission_workflows SET payload=$1,updated_at=NOW() WHERE id=$2 RETURNING *",[JSON.stringify(p),row.id])).rows[0];
     res.json({request:normalizeRow(updated,req.user),message:'Đã gửi brief cập nhật để nghệ nhân xem lại.'});
@@ -245,7 +245,7 @@ function createCommissionWorkflow({pool,requireAuth}){
       if(!ACTIVE.has(row.status)){await client.query('ROLLBACK');return res.status(409).json({message:'Request không còn nhận báo giá.'});}
       const p=row.payload||{};p.proposals=Array.isArray(p.proposals)?p.proposals:[];
       let prop=proposalFor(p,req.user.id);
-      const quote=money(req.body?.quote,500000),timeline=text(req.body?.timeline,120),message=text(req.body?.message,4000);
+      const quote=money(req.body?.quote,1),timeline=text(req.body?.timeline,120),message=text(req.body?.message,4000);
       const deliverables=Array.isArray(req.body?.deliverables)?req.body.deliverables.slice(0,20).map(x=>text(x,160)).filter(Boolean):[];
       assertCommunication(timeline,message,...deliverables);
       if(!timeline||!message||!deliverables.length){await client.query('ROLLBACK');return res.status(400).json({message:'Thiếu timeline, lời nhắn hoặc hạng mục bàn giao.'});}

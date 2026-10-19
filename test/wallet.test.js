@@ -25,6 +25,26 @@ test('withdrawal reserves immediately; concurrent overspend fails; rejection ref
  d=(await f.api('/api/wallet',{user})).data;assert.equal(Number(d.account.balance),100000);assert.equal(Number(d.account.held),0);
  const next=(await post('/api/wallet/withdrawals',{...bank,amount:50000,request_key:randomUUID()},user)).data.withdrawal;await post('/api/admin/wallet/withdrawals/'+next.id+'/review',{action:'approve',bank_reference:'OUT001'},undefined,true);d=(await f.api('/api/wallet',{user})).data;assert.equal(Number(d.account.balance),50000);assert.equal(Number(d.account.held),0);
 });
+
+test('commission amounts have no 500000 VND floor for creation, editing or artisan proposals',async()=>{
+ const payload={title:'Mô hình phụ kiện nhỏ',size:'10 cm',timeline:'7 ngày',description:'Làm một mô hình phụ kiện bằng nhựa',budget:1,creatorMode:'specific',preferredArtisanId:'ART-seller'};
+ const endpoint='/api/commission/requests';
+ const created=await post(endpoint,payload);assert.equal(created.status,201,JSON.stringify(created.data));assert.equal(created.data.request.budget,1);
+ const rid=created.data.request.id;const requestUrl=endpoint+'/'+rid;
+ assert.equal((await post(endpoint,{...payload,budget:0})).status,400);
+ assert.equal((await post(endpoint,{...payload,budget:-1})).status,400);
+ const updated=await f.api(requestUrl,{user:'buyer',method:'PATCH',body:{budget:1000}});
+ assert.equal(updated.status,200,JSON.stringify(updated.data));assert.equal(updated.data.request.budget,1000);
+ assert.equal((await f.api(requestUrl,{user:'buyer',method:'PATCH',body:{budget:0}})).status,400);
+ const quote={quote:1,timeline:'7 ngày',message:'Tôi nhận làm mẫu này',deliverables:['Mô hình hoàn thiện']};
+ const first=await post(requestUrl+'/proposals',quote,'seller');assert.equal(first.status,200,JSON.stringify(first.data));assert.equal(first.data.proposal.quote,1);
+ assert.equal((await post(requestUrl+'/proposals',{...quote,quote:0},'seller')).status,400);
+ const revised=await post(requestUrl+'/proposals',{...quote,quote:15000},'seller');
+ assert.equal(revised.status,200,JSON.stringify(revised.data));assert.equal(revised.data.proposal.quote,15000);
+ const accepted=await post(requestUrl+'/proposals/'+revised.data.proposal.id+'/accept',{});
+ assert.equal(accepted.status,200,JSON.stringify(accepted.data));assert.equal(accepted.data.project.budget,15000);
+});
+
 test('commission protects identity, financial fields and sequential funded milestones',async()=>{
  const payload={title:'Mô hình nhà nhỏ',size:'20 cm',timeline:'Một tuần',description:'Một căn nhà bằng gỗ',budget:500000,creatorMode:'specific',preferredArtisanId:'ART-seller'};
  const created=await post('/api/commission/requests',payload);assert.equal(created.status,201,JSON.stringify(created.data));const rid=created.data.request.id;
