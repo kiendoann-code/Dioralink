@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {canArtistSee,collectInboxUpdates}=require('../commission-workflow');
+const {canArtistSee,isPublicRequest,resolveRouting,collectInboxUpdates}=require('../commission-workflow');
 
 test('direct requests are private to the named artisan even if participants contain another artist',()=>{
   const direct={creator_mode:'specific',preferred_artisan_user_id:'artist-a',
@@ -13,7 +13,7 @@ test('direct requests are private to the named artisan even if participants cont
 
 test('public matching requests are visible while open and disappear for nonparticipants when closed',()=>{
   const open={creator_mode:'matching',preferred_artisan_user_id:null,
-    participant_artisan_ids:['artist-a'],status:'pending'};
+    participant_artisan_ids:['artist-a'],status:'pending',payload:{routingConfirmed:true}};
   assert.equal(canArtistSee(open,'artist-a'),true);
   assert.equal(canArtistSee(open,'artist-b'),true);
   const closed={...open,status:'proposal_accepted'};
@@ -49,4 +49,24 @@ test('open matching notifications are only delivered to artists with active thre
     }};
   assert.equal(collectInboxUpdates([r],{role:'artisan',id:'artist-b'},Date.parse(createdAt)-1,Date.parse(createdAt)+1).length,0);
   assert.equal(collectInboxUpdates([r],{role:'artisan',id:'artist-a'},Date.parse(createdAt)-1,Date.parse(createdAt)+1).length,1);
+});
+
+test('request without an explicit confirmed public scope is not distributed',()=>{
+  const legacy={creator_mode:'matching',preferred_artisan_user_id:null,
+    participant_artisan_ids:[],status:'pending',payload:{title:'Shogun'}};
+  assert.equal(isPublicRequest(legacy),false);
+  assert.equal(canArtistSee(legacy,'artist-a'),false);
+  const confirmed={...legacy,payload:{...legacy.payload,routingConfirmed:true}};
+  assert.equal(isPublicRequest(confirmed),true);
+  assert.equal(canArtistSee(confirmed,'artist-a'),true);
+  assert.equal(canArtistSee({...confirmed,preferred_artisan_user_id:'artist-a'},'artist-b'),false);
+});
+
+test('picking a person routes privately even if the form still says open matching',()=>{
+  assert.deepEqual(resolveRouting({creatorMode:'matching',preferredArtisanId:'ART-artist-a'}),
+    {mode:'specific',preferred:'artist-a'});
+  assert.deepEqual(resolveRouting({creatorMode:'matching',preferredArtisanId:''}),
+    {mode:'matching',preferred:null});
+  assert.deepEqual(resolveRouting({creatorMode:'specific',preferredArtisanId:''}),
+    {mode:'specific',preferred:''});
 });

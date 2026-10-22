@@ -25,7 +25,7 @@ const SEED = {
   requests: [
     {
       id:"REQ-2026-001", customerId:"USR-CUSTOMER-01", title:"Elf Waterfall — Fantasy Diorama", style:"Fantasy", size:"40 × 30 × 30 cm", budget:35000000, timeline:"45 ngày",
-      description:"Diorama fantasy với thác nước resin, cây cổ thụ, character elf và atmospheric lighting.", status:"proposal_received", createdAt:"2026-09-18", creatorMode:"matching", preferredArtisanId:null,
+      description:"Diorama fantasy với thác nước resin, cây cổ thụ, character elf và atmospheric lighting.", status:"proposal_received", createdAt:"2026-09-18", creatorMode:"matching", preferredArtisanId:null, routingConfirmed:true,
       attachments:[{name:"brief-v1.pdf",size:180000}], proposals:[
         {id:"PROP-001",requestId:"REQ-2026-001",artisanId:"A-001",quote:35000000,timeline:"48 ngày",message:"Mình đã xem brief. Concept phù hợp với hướng fantasy environment và resin water effect của studio.",deliverables:["Concept refinement","Base structure","Sculpt & composition","Paint & resin","Final assembly"],status:"pending",createdAt:"2026-09-18T09:30:00"}
       ]
@@ -1017,14 +1017,31 @@ function renderMessageAttachments(m){
   }).join('')+'</div>':'';
 }
 
+function setCommissionRouting(form,mode){
+  const artist=form?.elements?.namedItem('preferredArtisanId');
+  if(mode==='matching'&&artist)artist.value='';
+  const hint=form?.querySelector('[data-routing-hint]');
+  if(hint)hint.textContent=mode==='specific'
+    ?'Chỉ nghệ nhân được chọn mới xem yêu cầu này.'
+    :'Yêu cầu công khai sẽ hiện trong Request Inbox của tất cả nghệ nhân.';
+}
+function selectCommissionRecipient(select){
+  if(!select?.form)return;
+  if(select.value){
+    const direct=select.form.querySelector('input[name="creatorMode"][value="specific"]');
+    if(direct)direct.checked=true;
+  }
+  const checked=select.form.querySelector('input[name="creatorMode"]:checked');
+  setCommissionRouting(select.form,checked?.value||'matching');
+}
 function renderCommission(){
-  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">CREATE COMMISSION</div></div><button class="btn" onclick="navigate('requests')">Requests</button></div><form class="grid two" data-autosave-key="commission-new" onsubmit="createRequest(event)"><div class="card pad"><div class="label">Project title</div><input name="title" class="field" required placeholder="e.g. Forest Shrine — 1/12 Diorama"><div class="grid two" style="margin-top:14px"><div><div class="label">Style</div><select name="style" class="field"><option>Fantasy</option><option>Resin</option><option>Mecha</option><option>Gunpla</option><option>Miniature</option><option>Architecture</option><option>Lighting</option></select></div><div><div class="label">Size</div><input name="size" class="field" required placeholder="40 × 30 × 30 cm"></div></div><div class="grid two" style="margin-top:14px"><div><div class="label">Budget (VND)</div><input name="budget" type="number" min="1" step="1" class="field" required placeholder="Nhập ngân sách dự kiến"></div><div><div class="label">Timeline</div><input name="timeline" class="field" required placeholder="45 days"></div></div><div style="margin-top:14px"><div class="label">Brief</div><textarea name="description" class="field" required placeholder="Mood, characters, materials, lighting, references, important constraints..."></textarea></div><div style="margin-top:14px"><div class="label">Reference images</div><input name="referenceImages" class="field" type="file" accept="image/*" multiple required><div class="tiny muted" style="margin-top:6px">At least one image is required.</div></div></div><div class="card pad"><div class="label">Routing</div><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="matching" checked> <b>Open matching</b><div class="small muted" style="margin-top:5px">Send to qualified artisans</div></label><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="specific"> <b>Specific artisan</b><div class="small muted" style="margin-top:5px">Send to a selected artisan</div></label><div style="margin-top:14px"><div class="label">Preferred artisan</div><select name="preferredArtisanId" class="field"><option value="">— Select artisan —</option>${publicArtisans.map(a=>`<option value="${a.id}">${esc(a.name)} ${a.verified?'· Verified':''}</option>`).join('')}</select></div><div class="divider"></div><div class="notice">Your images will be shared with artisans who receive this request.</div><p class="tiny muted" data-autosave-status style="margin-top:16px">Tự động lưu đang bật. Tệp đính kèm cần chọn lại nếu đóng trang.</p><div class="sticky-actions" style="margin-top:12px"><button class="btn btn-mint" style="width:100%">Publish request <i data-lucide="arrow-up-right" style="width:15px;vertical-align:-3px"></i></button></div></div></form></section>`;const pre=sessionStorage.getItem('dioralink_preferred_artisan');if(pre){const el=document.querySelector('[name="preferredArtisanId"]');if(el){el.value=pre;document.querySelector('[value="specific"]').checked=true;}sessionStorage.removeItem('dioralink_preferred_artisan');}window.lucide?.createIcons();
+  document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">CREATE COMMISSION</div></div><button class="btn" onclick="navigate('requests')">Requests</button></div><form class="grid two" data-autosave-key="commission-new" onsubmit="createRequest(event)"><div class="card pad"><div class="label">Project title</div><input name="title" class="field" required placeholder="e.g. Forest Shrine — 1/12 Diorama"><div class="grid two" style="margin-top:14px"><div><div class="label">Style</div><select name="style" class="field"><option>Fantasy</option><option>Resin</option><option>Mecha</option><option>Gunpla</option><option>Miniature</option><option>Architecture</option><option>Lighting</option></select></div><div><div class="label">Size</div><input name="size" class="field" required placeholder="40 × 30 × 30 cm"></div></div><div class="grid two" style="margin-top:14px"><div><div class="label">Budget (VND)</div><input name="budget" type="number" min="1" step="1" class="field" required placeholder="Nhập ngân sách dự kiến"></div><div><div class="label">Timeline</div><input name="timeline" class="field" required placeholder="45 days"></div></div><div style="margin-top:14px"><div class="label">Brief</div><textarea name="description" class="field" required placeholder="Mood, characters, materials, lighting, references, important constraints..."></textarea></div><div style="margin-top:14px"><div class="label">Reference images</div><input name="referenceImages" class="field" type="file" accept="image/*" multiple required><div class="tiny muted" style="margin-top:6px">At least one image is required.</div></div></div><div class="card pad"><div class="label">Routing</div><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="matching" checked onchange="setCommissionRouting(this.form,'matching')"> <b>Open matching</b><div class="small muted" style="margin-top:5px">Send to qualified artisans</div></label><label class="card-soft pad" style="display:block;margin-top:8px"><input type="radio" name="creatorMode" value="specific" onchange="setCommissionRouting(this.form,'specific')"> <b>Specific artisan</b><div class="small muted" style="margin-top:5px">Send to a selected artisan</div></label><div style="margin-top:14px"><div class="label">Preferred artisan</div><select name="preferredArtisanId" class="field" onchange="selectCommissionRecipient(this)"><option value="">— Select artisan —</option>${publicArtisans.map(a=>`<option value="${a.id}">${esc(a.name)} ${a.verified?'· Verified':''}</option>`).join('')}</select></div><p data-routing-hint class="small muted" style="margin-top:10px">Yêu cầu công khai sẽ hiện trong Request Inbox của tất cả nghệ nhân.</p><div class="divider"></div><div class="notice">Ảnh tham khảo chỉ được chia sẻ với nghệ nhân được quyền xem yêu cầu.</div><p class="tiny muted" data-autosave-status style="margin-top:16px">Tự động lưu đang bật. Tệp đính kèm cần chọn lại nếu đóng trang.</p><div class="sticky-actions" style="margin-top:12px"><button class="btn btn-mint" style="width:100%">Publish request <i data-lucide="arrow-up-right" style="width:15px;vertical-align:-3px"></i></button></div></div></form></section>`;const pre=sessionStorage.getItem('dioralink_preferred_artisan');if(pre){const el=document.querySelector('[name="preferredArtisanId"]');if(el){el.value=pre;document.querySelector('[name="creatorMode"][value="specific"]').checked=true;selectCommissionRecipient(el);}sessionStorage.removeItem('dioralink_preferred_artisan');}window.lucide?.createIcons();
 }
 async function createRequest(e){
   if(!requireRole('customer'))return;
   e.preventDefault();
   const fd=new FormData(e.target),files=Array.from(document.querySelector('[name="referenceImages"]')?.files||[]);
-  const mode=fd.get('creatorMode'),preferred=fd.get('preferredArtisanId')||null;
+  const preferred=fd.get('preferredArtisanId')||null,mode=preferred?'specific':fd.get('creatorMode');
   if(mode==='specific'&&!preferred){toast('Hãy chọn artisan cụ thể hoặc chuyển sang Open matching.','error');return;}
   if(!files.length){toast('Vui lòng gửi ít nhất một hình ảnh tham khảo.','error');return;}
   for(const file of files){
@@ -1036,7 +1053,7 @@ async function createRequest(e){
   let createdId='';
   try{
     const payload={title:String(fd.get('title')).trim(),style:String(fd.get('style')),size:String(fd.get('size')).trim(),budget:Number(fd.get('budget')),
-      timeline:String(fd.get('timeline')).trim(),description:String(fd.get('description')).trim(),creatorMode:mode,preferredArtisanId:preferred};
+      timeline:String(fd.get('timeline')).trim(),description:String(fd.get('description')).trim(),creatorMode:mode,preferredArtisanId:mode==='specific'?preferred:null,routingConfirmed:true};
     if(CONFIG.demoMode){
       const attachments=[];for(const file of files)attachments.push(await storeBinaryFile(file,'request'));
       createdId='REQ-'+new Date().getFullYear()+'-'+String(state.requests.length+1).padStart(3,'0');
@@ -1070,7 +1087,7 @@ function renderRequests(){
   document.getElementById('app').innerHTML=`<section class="page">
     <div class="section-head"><div><div class="eyebrow">Customer</div><div class="section-title">MY REQUESTS</div></div><button class="btn btn-mint" onclick="navigate('commission')">+ New commission</button></div>
     <div class="grid three"><div class="card metric"><div class="n">${mine.length}</div><div class="k">Requests</div></div><div class="card metric"><div class="n">${mine.reduce((n,r)=>n+r.proposals.length,0)}</div><div class="k">Proposals</div></div><div class="card metric"><div class="n">${state.projects.length}</div><div class="k">Projects</div></div></div>
-    <div style="margin-top:16px">${mine.length?mine.map(r=>`<article class="card pad" style="margin-bottom:12px"><div class="between"><div><div class="wrap">${pill(r.status)}<span class="pill">${esc(r.style)}</span></div><h3 class="display" style="font-size:31px;text-transform:uppercase;margin-top:8px">${esc(r.title)}</h3><div class="small muted">${money(r.budget)} · ${esc(r.timeline)} · ${dateOnly(r.createdAt)}</div></div><button class="btn btn-sm" onclick="navigate('request/${r.id}')">Open request →</button></div><div class="between" style="margin-top:14px"><span class="small muted">${r.proposals.length} proposal(s)</span><span class="tiny muted">Routing: ${r.creatorMode==='specific'?'Specific artisan':'Open matching'}</span></div></article>`).join(''):'<div class="empty" style="margin-top:16px">No commission requests yet.</div>'}</div>
+    <div style="margin-top:16px">${mine.length?mine.map(r=>`<article class="card pad" style="margin-bottom:12px"><div class="between"><div><div class="wrap">${pill(r.status)}<span class="pill">${esc(r.style)}</span></div><h3 class="display" style="font-size:31px;text-transform:uppercase;margin-top:8px">${esc(r.title)}</h3><div class="small muted">${money(r.budget)} · ${esc(r.timeline)} · ${dateOnly(r.createdAt)}</div></div><button class="btn btn-sm" onclick="navigate('request/${r.id}')">Open request →</button></div><div class="between" style="margin-top:14px"><span class="small muted">${r.proposals.length} proposal(s)</span><span class="tiny muted">Routing: ${r.creatorMode==='specific'?'Gửi riêng':r.routingConfirmed===true?'Công khai':'Chờ xác nhận phạm vi'}</span></div></article>`).join(''):'<div class="empty" style="margin-top:16px">No commission requests yet.</div>'}</div>
   </section>`;
 }
 
@@ -1078,9 +1095,51 @@ function renderRequests(){
 function requestExtraActions(r){
   const active=['pending','proposal_received'].includes(r.status);
   let out='';
-  if(active) out+='<button class="btn btn-sm" type="button" onclick="toggleRequestEdit(\''+esc(r.id)+'\')">Tinh chỉnh brief & ngân sách</button>';
+  if(active) out+='<button class="btn btn-sm" type="button" onclick="toggleRequestEdit(\''+esc(r.id)+'\')">Tinh chỉnh brief & ngân sách</button><button class="btn btn-sm" type="button" onclick="toggleRequestRouting()">Phạm vi hiển thị</button>';
   if(r.creatorMode==='specific'&&r.preferredArtisanId) out+='<button class="btn btn-sm btn-mint" type="button" onclick="openRequestConversation(\''+esc(r.id)+'\',\''+esc(r.preferredArtisanId)+'\')">Nhắn nghệ nhân</button>';
   return out;
+}
+function requestRoutingPanel(r){
+  if(!['pending','proposal_received'].includes(r.status))return '';
+  const direct=r.creatorMode==='specific',safe=(v)=>esc(v||'');
+  const selected=direct?r.preferredArtisanId||'':'';
+  return `<form id="request-routing-panel" class="card pad" style="display:none;margin-bottom:16px" onsubmit="updateRequestRouting(event,'${safe(r.id)}')">
+    <div class="eyebrow">Ai được xem yêu cầu?</div>
+    <div class="section-title" style="font-size:26px;margin:8px 0 15px">QUYỀN NHẬN REQUEST</div>
+    <label class="card-soft pad" style="display:block;margin-bottom:10px"><input type="radio" name="creatorMode" value="matching" ${direct?'':'checked'} onchange="setCommissionRouting(this.form,'matching')"> <b>Công khai</b><span class="small muted"> · Tất cả nghệ nhân có thể xem và báo giá</span></label>
+    <label class="card-soft pad" style="display:block;margin-bottom:12px"><input type="radio" name="creatorMode" value="specific" ${direct?'checked':''} onchange="setCommissionRouting(this.form,'specific')"> <b>Gửi riêng</b><span class="small muted"> · Chỉ nghệ nhân được chọn mới xem</span></label>
+    <div class="label">Nghệ nhân nhận yêu cầu</div>
+    <select class="field" name="preferredArtisanId" onchange="selectCommissionRecipient(this)"><option value="">— Chọn nghệ nhân —</option>${publicArtisans.map(a=>`<option value="${safe(a.id)}" ${selected===a.id?'selected':''}>${safe(a.name)}</option>`).join('')}</select>
+    <p data-routing-hint class="small muted" style="margin:12px 0">Hãy xác nhận phạm vi hiển thị đúng với ý định gửi đơn.</p>
+    <div class="wrap"><button class="btn btn-mint" type="submit">Lưu phạm vi</button><button class="btn btn-sm" type="button" onclick="toggleRequestRouting()">Đóng</button></div>
+  </form>`;
+}
+function toggleRequestRouting(){
+  const panel=document.getElementById('request-routing-panel');
+  if(panel)panel.style.display=panel.style.display==='none'?'block':'none';
+}
+async function updateRequestRouting(event,id){
+  event.preventDefault();
+  if(!requireRole('customer'))return;
+  const form=event.target,fd=new FormData(form),selected=String(fd.get('preferredArtisanId')||'');
+  const mode=selected?'specific':String(fd.get('creatorMode')||'matching');
+  if(mode==='specific'&&!selected){toast('Hãy chọn nghệ nhân nhận yêu cầu.','warning');return;}
+  const submit=form.querySelector('[type="submit"]');
+  if(submit)submit.disabled=true;
+  try{
+    if(CONFIG.demoMode){
+      const r=requestById(id);
+      Object.assign(r,{creatorMode:mode,preferredArtisanId:mode==='specific'?selected:null,routingConfirmed:true});
+      save();
+    }else{
+      await commissionApi('/requests/'+encodeURIComponent(id)+'/routing',{method:'PATCH',
+        body:JSON.stringify({creatorMode:mode,preferredArtisanId:mode==='specific'?selected:null})});
+      await syncCommissionWorkspace({force:true});
+    }
+    toast('Đã lưu phạm vi nhận yêu cầu.','success');
+    renderRequest(id);
+  }catch(err){toast(err.message||'Không thể cập nhật phạm vi nhận.','error');}
+  finally{if(submit)submit.disabled=false;}
 }
 function requestEditPanel(r){
   if(!['pending','proposal_received'].includes(r.status))return '';
@@ -1127,7 +1186,7 @@ function renderRequest(id){
   document.getElementById('app').innerHTML=`<section class="page">
     <button class="btn btn-sm" onclick="navigate('requests')">← Back</button>
     <div class="section-head"><div><div class="eyebrow">Request ${esc(r.id)}</div><div class="section-title">${esc(r.title)}</div><div class="wrap" style="margin-top:10px">${pill(r.status)}<span class="pill">${esc(r.style)}</span><span class="pill">${esc(r.size)}</span></div></div><div class="card pad" style="min-width:210px"><div class="label">Budget</div><div class="display" style="font-size:33px">${money(r.budget)}</div><div class="small muted" style="margin-top:4px">Timeline ${esc(r.timeline)}</div></div></div>
-    <div class="wrap" style="margin:-4px 0 16px"><button class="btn btn-danger btn-sm" onclick="openComplaint('commission_request','${esc(r.id)}','${esc(r.title)}')"><i data-lucide="shield-alert" style="width:14px"></i> Gửi khiếu nại</button>${requestExtraActions(r)}</div>${requestEditPanel(r)}
+    <div class="wrap" style="margin:-4px 0 16px"><button class="btn btn-danger btn-sm" onclick="openComplaint('commission_request','${esc(r.id)}','${esc(r.title)}')"><i data-lucide="shield-alert" style="width:14px"></i> Gửi khiếu nại</button>${requestExtraActions(r)}</div>${r.creatorMode==='matching'&&r.routingConfirmed!==true?`<div class="notice" style="margin-bottom:16px">Yêu cầu cũ này chưa xác nhận phạm vi nhận, nên đang tạm ẩn khỏi danh sách công khai. Hãy chọn <b>Phạm vi hiển thị</b> để gửi riêng hoặc xác nhận công khai.</div>`:''}${requestRoutingPanel(r)}${requestEditPanel(r)}
     <div class="grid two">
       <div class="card pad"><div class="label">Brief</div><p class="body">${esc(r.description)}</p>${r.attachments?.length?`<div class="divider"></div><div class="label">Reference images</div>${renderAttachmentList(r.attachments)}`:``}<div class="divider"></div><div class="label">Routing</div><div class="small">${r.creatorMode==='specific'?`Specific artisan: <b>${esc(artisanById(r.preferredArtisanId)?.name||'')}</b>`:'Open matching to qualified artisans'}</div></div>
       <div class="card pad"><div class="between"><div><div class="eyebrow">Proposals</div><div class="section-title" style="font-size:29px">${r.proposals.length} RECEIVED</div></div>${selected?pill('approved'):''}</div>
@@ -1721,7 +1780,7 @@ function matchingRequests(){
       ['pending','proposal_received'].includes(r.status) &&
       !r.selectedProposal &&
       !r.proposals.some(p=>p.artisanId===aid) &&
-      ((r.creatorMode==='matching'&&!r.preferredArtisanId)||(r.creatorMode==='specific'&&r.preferredArtisanId===aid))
+      ((r.creatorMode==='matching'&&r.routingConfirmed===true&&!r.preferredArtisanId)||(r.creatorMode==='specific'&&r.preferredArtisanId===aid))
   );
 }
 function renderArtisanDashboard(){
@@ -1733,10 +1792,19 @@ function renderArtisanDashboard(){
   </section>`;
 }
 function renderArtisanRequests(){
-  const reqs=matchingRequests(); document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Artisan</div><div class="section-title">REQUEST INBOX</div></div></div>${reqs.length?reqs.map(r=>`<article class="card pad" style="margin-bottom:12px"><div class="between"><div><div class="wrap">${pill(r.status)}<span class="pill">${esc(r.style)}</span></div><div class="display" style="font-size:31px;text-transform:uppercase;margin-top:7px">${esc(r.title)}</div><div class="small muted">Budget ${money(r.budget)} · ${esc(r.timeline)} · Created ${dateOnly(r.createdAt)}</div></div><button class="btn btn-mint" onclick="navigate('artisan-request/${r.id}')">Review request →</button></div><p class="body" style="margin-top:12px">${esc(r.description)}</p></article>`).join(''):'<div class="empty">No matching requests.</div>'}</section>`;
+  const reqs=matchingRequests();
+  document.getElementById('app').innerHTML=`<section class="page">
+    <div class="section-head"><div><div class="eyebrow">Nghệ nhân / Công việc mới</div><div class="section-title">REQUEST INBOX</div><p class="small muted">Chỉ hiển thị yêu cầu công khai và yêu cầu gửi riêng cho bạn.</p></div><div class="pill">${reqs.length} yêu cầu</div></div>
+    <div class="request-inbox-list">${reqs.length?reqs.map(r=>`<article class="request-inbox-card">
+      <div class="request-inbox-tags">${pill(r.status)}<span class="pill">${r.creatorMode==='specific'?'Gửi riêng cho bạn':'Công khai'}</span><span class="pill">${esc(r.style)}</span></div>
+      <div><h2 class="request-inbox-title">${esc(r.title)}</h2><p class="request-inbox-description">${esc(r.description)}</p></div>
+      <div class="request-inbox-details"><span><b>${money(r.budget)}</b> ngân sách</span><span>${esc(r.timeline)}</span><span>${dateOnly(r.createdAt)}</span></div>
+      <div class="request-inbox-footer"><span class="small muted">${r.creatorMode==='specific'?'Dành riêng cho bạn':'Mời các nghệ nhân báo giá'}</span><button class="btn btn-mint btn-sm" onclick="navigate('artisan-request/${esc(r.id)}')">Xem yêu cầu <i data-lucide="arrow-up-right"></i></button></div>
+    </article>`).join(''):'<div class="card pad"><div class="empty">Hiện chưa có yêu cầu phù hợp dành cho bạn.</div></div>'}</div></section>`;
+  window.lucide?.createIcons();
 }
 function renderArtisanRequest(id){
-  const r=requestById(id);const aid=state.user.artisanId||'A-001';const a=artisanById(aid);if(!r||!(r.creatorMode==='matching'&&!r.preferredArtisanId||r.creatorMode==='specific'&&r.preferredArtisanId===aid)){document.getElementById('app').innerHTML='<section class="page"><div class="empty">Request not found.</div></section>';return;}
+  const r=requestById(id);const aid=state.user.artisanId||'A-001';const a=artisanById(aid);if(!r||!(r.creatorMode==='matching'&&r.routingConfirmed===true&&!r.preferredArtisanId||r.creatorMode==='specific'&&r.preferredArtisanId===aid||r.proposals?.some(p=>p.artisanId===aid))){document.getElementById('app').innerHTML='<section class="page"><div class="empty">Request not found.</div></section>';return;}
   const already=r.proposals.find(p=>p.artisanId===aid);const locked=!!already&&already.status!=='pending';const canChat=!!already||(r.creatorMode==='specific'&&r.preferredArtisanId===aid);
   document.getElementById('app').innerHTML=`<section class="page"><button class="btn btn-sm" onclick="navigate('artisan-requests')">← Inbox</button><div class="section-head"><div><div class="eyebrow">Customer brief · ${esc(r.id)}</div><div class="section-title">${esc(r.title)}</div><div class="wrap" style="margin-top:10px">${pill(r.status)}<span class="pill">${esc(r.style)}</span><span class="pill">${esc(r.size)}</span></div></div><div class="card pad"><div class="label">Budget</div><div class="display" style="font-size:34px">${money(r.budget)}</div><div class="small muted">Timeline ${esc(r.timeline)}</div></div></div>
     <div class="wrap" style="margin:-4px 0 16px"><button class="btn btn-danger btn-sm" onclick="openComplaint('commission_request','${esc(r.id)}','${esc(r.title)}')"><i data-lucide="shield-alert" style="width:14px"></i> Gửi khiếu nại</button>${canChat?`<button class="btn btn-mint btn-sm" onclick="openRequestConversation('${esc(r.id)}','${esc(aid)}')"><i data-lucide="message-circle" style="width:14px"></i> Nhắn khách hàng</button>`:''}</div>

@@ -66,12 +66,21 @@ async function isArtisan(pool,userId){
 function proposalFor(payload,userId){
   return (payload.proposals||[]).find(p=>artisanUserId(p.artisanId)===userId);
 }
+function resolveRouting(body){
+  const recipient=artisanUserId(body?.preferredArtisanId);
+  const mode=recipient?'specific':body?.creatorMode==='matching'?'matching':'specific';
+  return {mode,preferred:mode==='specific'?recipient:null};
+}
+function isPublicRequest(row){
+  return row?.creator_mode==='matching'&&!row.preferred_artisan_user_id&&row.payload?.routingConfirmed===true;
+}
 function canArtistSee(row,userId){
   if(!row||!userId)return false;
-  // Direct commissions remain private, including when a stale participant exists.
   if(row.creator_mode==='specific')return row.preferred_artisan_user_id===userId;
   if(row.creator_mode!=='matching'||row.preferred_artisan_user_id)return false;
-  return ACTIVE.has(row.status)||!!row.participant_artisan_ids?.includes(userId);
+  // Legacy entries without a confirmed recipient must not be published by default.
+  return !!row.participant_artisan_ids?.includes(userId)||
+    (isPublicRequest(row)&&ACTIVE.has(row.status));
 }
 function normalizeRow(row,viewer){
   const p=row.payload&&typeof row.payload==='object'?structuredClone(row.payload):{};
@@ -176,7 +185,7 @@ function createCommissionWorkflow({pool,requireAuth}){
         "SELECT * FROM commission_workflows WHERE "+
         "((creator_mode='specific' AND preferred_artisan_user_id=$1) OR "+
         "(creator_mode='matching' AND preferred_artisan_user_id IS NULL AND "+
-        "(status IN ('pending','proposal_received') OR $1=ANY(participant_artisan_ids)))) "+
+        "((payload->>'routingConfirmed'='true' AND status IN ('pending','proposal_received')) OR $1=ANY(participant_artisan_ids)))) "+
         "ORDER BY created_at DESC LIMIT 250",[req.user.id])).rows.filter(r=>canArtistSee(r,req.user.id));
     }else return res.status(403).json({message:'Không có quyền truy cập commission workspace.'});
     const participants=await profiles(pool,rows);
@@ -238,11 +247,12 @@ function createCommissionWorkflow({pool,requireAuth}){
   router.post('/requests',requireAuth,wrap(async(req,res)=>{
     if(req.user.role!=='customer')return res.status(403).json({message:'Chỉ Customer có thể tạo yêu cầu.'});
     await ensureCommissionWorkflowSchema(pool);
-    const body=req.body||{},mode=body.creatorMode==='specific'?'specific':'matching';
-    const preferred=mode==='specific'?artisanUserId(body.preferredArtisanId):null;
+    const body=req.body||{};
+    // Selecting an artisan always makes the request private.
+    const {mode,preferred}=resolveRouting(body);
     if(mode==='specific'&&(!preferred||!(await isArtisan(pool,preferred))))return res.status(400).json({message:'Nghệ nhân được chọn không hợp lệ.'});
     const payload={title:text(body.title,200),style:text(body.style,100),size:text(body.size,120),budget:money(body.budget,1),
-      timeline:text(body.timeline,120),description:text(body.description,8000),attachments:[],proposals:[],project:null,threads:{}};
+      timeline:text(body.timeline,120),description:text(body.description,8000),routingConfirmed:true,attachments:[],proposals:[],project:null,threads:{}};
     
     if(!payload.title||!payload.size||!payload.timeline||!payload.description)return res.status(400).json({message:'Vui lòng điền đủ thông tin request.'});
     const rid=id('REQ');
@@ -251,6 +261,30 @@ function createCommissionWorkflow({pool,requireAuth}){
       "VALUES($1,$2,$3,$4,'pending',$5) RETURNING *",
       [rid,req.user.id,mode,preferred,JSON.stringify(payload)])).rows[0];
     res.status(201).json({request:normalizeRow(row,req.user)});
+  }));
+
+  router.patch('/requests/:id/routing',requireAuth,wrap(async(req,res)=>{
+    if(req.user.role!=='customer')return res.status(403).json({message:'Chỉ khách hàng có thể cập nhật người nhận.'});
+    const request=await tx(pool,async client=>{
+      const row=await rowById(pool,req.params.id,true,client);
+      if(!row||row.customer_user_id!==req.user.id)
+        throw Object.assign(new Error('Không tìm thấy yêu cầu.'),{status:404});
+      if(!ACTIVE.has(row.status)||row.payload?.project)
+        throw Object.assign(new Error('Không thể thay đổi người nhận sau khi chốt dự án.'),{status:409});
+      const {mode,preferred}=resolveRouting(req.body);
+      if(mode==='specific'&&(!preferred||!(await isArtisan(client,preferred))))
+        throw Object.assign(new Error('Hãy chọn nghệ nhân hợp lệ để gửi riêng.'),{status:400});
+      const existing=[...new Set([...(row.participant_artisan_ids||[]),
+        ...(row.payload?.proposals||[]).map(p=>artisanUserId(p.artisanId))])];
+      if(mode==='specific'&&existing.some(id=>id!==preferred))
+        throw Object.assign(new Error('Yêu cầu đã có nghệ nhân khác phản hồi. Không thể chuyển sang người nhận mới để tránh mất báo giá và cuộc trò chuyện.'),{status:409});
+      const payload={...(row.payload||{}),routingConfirmed:true};
+      const updated=(await client.query(
+        'UPDATE commission_workflows SET creator_mode=$1,preferred_artisan_user_id=$2,payload=$3,updated_at=NOW() WHERE id=$4 RETURNING *',
+        [mode,preferred,JSON.stringify(payload),row.id])).rows[0];
+      return normalizeRow(updated,req.user);
+    });
+    res.json({request,message:'Đã xác nhận phạm vi hiển thị yêu cầu.'});
   }));
 
   router.post('/requests/:id/attachment',requireAuth,wrap(async(req,res)=>{
@@ -421,5 +455,5 @@ function createCommissionWorkflow({pool,requireAuth}){
   });
   return {router};
 }
-module.exports={createCommissionWorkflow,ensureCommissionWorkflowSchema,canArtistSee,collectInboxUpdates};
+module.exports={createCommissionWorkflow,ensureCommissionWorkflowSchema,canArtistSee,isPublicRequest,resolveRouting,collectInboxUpdates};
 
