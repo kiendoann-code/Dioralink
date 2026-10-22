@@ -68,9 +68,10 @@ function proposalFor(payload,userId){
 }
 function canArtistSee(row,userId){
   if(!row||!userId)return false;
-  if(row.preferred_artisan_user_id===userId)return true;
-  if(row.participant_artisan_ids?.includes(userId))return true;
-  return row.creator_mode==='matching' && ACTIVE.has(row.status);
+  // Direct commissions remain private, including when a stale participant exists.
+  if(row.creator_mode==='specific')return row.preferred_artisan_user_id===userId;
+  if(row.creator_mode!=='matching'||row.preferred_artisan_user_id)return false;
+  return ACTIVE.has(row.status)||!!row.participant_artisan_ids?.includes(userId);
 }
 function normalizeRow(row,viewer){
   const p=row.payload&&typeof row.payload==='object'?structuredClone(row.payload):{};
@@ -104,6 +105,7 @@ function threadMessages(payload,artisanId){
 }
 function conversationAllowed(row,user,artistId){
   if(!row)return false;
+  if(row.creator_mode==='specific'&&row.preferred_artisan_user_id!==artistId)return false;
   const p=row.payload||{};
   const projectArtist=artisanUserId(p.project?.artisanId);
   const proposal=(p.proposals||[]).find(x=>artisanUserId(x.artisanId)===artistId);
@@ -134,6 +136,32 @@ async function profiles(pool,rows){
   }
   return {artisans,customers};
 }
+
+function collectInboxUpdates(rows,viewer,sinceMs,untilMs){
+  const updates=[];
+  for(const row of rows){
+    if(viewer.role==='artisan'&&!canArtistSee(row,viewer.id))continue;
+    if(viewer.role==='customer'&&row.customer_user_id!==viewer.id)continue;
+    const threads=row.threads&&typeof row.threads==='object'?row.threads:{};
+    const entries=viewer.role==='artisan'?[[viewer.id,threads[viewer.id]]]:Object.entries(threads);
+    for(const [artistId,messages] of entries){
+      if(row.creator_mode==='specific'&&artistId!==row.preferred_artisan_user_id)continue;
+      if(row.creator_mode==='matching'&&!(row.participant_artisan_ids||[]).includes(artistId))continue;
+      if(!Array.isArray(messages))continue;
+      for(const msg of messages){
+        if(!msg?.id||msg.senderRole===viewer.role||!['customer','artisan'].includes(msg.senderRole))continue;
+        const at=Date.parse(msg.createdAt);
+        if(!Number.isFinite(at)||at<=sinceMs||at>untilMs)continue;
+        updates.push({id:String(msg.id),conversationKey:row.id+'|'+artistId,
+          requestId:row.id,title:text(row.title,140)||row.id,
+          preview:text(msg.text,110)||(msg.attachments?.length?'Đã gửi tệp đính kèm':'Tin nhắn mới'),
+          senderRole:msg.senderRole,createdAt:msg.createdAt});
+      }
+    }
+  }
+  return updates.sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt));
+}
+
 function createCommissionWorkflow({pool,requireAuth}){
   const router=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
@@ -146,7 +174,9 @@ function createCommissionWorkflow({pool,requireAuth}){
     }else if(req.user.role==='artisan'){
       rows=(await pool.query(
         "SELECT * FROM commission_workflows WHERE "+
-        "($1=preferred_artisan_user_id OR $1=ANY(participant_artisan_ids) OR (creator_mode='matching' AND status IN ('pending','proposal_received'))) "+
+        "((creator_mode='specific' AND preferred_artisan_user_id=$1) OR "+
+        "(creator_mode='matching' AND preferred_artisan_user_id IS NULL AND "+
+        "(status IN ('pending','proposal_received') OR $1=ANY(participant_artisan_ids)))) "+
         "ORDER BY created_at DESC LIMIT 250",[req.user.id])).rows.filter(r=>canArtistSee(r,req.user.id));
     }else return res.status(403).json({message:'Không có quyền truy cập commission workspace.'});
     const participants=await profiles(pool,rows);
@@ -178,6 +208,31 @@ function createCommissionWorkflow({pool,requireAuth}){
     conversations.sort((a,b)=>new Date(b.lastMessage?.createdAt||0)-new Date(a.lastMessage?.createdAt||0));
     if(req.user.role==='artisan'){participants.customers=Object.fromEntries(rows.map(r=>[alias(r.id),{id:alias(r.id),name:alias(r.id),avatar:''}]));participants.artisans=participants.artisans.filter(a=>rows.some(r=>(r.participant_artisan_ids||[]).includes(artisanUserId(a.id))||r.preferred_artisan_user_id===artisanUserId(a.id)));}
     res.json({requests,projects,conversations,participants});
+  }));
+
+
+  // Lightweight per-account inbox feed. Attachments never leave this endpoint.
+  router.get('/inbox-updates',requireAuth,wrap(async(req,res)=>{
+    if(!['customer','artisan'].includes(req.user.role))
+      return res.status(403).json({message:'Không có quyền xem tin nhắn.'});
+    const untilMs=Date.now(),rawSince=Date.parse(String(req.query.since||''));
+    if(!Number.isFinite(rawSince))return res.json({updates:[],cursor:new Date(untilMs).toISOString()});
+    const sinceMs=Math.min(untilMs,Math.max(rawSince,untilMs-30*24*60*60*1000));
+    const rows=(await pool.query(
+      "SELECT id,customer_user_id,creator_mode,preferred_artisan_user_id,participant_artisan_ids,status, "+
+      "payload->'threads' AS threads,payload->>'title' AS title FROM commission_workflows "+
+      "WHERE updated_at >= $2::timestamptz AND "+
+      "(($3='customer' AND customer_user_id=$1) OR "+
+      "($3='artisan' AND ((creator_mode='specific' AND preferred_artisan_user_id=$1) OR "+
+      "(creator_mode='matching' AND preferred_artisan_user_id IS NULL AND $1=ANY(participant_artisan_ids))))) "+
+      "ORDER BY updated_at DESC LIMIT 300",
+      [req.user.id,new Date(sinceMs).toISOString(),req.user.role]
+    )).rows;
+    const all=collectInboxUpdates(rows,req.user,sinceMs,untilMs),updates=all.slice(0,50);
+    const cursor=all.length>50
+      ?new Date(Math.max(0,Date.parse(updates[updates.length-1].createdAt)-1)).toISOString()
+      :new Date(untilMs).toISOString();
+    res.set('Cache-Control','no-store').json({updates,cursor});
   }));
 
   router.post('/requests',requireAuth,wrap(async(req,res)=>{
@@ -366,5 +421,5 @@ function createCommissionWorkflow({pool,requireAuth}){
   });
   return {router};
 }
-module.exports={createCommissionWorkflow,ensureCommissionWorkflowSchema};
+module.exports={createCommissionWorkflow,ensureCommissionWorkflowSchema,canArtistSee,collectInboxUpdates};
 

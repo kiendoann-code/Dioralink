@@ -80,7 +80,7 @@ let commissionConversations=[];
 let commissionCustomers={};
 let commissionSyncPromise=null;
 let commissionWorkspaceUser='';
-let activeConversationKey='';
+let activeConversationKey=sessionStorage.getItem('dioralink_active_conversation')||'';
 const attachmentRegistry=new Map();
 
 function isCommissionRoute(route=currentRoute()){
@@ -379,6 +379,7 @@ function applyAuthenticatedUser(u,provider='email'){
   save();
   window.DioraAnalytics?.setContext({user_role:['customer','artisan'].includes(state.user.role)?state.user.role:'guest'});
   queueCommissionSync();
+  setTimeout(pollIncomingMessages,0);
 }
 
 function roleAfterLogin(role){
@@ -563,7 +564,7 @@ function refreshShell(){
       actions.innerHTML=`<button class="icon-btn" onclick="openAdminNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><span class="role-badge">Admin</span><button class="btn btn-sm btn-danger" onclick="adminLogout()">Logout</button>`;
     }else if(isAuthenticated()){
       actions.innerHTML=`<button class="icon-btn" onclick="openNotifications()" title="Notifications"><i data-lucide="bell"></i><span id="notif-dot" class="dot" hidden></span></button><button class="icon-btn" onclick="openAccountMenu()" title="Tài khoản"><img id="header-avatar" class="avatar" alt="Avatar" ${mediaAttrs(state.user.avatar,state.user.avatarFallback||GUEST_USER.avatar)}></button>`;
-      const dot=document.getElementById('notif-dot'); if(dot) dot.hidden=!state.notifications.some(n=>!n.read);
+      const dot=document.getElementById('notif-dot'); if(dot) dot.hidden=!visibleNotifications().some(n=>!n.read);
     }else{
       actions.innerHTML=`<button class="btn btn-sm" onclick="openAuthModal('login')">Sign in</button><button class="btn btn-sm btn-mint" onclick="openAuthModal('register')">Register</button>`;
     }
@@ -821,16 +822,20 @@ function demoConversations(){
 }
 function openRequestConversation(requestId,artisanId){
   activeConversationKey=String(requestId)+'|'+artisanConversationKey(artisanId);
+  sessionStorage.setItem('dioralink_active_conversation',activeConversationKey);
   navigate('messages');
 }
 function openConversation(key){
   activeConversationKey=String(key||'');
+  sessionStorage.setItem('dioralink_active_conversation',activeConversationKey);
+  markConversationAlertsRead(activeConversationKey);
   renderMessages();
 }
 function renderMessages(){
   const list=CONFIG.demoMode?demoConversations():commissionConversations;
   if(!activeConversationKey||!list.some(x=>x.key===activeConversationKey))activeConversationKey=list[0]?.key||'';
   const active=list.find(x=>x.key===activeConversationKey)||null;
+  if(active)sessionStorage.setItem('dioralink_active_conversation',active.key);
   const messages=active?.messages||[];
   document.getElementById('app').innerHTML='<section class="page"><div class="section-head"><div><div class="eyebrow">Inbox</div><div class="section-title">TIN NHẮN</div></div>'+(active?.projectId?'<button class="btn btn-sm" onclick="navigate(\''+(isCustomer()?'project/':'artisan-project/')+esc(active.projectId)+'\')">Mở dự án →</button>':'')+'</div>'+
     '<div class="grid two" style="align-items:start;grid-template-columns:minmax(260px,.78fr) minmax(0,1.6fr)">'+
@@ -1478,10 +1483,92 @@ async function submitComplaintReview(event,id,status){
   }catch(e){toast(e.message||'Không thể xét duyệt.','error');}
 }
 
+
+let inboxPollInFlight=false,notificationSoundContext=null;
+function currentInboxOwner(){
+  return isAuthenticated()&&['customer','artisan'].includes(currentRole())
+    ?state.user.id+'|'+currentRole():'';
+}
+function visibleNotifications(){
+  const owner=currentInboxOwner();
+  return state.notifications.filter(n=>!n.ownerKey||n.ownerKey===owner);
+}
+function markConversationAlertsRead(key){
+  let dirty=false;
+  for(const n of state.notifications){
+    if(n.ownerKey===currentInboxOwner()&&n.conversationKey===key&&!n.read){
+      n.read=true;dirty=true;
+    }
+  }
+  if(dirty)save();
+}
+function unlockInboxAudio(){
+  if(notificationSoundContext?.state==='running')return;
+  const Audio=window.AudioContext||window.webkitAudioContext;
+  if(!Audio)return;
+  try{
+    notificationSoundContext=notificationSoundContext||new Audio();
+    if(notificationSoundContext.state==='suspended')
+      notificationSoundContext.resume().catch(()=>{});
+  }catch{}
+}
+document.addEventListener('pointerdown',unlockInboxAudio,{passive:true});
+document.addEventListener('keydown',unlockInboxAudio);
+function playInboxSound(){
+  const ctx=notificationSoundContext;
+  if(!ctx||ctx.state!=='running')return; // Audio requires a prior user gesture.
+  try{
+    const t=ctx.currentTime;
+    for(const [offset,hz] of [[0,740],[0.11,988]]){
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.type='sine';osc.frequency.value=hz;
+      gain.gain.setValueAtTime(0.0001,t+offset);
+      gain.gain.exponentialRampToValueAtTime(0.09,t+offset+0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+offset+0.17);
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.start(t+offset);osc.stop(t+offset+0.18);
+    }
+  }catch(e){console.debug('Notification audio unavailable:',e);}
+}
+async function pollIncomingMessages(){
+  const owner=currentInboxOwner();
+  if(CONFIG.demoMode||!owner||inboxPollInFlight)return;
+  inboxPollInFlight=true;
+  try{
+    const storageKey='dioralink_message_cursor_v1:'+owner;
+    const since=localStorage.getItem(storageKey);
+    const data=await commissionApi('/inbox-updates'+(since?'?since='+encodeURIComponent(since):''));
+    if(owner!==currentInboxOwner())return;
+    if(data.cursor)localStorage.setItem(storageKey,data.cursor);
+    const events=Array.isArray(data.updates)?data.updates:[];
+    let added=0;
+    for(const event of events){
+      if(!event.id||!event.conversationKey)continue;
+      const id='chat:'+owner+':'+event.id;
+      if(state.notifications.some(n=>n.id===id))continue;
+      addNotification({id,ownerKey:owner,conversationKey:event.conversationKey,
+        title:'Tin nhắn mới · '+(event.senderRole==='customer'?'Khách hàng':'Nghệ nhân'),
+        body:(event.title||'Commission')+' · '+(event.preview||'Có tin nhắn mới'),
+        time:'Vừa xong',route:'messages'});
+      added++;
+    }
+    if(added){
+      state.notifications=state.notifications.slice(0,150);
+      save();
+      toast(added===1?'Bạn có tin nhắn mới.':'Bạn có '+added+' tin nhắn mới.','success');
+      playInboxSound();
+    }
+  }catch(err){
+    console.debug('Inbox notification check skipped:',err.message);
+  }finally{inboxPollInFlight=false;}
+}
+setInterval(pollIncomingMessages,10000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollIncomingMessages();});
+
 function addNotification(n){state.notifications.unshift({id:'N-'+Date.now(),read:false,time:'Vừa xong',...n});}
 function openNotifications(){
-  document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><b>Notifications</b><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body">${state.notifications.length?state.notifications.map(n=>`<button class="card-soft pad" style="width:100%;text-align:left;margin-bottom:8px;${n.read?'opacity:.65':''}" onclick="openNotification('${n.id}')"><div class="between"><b class="small">${esc(n.title)}</b><span class="tiny muted">${esc(n.time)}</span></div><div class="small muted" style="margin-top:5px">${esc(n.body)}</div></button>`).join(''):'<div class="empty">No notifications.</div>'}</div></div></div>`;window.lucide?.createIcons();}
-function openNotification(id){const n=state.notifications.find(x=>x.id===id);if(!n)return;n.read=true;save();closeModal();if(n.route)navigate(n.route);}
+  document.getElementById('modal-root').innerHTML=`<div class="modal-backdrop" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><b>Notifications</b><button class="icon-btn" onclick="closeModal()"><i data-lucide="x"></i></button></div><div class="modal-body">${visibleNotifications().length?visibleNotifications().map(n=>`<button class="card-soft pad" style="width:100%;text-align:left;margin-bottom:8px;${n.read?'opacity:.65':''}" onclick="openNotification('${n.id}')"><div class="between"><b class="small">${esc(n.title)}</b><span class="tiny muted">${esc(n.time)}</span></div><div class="small muted" style="margin-top:5px">${esc(n.body)}</div></button>`).join(''):'<div class="empty">No notifications.</div>'}</div></div></div>`;window.lucide?.createIcons();}
+function openNotification(id){const n=visibleNotifications().find(x=>x.id===id);if(!n)return;n.read=true;if(n.conversationKey){activeConversationKey=n.conversationKey;sessionStorage.setItem('dioralink_active_conversation',activeConversationKey);markConversationAlertsRead(activeConversationKey);}save();closeModal();if(n.route)navigate(n.route);}
 function closeModal(e){if(e && e.target!==e.currentTarget)return;const root=document.getElementById('modal-root');if(e&&root?.querySelector('form')){toast('Biểu mẫu vẫn đang mở để tránh mất nội dung. Dùng nút × nếu bạn thực sự muốn đóng.','warning');return;}if(root)root.innerHTML='';}
 function toast(message,type='success'){const el=document.createElement('div');el.className='toast '+type;el.textContent=message;document.getElementById('toast-root').appendChild(el);setTimeout(()=>el.remove(),3500);}
 
@@ -1634,7 +1721,7 @@ function matchingRequests(){
       ['pending','proposal_received'].includes(r.status) &&
       !r.selectedProposal &&
       !r.proposals.some(p=>p.artisanId===aid) &&
-      (r.creatorMode==='matching'||r.preferredArtisanId===aid)
+      ((r.creatorMode==='matching'&&!r.preferredArtisanId)||(r.creatorMode==='specific'&&r.preferredArtisanId===aid))
   );
 }
 function renderArtisanDashboard(){
@@ -1649,7 +1736,7 @@ function renderArtisanRequests(){
   const reqs=matchingRequests(); document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Artisan</div><div class="section-title">REQUEST INBOX</div></div></div>${reqs.length?reqs.map(r=>`<article class="card pad" style="margin-bottom:12px"><div class="between"><div><div class="wrap">${pill(r.status)}<span class="pill">${esc(r.style)}</span></div><div class="display" style="font-size:31px;text-transform:uppercase;margin-top:7px">${esc(r.title)}</div><div class="small muted">Budget ${money(r.budget)} · ${esc(r.timeline)} · Created ${dateOnly(r.createdAt)}</div></div><button class="btn btn-mint" onclick="navigate('artisan-request/${r.id}')">Review request →</button></div><p class="body" style="margin-top:12px">${esc(r.description)}</p></article>`).join(''):'<div class="empty">No matching requests.</div>'}</section>`;
 }
 function renderArtisanRequest(id){
-  const r=requestById(id);const aid=state.user.artisanId||'A-001';const a=artisanById(aid);if(!r){document.getElementById('app').innerHTML='<section class="page"><div class="empty">Request not found.</div></section>';return;}
+  const r=requestById(id);const aid=state.user.artisanId||'A-001';const a=artisanById(aid);if(!r||!(r.creatorMode==='matching'&&!r.preferredArtisanId||r.creatorMode==='specific'&&r.preferredArtisanId===aid)){document.getElementById('app').innerHTML='<section class="page"><div class="empty">Request not found.</div></section>';return;}
   const already=r.proposals.find(p=>p.artisanId===aid);const locked=!!already&&already.status!=='pending';const canChat=!!already||(r.creatorMode==='specific'&&r.preferredArtisanId===aid);
   document.getElementById('app').innerHTML=`<section class="page"><button class="btn btn-sm" onclick="navigate('artisan-requests')">← Inbox</button><div class="section-head"><div><div class="eyebrow">Customer brief · ${esc(r.id)}</div><div class="section-title">${esc(r.title)}</div><div class="wrap" style="margin-top:10px">${pill(r.status)}<span class="pill">${esc(r.style)}</span><span class="pill">${esc(r.size)}</span></div></div><div class="card pad"><div class="label">Budget</div><div class="display" style="font-size:34px">${money(r.budget)}</div><div class="small muted">Timeline ${esc(r.timeline)}</div></div></div>
     <div class="wrap" style="margin:-4px 0 16px"><button class="btn btn-danger btn-sm" onclick="openComplaint('commission_request','${esc(r.id)}','${esc(r.title)}')"><i data-lucide="shield-alert" style="width:14px"></i> Gửi khiếu nại</button>${canChat?`<button class="btn btn-mint btn-sm" onclick="openRequestConversation('${esc(r.id)}','${esc(aid)}')"><i data-lucide="message-circle" style="width:14px"></i> Nhắn khách hàng</button>`:''}</div>
