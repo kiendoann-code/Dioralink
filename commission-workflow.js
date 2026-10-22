@@ -188,7 +188,7 @@ function createCommissionWorkflow({pool,requireAuth}){
     if(mode==='specific'&&(!preferred||!(await isArtisan(pool,preferred))))return res.status(400).json({message:'Nghệ nhân được chọn không hợp lệ.'});
     const payload={title:text(body.title,200),style:text(body.style,100),size:text(body.size,120),budget:money(body.budget,1),
       timeline:text(body.timeline,120),description:text(body.description,8000),attachments:[],proposals:[],project:null,threads:{}};
-    assertCommunication(payload.title,payload.style,payload.size,payload.timeline,payload.description);
+    
     if(!payload.title||!payload.size||!payload.timeline||!payload.description)return res.status(400).json({message:'Vui lòng điền đủ thông tin request.'});
     const rid=id('REQ');
     const row=(await pool.query(
@@ -203,7 +203,7 @@ function createCommissionWorkflow({pool,requireAuth}){
     const row=await rowById(pool,req.params.id);
     if(!row||row.customer_user_id!==req.user.id)return res.status(404).json({message:'Không tìm thấy request.'});
     if(!ACTIVE.has(row.status))return res.status(409).json({message:'Request không còn nhận chỉnh sửa.'});
-    assertCommunication(filenameText(req.body?.name));
+    
     const f=parseDataUrl(req.body?.dataUrl);
     if(!f.mime.startsWith('image/'))return res.status(400).json({message:'Reference phải là hình ảnh.'});
     const payload=row.payload||{};payload.attachments=Array.isArray(payload.attachments)?payload.attachments:[];
@@ -220,7 +220,7 @@ function createCommissionWorkflow({pool,requireAuth}){
     const p=row.payload||{},b=req.body||{};
     p.title=text(b.title??p.title,200);p.style=text(b.style??p.style,100);p.size=text(b.size??p.size,120);
     p.budget=money(b.budget??p.budget,1);p.timeline=text(b.timeline??p.timeline,120);p.description=text(b.description??p.description,8000);
-    assertCommunication(p.title,p.style,p.size,p.timeline,p.description);
+    
     const updated=(await pool.query("UPDATE commission_workflows SET payload=$1,updated_at=NOW() WHERE id=$2 RETURNING *",[JSON.stringify(p),row.id])).rows[0];
     res.json({request:normalizeRow(updated,req.user),message:'Đã gửi brief cập nhật để nghệ nhân xem lại.'});
   }));
@@ -247,7 +247,7 @@ function createCommissionWorkflow({pool,requireAuth}){
       let prop=proposalFor(p,req.user.id);
       const quote=money(req.body?.quote,1),timeline=text(req.body?.timeline,120),message=text(req.body?.message,4000);
       const deliverables=Array.isArray(req.body?.deliverables)?req.body.deliverables.slice(0,20).map(x=>text(x,160)).filter(Boolean):[];
-      assertCommunication(timeline,message,...deliverables);
+      assertCommunication(message);
       if(!timeline||!message||!deliverables.length){await client.query('ROLLBACK');return res.status(400).json({message:'Thiếu timeline, lời nhắn hoặc hạng mục bàn giao.'});}
       if(prop&&prop.status!=='pending'){await client.query('ROLLBACK');return res.status(409).json({message:'Báo giá đã được chốt.'});}
       if(prop){
@@ -343,12 +343,12 @@ function createCommissionWorkflow({pool,requireAuth}){
           if(i>0&&project.milestones[i-1].status!=='approved')deny('Hoàn tất mốc trước khi bắt đầu mốc tiếp theo.');
           if(project.walletRequired){const hold=(await c.query('SELECT status FROM diora_holds WHERE ref=$1',['commission:'+project.id+':'+m.id])).rows[0];if(hold?.status!=='held')deny('Khách hàng cần giữ tiền cho mốc này trong Ví Diora trước khi bắt đầu.');}
         }
-        assertCommunication(incoming.evidence||'');m.status=incoming.status;
+        m.status=incoming.status;
         if(artist)m.evidence=text(incoming.evidence,4000);
         if(m.status==='approved')m.approvedAt=new Date().toISOString();
       }
       if(artist&&b.dueDate!==undefined)project.dueDate=text(b.dueDate,50);
-      if(Array.isArray(b.files)){b.files.forEach(f=>assertCommunication(filenameText(f.name)));project.files=b.files.slice(0,100).map(f=>({id:text(f.id,100),name:text(f.name,240),size:money(f.size),uploader:artist?'artisan':'customer'}));}
+      if(Array.isArray(b.files)){project.files=b.files.slice(0,100).map(f=>({id:text(f.id,100),name:text(f.name,240),size:money(f.size),uploader:artist?'artisan':'customer'}));}
       project.progress=project.milestones.filter(m=>m.status==='approved').reduce((n,m)=>n+m.percentage,0);
       project.currentMilestone=Math.max(1,project.milestones.findIndex(m=>m.status!=='approved')+1);
       project.status=cancel?'cancelled_by_customer':project.progress===100?'completed':project.milestones.some(m=>m.status!=='pending')?'in_production':'awaiting_production';

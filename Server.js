@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require('google-auth-library');
 const cookieParser = require("cookie-parser");
 const { Pool } = require("pg");
+const {contactReason} = require('./communication-policy');
 require("dotenv").config();
 
 const app = express();
@@ -270,6 +271,8 @@ app.post("/api/auth/register", async (req, res) => {
         message: "Invalid role.",
       });
     }
+    const nameContactReason = contactReason(name);
+    if (nameContactReason) return res.status(400).json({ message: nameContactReason });
 
     if (password.length < 8) {
       return res.status(400).json({
@@ -527,6 +530,8 @@ app.put("/api/auth/profile", requireAuth, async (req, res) => {
         message: "Name is required."
       });
     }
+    const profileContactReason = contactReason(name) || contactReason(city) || contactReason(bio);
+    if (profileContactReason) return res.status(400).json({ message: profileContactReason });
 
     if (
       avatar &&

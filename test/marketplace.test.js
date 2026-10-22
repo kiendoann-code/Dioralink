@@ -12,6 +12,21 @@ async function product(overrides={}){const r=await f.api('/api/market/seller/pro
 function payload(p,extra={}){return {product_id:p.id,product_version:p.version,quantity:1,request_key:randomUUID(),recipient:{name:'Khách An',phone:'0901234567',address:'123 Đường Lê Lợi, Hà Nội'},payment_method:'wallet',accepted_terms:true,terms_version:TERMS_VERSION,...extra};}
 async function order(p,extra={}){const r=await f.api('/api/market/orders',{user:'buyer',method:'POST',body:payload(p,extra)});assert.equal(r.status,201,JSON.stringify(r.data));return r.data.order;}
 async function act(o,user,action,extra={},status=200){const admin=user==='admin';const r=await f.api(`/api/${admin?'admin/':''}market/orders/${o.id}/actions`,{user,admin,method:'POST',body:{action,...extra}});assert.equal(r.status,status,JSON.stringify(r.data));return r.data.order;}
+test('product listings and order notes do not apply chat-only contact filters',async()=>{
+  const p=await product({
+    title:'Diorama FB thu nhỏ',
+    description:'Mô hình FB, mã 123456789012345, lấy cảm hứng từ https://example.com; email reference@example.com.'
+  });
+  assert.match(p.description,/example\.com/);
+  const updated=await f.api('/api/market/seller/products/'+p.id,{
+    user:'seller',method:'PUT',body:{...productBody,title:'Mô hình Zalo phiên bản 2',
+      description:'Tác phẩm miniature dựa theo từ khóa Facebook, có mã dài 123456789012345, nguồn ảnh https://example.com.',
+      version:p.version,previous_stock:p.stock}
+  });
+  assert.equal(updated.status,200,JSON.stringify(updated.data));
+  const o=await order(updated.data.product);
+  await act(o,'buyer','cancel',{note:'Hủy vì thay đổi dự án, tham chiếu https://example.com và Facebook.'});
+});
 test('fee boundaries and Vietnamese date ranges',()=>{assert.deepEqual([1999999,2000000,5000000,5000001,10000000,10000001].map(feeRate),[10,8,8,7,7,5]);assert.equal(period({from:'2026-10-01',to:'2026-10-01'}).start,'2026-09-30T17:00:00.000Z');assert.equal(period({to:'2026-10-04'}).days,30);for(const q of [{from:'2026-02-30'},{from:'2026-10-03',to:'2026-10-01'},{from:'2020-01-01',to:'2026-01-01'}])assert.throws(()=>period(q));});
 test('server enforces roles, ownership, terms, price and public data boundaries',async()=>{
  assert.equal((await f.api('/api/market/seller/products')).status,401);

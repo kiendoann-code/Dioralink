@@ -39,6 +39,8 @@ test('Profile writes require artisan authentication and reject invalid public da
   assert.throws(()=>sanitizeProfile({...rows[0].profile,hero:'data:image/svg+xml;base64,PHN2Zz4='}));
   assert.throws(()=>sanitizeProfile({...rows[0].profile,startingPrice:-1}));
   assert.throws(()=>sanitizeProfile({...rows[0].profile,bio:'short'}));
+  assert.throws(()=>sanitizeProfile({...rows[0].profile,bio:'Hồ sơ công khai yêu cầu liên hệ ngoài qua Zalo ngay hôm nay.'}));
+  assert.throws(()=>sanitizeProfile({...rows[0].profile,handle:'https://example.com'}));
   const p=sanitizeProfile({...rows[0].profile,email:'private@example.com',phone:'secret',paymentProfile:{accountNumber:'secret'},verified:true,rating:5});
   for(const key of ['email','phone','paymentProfile','verified','rating'])assert(!Object.hasOwn(p,key));
   assert.equal(slugify('Đào Studio – Hà Nội'),'dao-studio-ha-noi');

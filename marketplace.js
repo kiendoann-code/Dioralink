@@ -1,6 +1,6 @@
 'use strict';
 const express=require('express');
-const {alias,assertCommunication}=require('./communication-policy');
+const {alias}=require('./communication-policy');
 const {fund,settle}=require('./wallet');
 const crypto=require('node:crypto');
 const fs=require('node:fs');
@@ -52,7 +52,7 @@ function marketEvidence(value){
 }
 function productInput(b){
  const p={title:text(b.title,160),description:text(b.description,6000),category:text(b.category,60),condition:text(b.condition,120),price:integer(b.price,1,1e9,'Giá'),shipping_fee:integer(b.shipping_fee,0,1e7,'Phí vận chuyển'),stock:integer(b.stock,0,100000,'Tồn kho'),images:[],status:['draft','active','hidden'].includes(b.status)?b.status:'draft'};
- assertCommunication(p.title,p.description,p.condition);
+ 
  if(p.title.length<4||p.description.length<30||!p.category||!p.condition)fail('Điền tên, mô tả ít nhất 30 ký tự, loại sản phẩm và tình trạng.');
  if(!Array.isArray(b.images)||b.images.length<1||b.images.length>6)fail('Cần từ 1 đến 6 ảnh sản phẩm.');
  p.images=b.images.map(v=>{if(typeof v==='string'&&v.startsWith('/media/market/'))return v;return marketImage(v);});
@@ -67,7 +67,7 @@ async function changeOrder(c,o,actor,action,b={}){
  const isAdmin=actor.role==='admin',seller=actor.id===o.seller_id&&actor.role==='artisan',buyer=!isAdmin&&actor.id===o.buyer_id;
  if(!isAdmin&&!seller&&!buyer)fail('Bạn không có quyền xem đơn này.',404);
  const note=text(b.note,3000),ref=text(b.reference,200);
- if(!isAdmin)assertCommunication(note);
+ 
  if(o.payment_method==='wallet'&&['report_payment','confirm_payment','cod_received','collect_fee','return_fee','refund_sent','confirm_refund','admin_confirm_refund'].includes(action))fail('Giao dịch ví được đối soát tự động.',409);
  const evidence=Array.isArray(b.evidence)?b.evidence.slice(0,3).map(marketEvidence):[];
  const need=(ok,msg='Thao tác không phù hợp với trạng thái hoặc quyền của bạn.')=>{if(!ok)fail(msg,409);};

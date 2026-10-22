@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const express = require('express');
 const {homePage}=require('./home');
+const {assertCommunication}=require('./communication-policy');
 const ORIGIN = 'https://dioralink.xyz';
 const SERVICES = [
   {slug:'diorama-theo-yeu-cau', name:'Diorama theo yêu cầu', description:'Kết nối nghệ nhân làm diorama theo ý tưởng riêng: bối cảnh, tỷ lệ, chất liệu, ánh sáng và ngân sách được trao đổi trước khi thực hiện.', detail:'Diorama tái hiện một bối cảnh trong không gian thu nhỏ. Bạn có thể bắt đầu từ một địa điểm, câu chuyện, khung cảnh fantasy hoặc ý tưởng trưng bày bộ sưu tập.', brief:['Ảnh tham khảo và câu chuyện muốn tái hiện','Kích thước đế, tỷ lệ mô hình và vị trí trưng bày','Chất liệu, hiệu ứng nước resin hoặc đèn nếu cần','Ngân sách dự kiến và thời điểm cần nhận'], tags:['Fantasy','Resin','Architecture','Lighting']},
@@ -32,6 +33,7 @@ function safeImage(value) {
 function sanitizeProfile(body) {
   const p={name:text(body.name,150),handle:text(body.handle,60),city:text(body.city,150),bio:text(body.bio,3000),response:text(body.response,80),specialties:Array.isArray(body.specialties)?body.specialties.slice(0,12).map(s=>text(s,60)).filter(Boolean):[],startingPrice:Number(body.startingPrice),avatar:safeImage(body.avatar),hero:safeImage(body.hero),portfolio:Array.isArray(body.portfolio)?body.portfolio.slice(0,12).map(safeImage).filter(Boolean):[]};
   if(!p.name || !p.city || p.bio.length<30 || !p.specialties.length) throw new Error('Vui lòng điền tên, thành phố, chuyên môn và giới thiệu ít nhất 30 ký tự.');
+  assertCommunication(p.name,p.handle,p.city,p.bio,p.response,...p.specialties);
   if(!Number.isFinite(p.startingPrice) || p.startingPrice<0 || p.startingPrice>1e12) throw new Error('Giá khởi điểm không hợp lệ.');
   return p;
 }
