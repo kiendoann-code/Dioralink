@@ -95,3 +95,16 @@ async function placeMarketCartOrder(){
   closeModal();toast('Đã đặt hàng thành công.','success');navigate('market-order/'+data.order.id);
  }catch(e){error.textContent=e.message;b.disabled=false;}finally{marketCartBusy=false;}
 }
+
+async function loadMarketVouchers(){
+ const target=document.getElementById('market-vouchers-list');if(!target)return;
+ try{const r=await marketAPI('/api/admin/market/vouchers');if(currentRoute()!=='admin-market')return;
+ target.innerHTML=r.vouchers.length?`<div class="table-wrap"><table><thead><tr><th>Mã</th><th>Ưu đãi</th><th>Đã dùng / giới hạn</th><th>Đơn tối thiểu</th><th>Hết hạn</th></tr></thead><tbody>${r.vouchers.map(v=>`<tr><td><strong>${esc(v.code)}</strong></td><td>${v.kind==='percent'?v.value+'%':money(v.value)}</td><td>${v.used} / ${v.usage_limit}</td><td>${money(v.min_goods)}</td><td>${v.ends_at?marketDate(v.ends_at):'Không giới hạn'}</td></tr>`).join('')}</tbody></table></div>`:'<p class="small muted">Chưa có voucher nào được tạo.</p>';
+ }catch(e){target.textContent=e.message;}
+}
+async function createMarketVoucher(event){
+ event.preventDefault();const form=event.target,button=form.querySelector('button[type="submit"]');button.disabled=true;
+ try{const fd=new FormData(form),data=Object.fromEntries(fd);data.value=Number(data.value);data.min_goods=Number(data.min_goods);data.max_discount=Number(data.max_discount);data.usage_limit=Number(data.usage_limit);if(!data.ends_at)delete data.ends_at;
+ await marketPost('/api/admin/market/vouchers',data);form.reset();toast('Voucher đã được tạo.','success');await loadMarketVouchers();
+ }catch(e){toast(e.message,'error');}finally{button.disabled=false;}
+}
