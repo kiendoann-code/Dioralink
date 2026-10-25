@@ -1,0 +1,25 @@
+name: DioraLink safe maintenance response
+on:
+  pull_request:
+    paths:
+      - "Server.js"
+      - "maintenance-server.js"
+      - "test/maintenance-server.test.js"
+      - ".github/workflows/maintenance-safety.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Server.js"
+      - "maintenance-server.js"
+      - "test/maintenance-server.test.js"
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node --check Server.js
+      - run: node --check maintenance-server.js
+      - run: node --test test/maintenance-server.test.js
