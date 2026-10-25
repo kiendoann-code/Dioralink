@@ -1600,7 +1600,9 @@ app.listen(PORT, "0.0.0.0", () => {
     console.error("PostgreSQL connection failed:");
     console.error(error.message);
 
-    process.exit(1);
+    // Fail closed if production data is unreachable: no login, checkout, or wallet writes.
+    // Preserve the existing DATABASE_URL; never initialize an empty replacement database.
+    require("./maintenance-server").startMaintenanceServer(PORT);
   }
 }
 
