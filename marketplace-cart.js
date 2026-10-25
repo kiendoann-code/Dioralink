@@ -71,7 +71,7 @@ function createCartRoutes({pool,requireAuth,requireAdmin,transaction,sanitizeOrd
   if(req.user.role!=='customer')fail('Đăng nhập tài khoản khách hàng để mua.',403);
   const q=await compute(pool,req.body,{buyerId:req.user.id});
   // Display only public product information in quotes.
-  res.json(q);
+  res.json({...q,items:q.items.map(({images,description,...item})=>item)});
  }));
  router.post('/api/market/cart/orders',requireAuth,wrap(async(req,res)=>{
   if(req.user.role!=='customer')fail('Đăng nhập tài khoản khách hàng để mua.',403);
