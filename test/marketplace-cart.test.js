@@ -58,14 +58,15 @@ test('platform voucher reduces buyer payment and platform fee, not artisan reven
 });
 test('cancelling bundled wallet order restores all stock, refund and voucher allocation',async()=>{
  const p=await product({price:300000}),q=await product({price:200000});
- const b=request(lines(p,q),'wallet',{voucher_code:'SAVE40000'});
+ const voucher=await post('/api/admin/market/vouchers',{code:'RETURN400',kind:'fixed',value:40000,min_goods:300000,usage_limit:1},'buyer',true);assert.equal(voucher.status,201);
+ const b=request(lines(p,q),'wallet',{voucher_code:'RETURN400'});
  const o=await post('/api/market/cart/orders',b);assert.equal(o.status,201,JSON.stringify(o.data));
  const oid=o.data.order.id;
  assert.equal((await post('/api/market/orders/'+oid+'/actions',{action:'cancel',note:'Khách thay đổi nhu cầu'})).status,200);
  assert.equal((await f.api('/api/market/products/'+p.id)).data.product.stock,6);
  assert.equal((await f.api('/api/market/products/'+q.id)).data.product.stock,6);
  assert.equal((await f.pool.query('SELECT status FROM diora_holds WHERE ref=$1',['market:'+oid])).rows[0].status,'refunded');
- assert.equal((await f.pool.query('SELECT used FROM market_vouchers WHERE code=$1',['SAVE40000'])).rows[0].used,1);
+ assert.equal((await f.pool.query('SELECT used FROM market_vouchers WHERE code=$1',['RETURN400'])).rows[0].used,0);
  assert.equal((await post('/api/market/orders/'+oid+'/actions',{action:'cancel',note:'Hủy lặp lại'})).status,409);
 });
 test('cart disallows multiple artisans and over-selling; voucher admin cannot be forged',async()=>{
