@@ -1,8 +1,10 @@
 'use strict';
 const crypto=require('node:crypto');
-const TERMS_VERSION='2026-10-14-wallet-v1';
+const TERMS_VERSION='2026-10-25-cart-cod-voucher-v1';
 const TERMS=[
- ['Thanh toán bằng Ví Diora','Đơn mới giữ đủ tổng tiền trong Ví Diora khi đặt hàng. Tiền được chuyển vào ví nghệ nhân sau khi khách xác nhận nhận hàng, trừ phí dịch vụ.'],
+ ['COD và Ví Diora','Khách có thể trả tiền khi nhận hàng (COD) nếu nghệ nhân hỗ trợ, hoặc thanh toán bằng Ví Diora. Với Ví Diora, đủ tổng tiền sau ưu đãi sẽ được giữ khi đặt và giải ngân sau khi nhận hàng. COD cần đối soát tiền thu hộ trước khi hoàn tất.'],
+ ['Giỏ hàng và vận chuyển','Một đơn Marketplace có thể chứa nhiều sản phẩm từ cùng một nghệ nhân. Phí vận chuyển tính một lần cho đơn, theo mức phí cao nhất của các sản phẩm trong giỏ. Nghệ nhân khác nhau được tách thành các đơn riêng.'],
+ ['Voucher Marketplace','Voucher được máy chủ kiểm tra khi đặt hàng, chỉ giảm tiền khách cần trả trong giới hạn phí nền tảng mà DioraLink tài trợ. Giá trị ưu đãi không làm giảm tiền hàng nghệ nhân nhận được. Voucher hết hạn, hết lượt hoặc đã sử dụng không thể áp dụng.'],
  ['Nạp và rút tiền','Nạp chỉ được cộng sau khi admin đối soát ngân hàng. Nhập đúng mã nạp và số tiền. DioraLink không chịu trách nhiệm đối với sai sót do người gửi nhập sai thông tin; vui lòng liên hệ hỗ trợ với chứng từ để kiểm tra. Rút tiền được xử lý bởi admin; số tiền yêu cầu rút sẽ tạm giữ.'],
  ['Ẩn danh người mua','Nghệ nhân chỉ thấy mã khách theo đơn; tên, điện thoại và địa chỉ nhận hàng do nền tảng quản lý và dùng để điều phối giao hàng. Khách vẫn xem được thông tin nghệ nhân.'],
  ['Giao hàng','Admin điều phối vận đơn và cập nhật mã SPX. Không gửi thông tin liên hệ cá nhân trong trao đổi.'],
@@ -43,10 +45,11 @@ function aggregate(rows,p){
   if(!['completed','cancelled','refunded'].includes(o.status)||o.dispute_open)totals.pending++;
   const day=days.get(dayVi(o.created_at));if(day)day.orders++;
   if(recognized){
-   totals.completed++;totals.goods+=goods;totals.shipping+=Number(o.shipping_amount);totals.platformFee+=fee;totals.artistNet+=goods-fee;
+   totals.completed++;totals.goods+=goods;totals.shipping+=Number(o.shipping_amount);totals.platformFee+=fee;totals.artistNet+=Number(o.artist_net);
    if(day){day.completed++;day.goods+=goods;day.platformFee+=fee;}
-   const s=sellers.get(o.seller_id)||{id:o.seller_id,name:o.seller_name,orders:0,goods:0,platformFee:0,artistNet:0};s.orders++;s.goods+=goods;s.platformFee+=fee;s.artistNet+=goods-fee;sellers.set(o.seller_id,s);
-   const a=products.get(o.product_id)||{id:o.product_id,title:o.product_snapshot.title,quantity:0,goods:0};a.quantity+=o.quantity;a.goods+=goods;products.set(o.product_id,a);
+   const s=sellers.get(o.seller_id)||{id:o.seller_id,name:o.seller_name,orders:0,goods:0,platformFee:0,artistNet:0};s.orders++;s.goods+=goods;s.platformFee+=fee;s.artistNet+=Number(o.artist_net);sellers.set(o.seller_id,s);
+   const lines=Array.isArray(o.items)&&o.items.length?o.items:[{product_id:o.product_id,title:o.product_snapshot.title,quantity:o.quantity,goods}];
+   for(const line of lines){const amount=Number(line.goods??(line.price!==undefined?Number(line.price)*line.quantity:goods));const a=products.get(line.product_id)||{id:line.product_id,title:line.title,quantity:0,goods:0};a.quantity+=Number(line.quantity);a.goods+=amount;products.set(line.product_id,a);}
   }
  }
  totals.averageOrder=totals.completed?Math.round(totals.goods/totals.completed):0;
