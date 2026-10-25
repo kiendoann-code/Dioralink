@@ -447,11 +447,11 @@ const NAV_CUSTOMER=[['wallet','Ví Diora','wallet'],
 ];
 const NAV_ARTISAN=[['wallet','Ví Diora','wallet'],
   ['marketplace','Marketplace','store'],['market-seller','Gian hàng','package'],['market-sales','Đơn bán','shopping-bag'],
-  ['artisan-dashboard','Dashboard','layout-dashboard'],['artisan-requests','Requests','inbox'],['artisan-proposals','Proposals','send'],['artisan-projects','Projects','layers'],['messages','Messages','message-circle'],['complaints','Khiếu nại','shield-alert'],['artisan-portfolio','Hồ sơ nghệ nhân','images'],['artisan-earnings','Earnings','wallet-cards'],['account','Account','user']
+  ['artisan-dashboard','Dashboard','layout-dashboard'],['artisan-requests','Requests','inbox'],['artisan-proposals','Proposals','send'],['artisan-projects','Projects','layers'],['messages','Messages','message-circle'],['complaints','Khiếu nại','shield-alert'],['artisan-portfolio','Hồ sơ nghệ nhân','images'],['artisan-recovery','Khôi phục hồ sơ','refresh-cw'],['artisan-earnings','Earnings','wallet-cards'],['account','Account','user']
 ];
 const NAV_ADMIN=[['admin-wallet','Ví Diora','wallet'],
   ['marketplace','Marketplace','store'],['admin-market','Kinh doanh Marketplace','chart-column'],
-  ['admin-dashboard','Finance','wallet-cards'],['admin-analytics','Analytics','activity'],['admin-commissions','Commissions','receipt-text'],['admin-complaints','Khiếu nại','shield-alert'],['admin-notifications','Notifications','bell']
+  ['admin-dashboard','Finance','wallet-cards'],['admin-analytics','Analytics','activity'],['admin-commissions','Commissions','receipt-text'],['admin-complaints','Khiếu nại','shield-alert'],['admin-artisan-recovery','Khôi phục nghệ nhân','shield-check'],['admin-notifications','Notifications','bell']
 ];
 
 function routeParts(){
@@ -704,16 +704,16 @@ function render(){
   if(!isAuthenticated() && ['market-checkout','market-order','market-seller'].includes(route))sessionStorage.setItem('dioralink_market_after_login',route+(param?'/'+param:''));
   const protectedCustomer=['market-checkout','market-orders','customer-dashboard','commission','requests','request','projects','project','saved'];
   if(protectedCustomer.includes(route) && !requireRole('customer')) return;
-  const protectedArtisan=['market-seller','market-sales','artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings'];
+  const protectedArtisan=['market-seller','market-sales','artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings','artisan-recovery'];
   if(protectedArtisan.includes(route) && !requireRole('artisan')) return;
-  const protectedAdmin=['admin-wallet','admin-market','admin-market-order','admin-dashboard','admin-analytics','admin-commissions','admin-complaints','admin-notifications'];
+  const protectedAdmin=['admin-wallet','admin-market','admin-market-order','admin-dashboard','admin-analytics','admin-commissions','admin-complaints','admin-notifications','admin-artisan-recovery'];
   if(protectedAdmin.includes(route) && !requireAdmin()) return;
   if(['wallet','complaints'].includes(route) && !requireAuth())return;
   if(route==='messages' && (!requireAuth() || !['customer','artisan'].includes(currentRole())))return;
   if(route==='market-order' && !requireAuth())return;
   const map={'wallet':renderWallet,'admin-wallet':renderAdminWallet,'market-checkout':()=>renderMarketCheckout(param),'market-orders':()=>renderMarketOrders(false),'market-sales':()=>renderMarketOrders(true),'market-order':()=>renderMarketOrder(param),'market-seller':renderMarketSeller,'admin-market':renderMarketAdmin,'admin-market-order':()=>renderMarketOrder(param,true),home:renderHome,'customer-dashboard':renderCustomerDashboard,explore:renderExplore,creator:()=>renderCreator(param),commission:renderCommission,requests:renderRequests,request:()=>renderRequest(param),projects:renderProjects,project:()=>renderProject(param),messages:renderMessages,complaints:renderComplaints,saved:renderSaved,account:renderAccount,trust:renderTrust,
-    'artisan-dashboard':renderArtisanDashboard,'artisan-requests':renderArtisanRequests,'artisan-request':()=>renderArtisanRequest(param),'artisan-proposals':renderArtisanProposals,'artisan-projects':renderArtisanProjects,'artisan-project':()=>renderArtisanProject(param),'artisan-portfolio':renderArtisanPortfolio,'artisan-earnings':renderArtisanEarnings,
-    'admin-dashboard':renderAdminDashboard,'admin-analytics':renderAdminAnalytics,'admin-commissions':renderAdminCommissions,'admin-complaints':renderAdminComplaints,'admin-notifications':renderAdminNotifications};
+    'artisan-dashboard':renderArtisanDashboard,'artisan-requests':renderArtisanRequests,'artisan-request':()=>renderArtisanRequest(param),'artisan-proposals':renderArtisanProposals,'artisan-projects':renderArtisanProjects,'artisan-project':()=>renderArtisanProject(param),'artisan-portfolio':renderArtisanPortfolio,'artisan-earnings':renderArtisanEarnings,'artisan-recovery':renderArtisanRecovery,
+    'admin-dashboard':renderAdminDashboard,'admin-analytics':renderAdminAnalytics,'admin-commissions':renderAdminCommissions,'admin-complaints':renderAdminComplaints,'admin-notifications':renderAdminNotifications,'admin-artisan-recovery':renderAdminArtisanRecovery};
   (map[route]||renderHome)();
   refreshShell();
   window.scrollTo({top:0,behavior:'instant'});
