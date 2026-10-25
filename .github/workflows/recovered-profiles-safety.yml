@@ -24,4 +24,5 @@ jobs:
           node-version: '24'
       - run: node --check seo.js
       - run: node --check Public/app.js
+      - run: npm ci --no-audit --no-fund
       - run: node --test test/recovered-profiles.test.js
