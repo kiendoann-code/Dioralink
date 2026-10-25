@@ -1,0 +1,65 @@
+name: Deploy DioraLink to Koyeb Free (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      data_restored:
+        description: "I verified that original users, orders, commissions and wallet ledger were migrated into Neon."
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dioralink-koyeb-free-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to a temporary Koyeb URL (not production DNS)
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      KOYEB_API_TOKEN: ${{ secrets.KOYEB_API_TOKEN }}
+      DIORALINK_DATABASE_URL: ${{ secrets.DIORALINK_DATABASE_URL }}
+      DIORALINK_JWT_SECRET: ${{ secrets.DIORALINK_JWT_SECRET }}
+    steps:
+      - name: Block deployment until data is recovered and secrets are configured
+        env:
+          DATA_RESTORED: ${{ inputs.data_restored }}
+        run: |
+          if [[ "$DATA_RESTORED" != "true" ]]; then
+            echo "::error::DioraLink data must be restored and verified before deployment."
+            exit 1
+          fi
+          for key in KOYEB_API_TOKEN DIORALINK_DATABASE_URL DIORALINK_JWT_SECRET; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::Missing required GitHub Actions secret: $key"
+              exit 1
+            fi
+          done
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Install Koyeb CLI
+        uses: koyeb-community/koyeb-actions@v2
+        with:
+          api_token: ${{ secrets.KOYEB_API_TOKEN }}
+      - name: Deploy DioraLink on the free Frankfurt instance
+        uses: koyeb/action-git-deploy@v1
+        with:
+          app-name: dioralink
+          service-name: api
+          git-url: github.com/kiendoann-code/Dioralink
+          git-branch: main
+          git-sha: ${{ github.sha }}
+          git-builder: buildpack
+          git-run-command: npm start
+          service-type: web
+          service-instance-type: free
+          service-regions: fra
+          service-ports: "3000:http"
+          service-routes: "/:3000"
+          service-checks: "3000:http:/api/health"
+          service-env: PORT=3000,NODE_ENV=production,DATABASE_URL=${{ secrets.DIORALINK_DATABASE_URL }},JWT_SECRET=${{ secrets.DIORALINK_JWT_SECRET }}
