@@ -384,7 +384,7 @@ function applyAuthenticatedUser(u,provider='email'){
 
 function roleAfterLogin(role){
   const next=sessionStorage.getItem('dioralink_market_after_login');
-  if(next && role==='customer' && (next==='market-cart'||/^(market-checkout|market-order)\/[a-f0-9-]+$/.test(next)||next==='market-checkout/cart')){sessionStorage.removeItem('dioralink_market_after_login');return next;}
+  if(next && role==='customer' && /^(market-checkout|market-order)\/[a-f0-9-]+$/.test(next)){sessionStorage.removeItem('dioralink_market_after_login');return next;}
   if(next==='market-seller' && role==='artisan'){sessionStorage.removeItem('dioralink_market_after_login');return next;}
   return role==='artisan'?'artisan-dashboard':'customer-dashboard';
 }
@@ -442,7 +442,7 @@ const NAV_PUBLIC=[
   ['home','Home','house'],['marketplace','Marketplace','store'],['services','Dịch vụ','layers'],['explore','Creators','compass'],['trust','Trust','badge-check']
 ];
 const NAV_CUSTOMER=[['wallet','Ví Diora','wallet'],
-  ['marketplace','Marketplace','store'],['market-cart','Giỏ hàng','shopping-cart'],['market-orders','Đơn mua','shopping-bag'],
+  ['marketplace','Marketplace','store'],['market-orders','Đơn mua','shopping-bag'],
   ['customer-dashboard','Dashboard','layout-dashboard'],['explore','Creators','compass'],['commission','New Commission','plus-circle'],['requests','Requests','file-text'],['projects','Projects','layers'],['messages','Messages','message-circle'],['complaints','Khiếu nại','shield-alert'],['saved','Saved','bookmark'],['account','Account','user']
 ];
 const NAV_ARTISAN=[['wallet','Ví Diora','wallet'],
@@ -701,8 +701,8 @@ function render(){
   }
   document.querySelector('meta[name="robots"]')?.setAttribute('content','noindex,follow');
   const [route,param]=routeParts();
-  if(!isAuthenticated() && ['market-cart','market-checkout','market-order','market-seller'].includes(route))sessionStorage.setItem('dioralink_market_after_login',route+(param?'/'+param:''));
-  const protectedCustomer=['market-cart','market-checkout','market-orders','customer-dashboard','commission','requests','request','projects','project','saved'];
+  if(!isAuthenticated() && ['market-checkout','market-order','market-seller'].includes(route))sessionStorage.setItem('dioralink_market_after_login',route+(param?'/'+param:''));
+  const protectedCustomer=['market-checkout','market-orders','customer-dashboard','commission','requests','request','projects','project','saved'];
   if(protectedCustomer.includes(route) && !requireRole('customer')) return;
   const protectedArtisan=['market-seller','market-sales','artisan-dashboard','artisan-requests','artisan-request','artisan-proposals','artisan-projects','artisan-project','artisan-portfolio','artisan-earnings'];
   if(protectedArtisan.includes(route) && !requireRole('artisan')) return;
@@ -711,7 +711,7 @@ function render(){
   if(['wallet','complaints'].includes(route) && !requireAuth())return;
   if(route==='messages' && (!requireAuth() || !['customer','artisan'].includes(currentRole())))return;
   if(route==='market-order' && !requireAuth())return;
-  const map={'wallet':renderWallet,'admin-wallet':renderAdminWallet,'market-cart':renderMarketCart,'market-checkout':()=>renderMarketCheckout(param),'market-orders':()=>renderMarketOrders(false),'market-sales':()=>renderMarketOrders(true),'market-order':()=>renderMarketOrder(param),'market-seller':renderMarketSeller,'admin-market':renderMarketAdmin,'admin-market-order':()=>renderMarketOrder(param,true),home:renderHome,'customer-dashboard':renderCustomerDashboard,explore:renderExplore,creator:()=>renderCreator(param),commission:renderCommission,requests:renderRequests,request:()=>renderRequest(param),projects:renderProjects,project:()=>renderProject(param),messages:renderMessages,complaints:renderComplaints,saved:renderSaved,account:renderAccount,trust:renderTrust,
+  const map={'wallet':renderWallet,'admin-wallet':renderAdminWallet,'market-checkout':()=>renderMarketCheckout(param),'market-orders':()=>renderMarketOrders(false),'market-sales':()=>renderMarketOrders(true),'market-order':()=>renderMarketOrder(param),'market-seller':renderMarketSeller,'admin-market':renderMarketAdmin,'admin-market-order':()=>renderMarketOrder(param,true),home:renderHome,'customer-dashboard':renderCustomerDashboard,explore:renderExplore,creator:()=>renderCreator(param),commission:renderCommission,requests:renderRequests,request:()=>renderRequest(param),projects:renderProjects,project:()=>renderProject(param),messages:renderMessages,complaints:renderComplaints,saved:renderSaved,account:renderAccount,trust:renderTrust,
     'artisan-dashboard':renderArtisanDashboard,'artisan-requests':renderArtisanRequests,'artisan-request':()=>renderArtisanRequest(param),'artisan-proposals':renderArtisanProposals,'artisan-projects':renderArtisanProjects,'artisan-project':()=>renderArtisanProject(param),'artisan-portfolio':renderArtisanPortfolio,'artisan-earnings':renderArtisanEarnings,
     'admin-dashboard':renderAdminDashboard,'admin-analytics':renderAdminAnalytics,'admin-commissions':renderAdminCommissions,'admin-complaints':renderAdminComplaints,'admin-notifications':renderAdminNotifications};
   (map[route]||renderHome)();

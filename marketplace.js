@@ -32,20 +32,7 @@ async function ensureMarketplaceSchema(pool){
  CREATE INDEX IF NOT EXISTS market_events_order ON market_order_events(order_id,created_at);
  ALTER TABLE market_orders DROP CONSTRAINT IF EXISTS market_orders_payment_method_check;
  ALTER TABLE market_orders ADD CONSTRAINT market_orders_payment_method_check CHECK(payment_method IN ('transfer','cod','wallet'));
- ALTER TABLE market_orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
- ALTER TABLE market_orders ADD COLUMN IF NOT EXISTS voucher_code TEXT NOT NULL DEFAULT '';
- ALTER TABLE market_orders ADD COLUMN IF NOT EXISTS voucher_discount BIGINT NOT NULL DEFAULT 0;
- ALTER TABLE market_orders ADD COLUMN IF NOT EXISTS voucher_reversed BOOLEAN NOT NULL DEFAULT FALSE;
- CREATE TABLE IF NOT EXISTS market_vouchers (
-  code TEXT PRIMARY KEY,kind TEXT NOT NULL CHECK(kind IN ('fixed','percent')),
-  value BIGINT NOT NULL CHECK(value>0),min_goods BIGINT NOT NULL DEFAULT 0,
-  max_discount BIGINT NOT NULL DEFAULT 0,usage_limit INTEGER NOT NULL CHECK(usage_limit>0),
-  used INTEGER NOT NULL DEFAULT 0 CHECK(used>=0),active BOOLEAN NOT NULL DEFAULT TRUE,
-  starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),ends_at TIMESTAMPTZ,
-  created_by TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
- );
  `);
-
 }
 function settingsInput(b){const s={bank_name:text(b.bank_name,120),account_name:text(b.account_name,150),account_number:text(b.account_number,40),allow_transfer:b.allow_transfer===true,allow_cod:b.allow_cod===true};if(s.allow_transfer&&(!s.bank_name||!s.account_name||!/^\d{6,30}$/.test(s.account_number)))fail('Điền đầy đủ ngân hàng, chủ tài khoản và số tài khoản để nhận chuyển khoản.');if(!s.allow_transfer&&!s.allow_cod)fail('Chọn ít nhất một phương thức thanh toán.');return s;}
 function marketImage(value){try{const image=safeImage(value);if(!image)fail('Ảnh không được để trống.');return image;}catch(e){fail(e.message);}}
@@ -75,12 +62,7 @@ function publicProduct(p){return {id:p.id,slug:p.slug,title:p.title,description:
 function sanitizeOrder(o,viewer,admin=false){const copy={...o};if(!admin&&viewer?.id!==o.buyer_id){copy.buyer_id=alias(o.id);copy.buyer_name=alias(o.id);copy.recipient={name:alias(o.id),phone:'Do nền tảng quản lý',address:'DioraLink điều phối giao hàng'};}delete copy.request_hash;delete copy.request_key;if(o.status==='pending')copy.bank_snapshot={};return copy;}
 async function transaction(pool,fn){const client=await pool.connect();try{await client.query('BEGIN');const result=await fn(client);await client.query('COMMIT');return result;}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}}
 async function event(client,o,actor,action,note='',evidence=[]){await client.query('INSERT INTO market_order_events(id,order_id,actor_id,actor_role,action,note,evidence) VALUES($1,$2,$3,$4,$5,$6,$7)',[crypto.randomUUID(),o.id,actor.id,actor.role,action,note,JSON.stringify(evidence)]);}
-async function releaseStock(c,o){
- if(o.stock_released)return;
- const lines=Array.isArray(o.items)&&o.items.length?o.items:[{product_id:o.product_id,quantity:o.quantity}];
- for(const line of lines)await c.query('UPDATE market_products SET stock=stock+$1,updated_at=NOW() WHERE id=$2',[line.quantity,line.product_id]);
- o.stock_released=true;
-}
+async function releaseStock(c,o){if(!o.stock_released){await c.query('UPDATE market_products SET stock=stock+$1,updated_at=NOW() WHERE id=$2',[o.quantity,o.product_id]);o.stock_released=true;}}
 async function changeOrder(c,o,actor,action,b={}){
  const isAdmin=actor.role==='admin',seller=actor.id===o.seller_id&&actor.role==='artisan',buyer=!isAdmin&&actor.id===o.buyer_id;
  if(!isAdmin&&!seller&&!buyer)fail('Bạn không có quyền xem đơn này.',404);
@@ -115,11 +97,7 @@ async function changeOrder(c,o,actor,action,b={}){
   if(action==='cancel'||action==='cancel_unpaid'||action==='refund'){await settle(c,'market:'+o.id,true);o.payment_status='refunded';if(action==='refund'){o.status='refunded';o.dispute_open=false;await releaseStock(c,o);}}
   if(action==='receive'){await settle(c,'market:'+o.id);o.payment_status='received';o.fee_collected_amount=Number(o.platform_fee);}
  }
- if(o.voucher_code&&!o.voucher_reversed&&['cancel','cancel_unpaid','refund','confirm_refund','admin_confirm_refund'].includes(action)&&['cancelled','refunded'].includes(o.status)){
-  await c.query('UPDATE market_vouchers SET used=GREATEST(used-1,0) WHERE code=$1',[o.voucher_code]);
-  o.voucher_reversed=true;
- }
- await c.query(`UPDATE market_orders SET status=$2,payment_status=$3,tracking_number=$4,dispute_open=$5,stock_released=$6,completed_at=$7,fee_collected_amount=$8,fee_returned_amount=$9,voucher_reversed=$10,updated_at=NOW() WHERE id=$1`,[o.id,o.status,o.payment_status,o.tracking_number,o.dispute_open,o.stock_released,o.completed_at,o.fee_collected_amount,o.fee_returned_amount,o.voucher_reversed]);
+ await c.query(`UPDATE market_orders SET status=$2,payment_status=$3,tracking_number=$4,dispute_open=$5,stock_released=$6,completed_at=$7,fee_collected_amount=$8,fee_returned_amount=$9,updated_at=NOW() WHERE id=$1`,[o.id,o.status,o.payment_status,o.tracking_number,o.dispute_open,o.stock_released,o.completed_at,o.fee_collected_amount,o.fee_returned_amount]);
  await event(c,o,actor,action,[note,ref?'Mã chứng từ: '+ref:''].filter(Boolean).join('\n'),evidence);
  return o;
 }
@@ -135,7 +113,7 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
   return (await pool.query(`${publicSelect} WHERE p.status='active' AND (p.title ILIKE $1 OR p.description ILIKE $1 OR COALESCE(a.profile->>'name',u.name) ILIKE $1) AND ($2='' OR p.category=$2) ORDER BY ${order} LIMIT $3 OFFSET $4`,params)).rows.map(publicProduct);
  };
  const getProduct=async(pid)=>(await pool.query(publicSelect+' WHERE p.id=$1',[pid])).rows[0];
- const summaryFields='id,buyer_id,seller_id,product_id,quantity,payment_method,status,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,tracking_number,terms_version,terms_accepted_at,dispute_open,stock_released,fee_collected_amount,fee_returned_amount,completed_at,created_at,updated_at,items,voucher_code,voucher_discount,voucher_reversed'.split(',').map(k=>'o.'+k).join(',');
+ const summaryFields='id,buyer_id,seller_id,product_id,quantity,payment_method,status,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,tracking_number,terms_version,terms_accepted_at,dispute_open,stock_released,fee_collected_amount,fee_returned_amount,completed_at,created_at,updated_at'.split(',').map(k=>'o.'+k).join(',');
  const listOrders=async(where,params,light=false)=> (await pool.query(`SELECT ${light?summaryFields+",(o.product_snapshot - 'images') AS product_snapshot":'o.*'},u.name AS seller_name,b.name AS buyer_name FROM market_orders o JOIN users u ON u.id=o.seller_id JOIN users b ON b.id=o.buyer_id ${where}`,params)).rows;
  const readOrder=async(req,admin=false)=>{
   const o=(await listOrders('WHERE o.id=$1',[id(req.params.id)]))[0];if(!o||(!admin&&req.user.id!==o.buyer_id&&req.user.id!==o.seller_id))fail('Không tìm thấy đơn hàng.',404);
@@ -146,14 +124,12 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
   if(!p||p.status!=='active')fail('Sản phẩm không còn bán.',404);
   const qty=integer(quantity,1,99,'Số lượng');if(p.stock<qty)fail('Số lượng vượt quá tồn kho.',409);
   const settings=(await pool.query('SELECT * FROM market_seller_settings WHERE seller_id=$1',[p.seller_id])).rows[0]||{allow_cod:true,allow_transfer:false};
-  if(method&&!['wallet','cod'].includes(method))fail('Phương thức thanh toán không khả dụng.');
-  if(method==='cod'&&!settings.allow_cod)fail('Nghệ nhân chưa hỗ trợ COD.',409);
-  return {quantity:qty,...amounts(Number(p.price),qty,Number(p.shipping_fee)),allow_transfer:false,allow_cod:settings.allow_cod!==false,allow_wallet:true,version:p.version,terms_version:TERMS_VERSION};
+  if(method&&method!=='wallet')fail('Phương thức thanh toán không khả dụng.');
+  return {quantity:qty,...amounts(Number(p.price),qty,Number(p.shipping_fee)),allow_transfer:false,allow_cod:false,allow_wallet:true,version:p.version,terms_version:TERMS_VERSION};
  };
  router.use('/api/market',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
  router.use('/api/admin/market',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
  router.get('/api/market/terms',(req,res)=>res.json({version:TERMS_VERSION,sections:TERMS}));
- router.use(require('./marketplace-cart').createCartRoutes({pool,requireAuth,requireAdmin,transaction,sanitizeOrder}));
  router.get('/api/market/products',wrap(async(req,res)=>{const page=integer(req.query.page||1,1,100000,'Trang');res.json({products:await getProducts(24,(page-1)*24,text(req.query.q,100),text(req.query.category,60),req.query.sort),page});}));
  router.get('/api/market/products/:id',wrap(async(req,res)=>{const p=await getProduct(id(req.params.id));if(!p||p.status!=='active')fail('Không tìm thấy sản phẩm.',404);res.json({product:publicProduct(p),quote:await quote({...p,stock:Math.max(1,p.stock)},1)});}));
  router.get('/api/market/products/:id/quote',wrap(async(req,res)=>res.json(await quote(await getProduct(id(req.params.id)),req.query.quantity||1,req.query.method))));
@@ -194,7 +170,7 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
    if(p.version!==Number(req.body.product_version))fail('Sản phẩm vừa được cập nhật. Xem lại giá và đặt lại đơn.',409);
    if(p.stock<quantity)fail('Sản phẩm không còn đủ tồn kho.',409);
    const settings=(await c.query('SELECT * FROM market_seller_settings WHERE seller_id=$1',[p.seller_id])).rows[0]||{allow_cod:true,allow_transfer:false};
-   if(!['wallet','cod'].includes(method)||(method==='cod'&&settings.allow_cod===false))fail('Phương thức thanh toán không khả dụng.');
+   if(method!=='wallet')fail('Phương thức thanh toán không khả dụng.');
    const n=amounts(Number(p.price),quantity,Number(p.shipping_fee)),oid=crypto.randomUUID();
    const snapshot={title:p.title,description:p.description,category:p.category,condition:p.condition,price:Number(p.price),slug:p.slug,images:p.images,version:p.version};
    const bank=method==='transfer'?{bank_name:settings.bank_name,account_name:settings.account_name,account_number:settings.account_number}:{};

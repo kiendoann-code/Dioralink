@@ -3,7 +3,7 @@ const {test,before,after}=require('node:test');const assert=require('node:assert
 before(async()=>{f=await fixture();});after(async()=>f?.close());
 const bank={bank_name:'MB',account_name:'TEST CUSTOMER',account_number:'123456789'};
 const post=(route,body,user='buyer',admin=false)=>f.api(route,{user,admin,method:'POST',body});
-test('contact policy blocks contact bypass attempts while allowing long numeric content',()=>{for(const text of ['zalo','Z A L O','z.a.l.o','dép lào','DALO','FB','f.b','Facebook','phở bò','mail','a@gmail.com','https://abc.test','example.vn','contact.dev','example.store','za\u200blo'])assert.ok(contactReason(text),text);for(const text of ['Mô hình tỷ lệ 1:64','Báo giá 500.000đ','Mốc 2 hoàn thành','Ngày 14/10/26','090 123 4567','１２３４５６７８９'])assert.equal(contactReason(text),'',text);});
+test('contact policy blocks variants, URLs, email and >8 digits; ordinary text remains valid',()=>{for(const text of ['zalo','Z A L O','z.a.l.o','dép lào','DALO','FB','f.b','Facebook','phở bò','mail','a@gmail.com','https://abc.test','example.vn','contact.dev','example.store','090 123 4567','１２３４５６７８９','za\u200blo'])assert.ok(contactReason(text),text);for(const text of ['Mô hình tỷ lệ 1:64','Báo giá 500.000đ','Mốc 2 hoàn thành','Ngày 14/10/26'])assert.equal(contactReason(text),'',text);});
 test('topup pending does not credit, review replay credits once, bank snapshots remain immutable',async()=>{
  const balance=Number((await f.api('/api/wallet',{user:'buyer'})).data.account.balance);const request_key=randomUUID();const r=await post('/api/wallet/topups',{amount:100000,request_key});assert.equal(r.status,201);const t=r.data.topup;
  assert.equal(Number((await f.api('/api/wallet',{user:'buyer'})).data.account.balance),balance);
