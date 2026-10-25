@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>DioraLink — Khôi phục dữ liệu nghệ nhân trên thiết bị</title>
+<style>
+:root{color-scheme:light}*{box-sizing:border-box}
+body{background:#f1faf9;color:#193c49;font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;min-height:100vh;display:grid;place-items:center}
+main{max-width:670px;width:calc(100% - 32px);background:white;border:1px solid #c5e6df;border-radius:20px;padding:32px;box-shadow:0 16px 60px #1d666211}
+h1{font-size:clamp(22px,5vw,28px);line-height:1.3;margin:8px 0 16px}.brand{font-size:23px;font-weight:800;color:#139c96}
+button{font:inherit;font-weight:700;color:white;background:#0d928a;border:0;border-radius:12px;cursor:pointer;padding:13px 22px}
+button:disabled{opacity:.5;cursor:wait}
+.callout{border-radius:12px;background:#eef9f6;padding:14px;margin:18px 0;color:#315d60}
+ul{padding-left:22px}li{margin:7px 0}small{color:#61787e}
+#result{margin-top:18px;white-space:pre-wrap;overflow-wrap:anywhere;background:#f7fbfa;border-radius:12px;padding:12px;min-height:48px}
+</style>
+</head>
+<body><main>
+<div class="brand">DioraLink</div>
+<h1>Kiểm tra bản sao hồ sơ nghệ nhân trên trình duyệt</h1>
+<p>Trang này kiểm tra dữ liệu <b>đã lưu từ trước trên chính thiết bị và trình duyệt này</b>: hồ sơ công khai, hình ảnh trong bản nháp Marketplace và một số bản nháp biểu mẫu.</p>
+<div class="callout"><b>An toàn dữ liệu:</b> Không cần đăng nhập, không xóa dữ liệu, không gửi thông tin lên máy chủ. Mọi dữ liệu được xử lý ngay trên máy của bạn. Trang này không thể lấy lại toàn bộ database PostgreSQL cũ.</div>
+<ul><li>Hãy dùng đúng trình duyệt đã từng đăng nhập DioraLink trước khi website xảy ra sự cố.</li><li><b>Không xóa lịch sử hoặc dữ liệu trang web</b> trước khi xuất.</li><li>File xuất ra có thể chứa ảnh và bản nháp chưa công khai. Hãy lưu giữ riêng tư.</li></ul>
+<button id="export" type="button">Kiểm tra và tải dữ liệu còn lưu</button>
+<div id="result" role="status" aria-live="polite">Chưa kiểm tra.</div>
+<small>Chỉ xuất nội dung phục vụ phục hồi hồ sơ và sản phẩm. Không xuất cookie đăng nhập, token, số dư ví hoặc tài khoản ngân hàng. Dữ liệu ví và đơn hàng cần xác minh riêng.</small>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const validStr = value => typeof value === "string" ? value : "";
+const readJSON = key => {try {return JSON.parse(localStorage.getItem(key)||"null");}catch {return null;}};
+function pick(obj,names) {
+ const out={}; if(!obj || typeof obj!=="object" || Array.isArray(obj))return out;
+ for(const key of names)if(Object.prototype.hasOwnProperty.call(obj,key))out[key]=obj[key];
+ return out;
+}
+function artistCopy(artist) {
+ const a=artist||{};
+ const id=validStr(a.id);
+ const isLive=/^ART-[a-z0-9-]+$/i.test(id) || (!!a.slug && a.published===true);
+ if(!isLive)return null; // Discard hard-coded sample personas A-001..A-004.
+ return pick(a,["id","slug","name","handle","city","bio","response","specialties","startingPrice","avatar","hero","portfolio","updatedAt","published"]);
+}
+function localContent() {
+ const raw=readJSON("dioralink_state_v25_directpay");
+ const artists=(Array.isArray(raw?.artisans)?raw.artisans:[]).map(artistCopy).filter(Boolean);
+ const drafts=[],imageDrafts=[];
+ const prefixes=["dioralink_form_draft_v1:","dioralink_market_product_media_v1:"];
+ for(let i=0;i<localStorage.length;i++){
+   const key=localStorage.key(i);
+   if(!key || !prefixes.some(p=>key.startsWith(p)))continue;
+   if(key.startsWith("dioralink_form_draft_v1:")){
+      // Recover profile/product form drafts; exclude financial/complaint/commission forms.
+      if(!/:profile:|:market-product:/.test(key))continue;
+      const data=readJSON(key);
+      if(!data?.values)continue;
+      const fields=pick(data.values,["name","city","bio","avatar","title","description","category","condition","price","shipping_fee","stock","status"]);
+      drafts.push({key,savedAt:data.savedAt||null,fields});
+   } else {
+      const data=readJSON(key);
+      if(!Array.isArray(data?.images))continue;
+      imageDrafts.push({key,savedAt:data.savedAt||null,images:data.images});
+   }
+ }
+ return {artists,drafts,imageDrafts};
+}
+function referencedAssetIds(data) {
+ const ids=new Set();
+ function scan(value){
+   if(typeof value==="string"){
+      if(/^asset:[a-z0-9_-]+$/i.test(value))ids.add(value.slice(6));
+   }else if(Array.isArray(value)){
+      value.forEach(scan);
+   }else if(value&&typeof value==="object"){
+      Object.values(value).forEach(scan);
+   }
+ }
+ scan(data);
+ return [...ids];
+}
+function blobAsDataUrl(blob) {
+ return new Promise((resolve,reject)=>{
+   const f=new FileReader();
+   f.onload=()=>resolve(f.result);
+   f.onerror=()=>reject(f.error);
+   f.readAsDataURL(blob);
+ });
+}
+async function savedImages(ids) {
+ if(!ids.length || !window.indexedDB)return {items:[],missing:ids};
+ if(typeof indexedDB.databases==="function"){
+   const dbs=await indexedDB.databases();
+   if(!dbs.some(x=>x.name==="dioralink_attachment_store_v1"))return {items:[],missing:ids};
+ }
+ const db=await new Promise((resolve,reject)=>{
+   const req=indexedDB.open("dioralink_attachment_store_v1");
+   req.onupgradeneeded=()=>{req.transaction.abort();reject(new Error("Không tìm thấy kho ảnh cũ."));};
+   req.onsuccess=()=>resolve(req.result);
+   req.onerror=()=>reject(req.error);
+ });
+ try {
+   if(!db.objectStoreNames.contains("blobs"))return {items:[],missing:ids};
+   const items=[],missing=[];let size=0;
+   for(const id of ids.slice(0,100)){
+     const record=await new Promise((resolve,reject)=>{
+       const tx=db.transaction("blobs","readonly");
+       const q=tx.objectStore("blobs").get(id);
+       q.onsuccess=()=>resolve(q.result);
+       q.onerror=()=>reject(q.error);
+     });
+     if(!record?.blob || size+record.blob.size>25*1024*1024){missing.push(id);continue;}
+     size+=record.blob.size;
+     items.push({id,name:record.name||"",mime:record.blob.type||"",image:await blobAsDataUrl(record.blob)});
+   }
+   missing.push(...ids.slice(100));
+   return {items,missing};
+ }finally{db.close();}
+}
+$("export").addEventListener("click",async()=>{
+ $("export").disabled=true;$("result").textContent="Đang kiểm tra dữ liệu trong trình duyệt...";
+ try {
+   const data=localContent();
+   const ids=referencedAssetIds(data);
+   let images={items:[],missing:ids};
+   try{images=await savedImages(ids);}catch(err){images.error=String(err?.message||err);}
+   const dataFound=data.artists.length+data.drafts.length+data.imageDrafts.length+images.items.length;
+   if(!dataFound){
+     $("result").textContent="Chưa tìm thấy hồ sơ nghệ nhân hoặc bản nháp phù hợp trên trình duyệt này. Hãy thử máy/trình duyệt khác từng sử dụng DioraLink; không xóa dữ liệu trình duyệt.";
+     return;
+   }
+   const backup={source:"DioraLink browser local recovery",exportedAt:new Date().toISOString(),origin:location.origin,
+     warning:"Device-level partial copy, NOT a verified database backup. Must distinguish public profiles from browser drafts and match original artist identity before importing.",
+     ...data,assetImages:images.items,missingAssetIds:images.missing,assetError:images.error||null};
+   const file=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+   const download=URL.createObjectURL(file);
+   const a=document.createElement("a");a.href=download;a.download="DioraLink_CuuHoSoNgheNhan_"+new Date().toISOString().slice(0,10)+".json";
+   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(download),60000);
+   $("result").textContent="Đã tạo file: "+data.artists.length+" hồ sơ nghệ nhân thực (không tính bản demo), "+data.drafts.length+" bản nháp biểu mẫu, "+data.imageDrafts.length+" bản nháp ảnh sản phẩm, "+images.items.length+" ảnh bổ sung. Ảnh chưa lấy được: "+images.missing.length+".\nNếu file chứa thông tin thật, có thể sử dụng làm nguồn đối chiếu để dựng lại hồ sơ và sản phẩm.";
+ }catch(err){
+   $("result").textContent="Không thể xuất dữ liệu: "+String(err?.message||err);
+ }finally{$("export").disabled=false;}
+});
+</script>
+</body></html>

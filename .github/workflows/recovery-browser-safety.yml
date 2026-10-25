@@ -1,0 +1,21 @@
+name: DioraLink browser recovery safety
+on:
+  pull_request:
+    paths:
+      - "Public/recovery-export.html"
+      - "test/recovery-browser.test.js"
+      - ".github/workflows/recovery-browser-safety.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Public/recovery-export.html"
+      - "test/recovery-browser.test.js"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test test/recovery-browser.test.js
