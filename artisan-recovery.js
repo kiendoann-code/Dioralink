@@ -99,7 +99,10 @@ function createArtisanRecoveryRouter({pool,requireAuth,requireAdmin}){
    for(const img of images){
     const key=clean(img?.id,120),url=img?.image;
     if(typeof url!=='string'||url.length>3*1024*1024)err('Ảnh không hợp lệ.');
-    const match=url.match(/^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+=*)$/);
+    const split=url.indexOf(',');
+    const header=url.slice(0,split),payload=url.slice(split+1);
+    if(!['data:image/jpeg;base64','data:image/png;base64','data:image/webp;base64'].includes(header))err('Định dạng ảnh không hợp lệ.');
+    const match=[null,header.slice(5,-7),payload];
     if(!match)err('Chỉ hỗ trợ JPEG, PNG, WebP.');
     const buffer=Buffer.from(match[2],'base64');
     if(!validBytes(match[1],buffer))err('Ảnh sai định dạng hoặc quá lớn.');
