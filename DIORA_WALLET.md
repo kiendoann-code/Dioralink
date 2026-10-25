@@ -11,13 +11,13 @@
 
 ## Đơn hàng và commission
 
-- Đơn Marketplace mới thanh toán bằng ví: giữ tổng tiền lúc đặt, hoàn khi khách hủy đơn chờ xác nhận, giải ngân khi khách nhận hàng. Tiền hàng trừ phí dịch vụ; phí giao hàng được chuyển cùng khoản cho nghệ nhân.
-- Dữ liệu đơn COD/chuyển khoản cũ được giữ nguyên. Đơn mới không dùng chuyển khoản trực tiếp cho nghệ nhân vì điều đó có thể tiết lộ danh tính người gửi.
+- Đơn Marketplace mới có hai lựa chọn: Ví Diora hoặc COD nếu nghệ nhân bật COD. Với Ví Diora, hệ thống giữ tổng tiền sau voucher lúc đặt, hoàn khi khách hủy đơn chờ xác nhận và giải ngân khi khách nhận hàng. COD thu khi nhận hàng và đối soát trước khi hoàn tất. Tiền hàng trừ phí dịch vụ; phí giao hàng được chuyển cùng khoản cho nghệ nhân.
+- Dữ liệu đơn COD/chuyển khoản cũ được giữ nguyên. Đơn mới không dùng chuyển khoản trực tiếp cho nghệ nhân vì điều đó có thể tiết lộ danh tính người gửi. Một đơn có thể chứa nhiều sản phẩm cùng nghệ nhân, phí vận chuyển chỉ tính một lần theo mức phí cao nhất trong nhóm.
 - Người mua chỉ hiện mã KH theo từng đơn/yêu cầu. Tên, điện thoại, địa chỉ không được gửi về API cho nghệ nhân. Admin xem thông tin nhận hàng và cập nhật vận đơn SPX; không tích hợp API tạo vận đơn SPX tự động.
 - Commission mới: khách giữ tiền từng mốc trước khi nghệ nhân bắt đầu. Nghệ nhân gửi bằng chứng; khách nghiệm thu, sau đó xác nhận thanh toán bằng ví. Chuyển tiền và thu phí diễn ra trong cùng giao dịch cơ sở dữ liệu.
 - Mốc chưa bắt đầu được hoàn khoản giữ khi dừng. Mốc đang làm/bàn giao cần admin đối soát; admin có thể hoàn hoặc giải ngân với lý do. Khoản đã giải ngân không tự động thu hồi từ ví nghệ nhân.
 - Phí commission tính theo tổng ngân sách dự án; phí Marketplace tính theo tiền hàng. Mức phí: 10% <2m; 8% ≤5m; 7% ≤10m; 5% >10m.
-- Voucher demo ở trình duyệt không được phép tự làm giảm tiền thật trong ví. Commission mới không áp dụng voucher demo; muốn triển khai khuyến mại thật cần nguồn tài trợ và quy tắc voucher lưu ở máy chủ.
+- Voucher demo ở trình duyệt không được phép tự làm giảm tiền thật trong ví. Commission mới không áp dụng voucher demo. Marketplace có voucher thật được lưu và xác thực ở máy chủ; phần giảm chỉ lấy từ phí nền tảng, không trừ tiền hàng nghệ nhân. Mỗi khách dùng tối đa một lần/mã, có giới hạn tổng lượt và điều kiện thời gian/giá trị đơn.
 
 ## Lọc nội dung
 
