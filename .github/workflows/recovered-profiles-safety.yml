@@ -1,0 +1,28 @@
+name: DioraLink recovered public profiles safety
+on:
+  pull_request:
+    paths:
+      - "seo.js"
+      - "Public/app.js"
+      - "Public/assets/recovered-public/**"
+      - "test/recovered-profiles.test.js"
+      - ".github/workflows/recovered-profiles-safety.yml"
+  push:
+    branches: [main]
+    paths:
+      - "seo.js"
+      - "Public/app.js"
+      - "Public/assets/recovered-public/**"
+      - "test/recovered-profiles.test.js"
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --check seo.js
+      - run: node --check Public/app.js
+      - run: npm ci --no-audit --no-fund
+      - run: node --test test/recovered-profiles.test.js
