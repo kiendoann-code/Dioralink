@@ -1,0 +1,6 @@
+# DioraLink Artisan Recovery (free Neon)
+1. Admin signs in and opens /ung-dung#admin-artisan-recovery. Import original browser-export JSON from /mnt/data (client uploads ONLY matching image data, once); the API stores images privately in Neon and refuses to overwrite.
+2. Newly registered artisan signs in and opens /ung-dung#artisan-recovery; chooses a cached profile and submits evidence.
+3. Admin independently verifies ownership through the existing social profile/contact or documentation; writes reason (20+ chars); approves. Name match alone is insufficient. One old profile per new account, one new account per old profile. Old slug and previously published status are preserved. For hidden profiles, the owner may later publish them using the normal profile editor.
+4. Approval restores ONLY public artisan profile and media. DOES NOT restore original password, orders, old wallet, commission history, bank details, marketplace listings. Does not modify suspended Render database. Images are streamed from private Neon rows only for approved/public profiles.
+5. For the Naisu Toys Shop account on Neon, claimant must submit a claim. Admin must import images and approve before /nghe-nhan/naisu-toys-shop-71c59405275c can show the recovered profile.

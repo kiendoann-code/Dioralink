@@ -1480,6 +1480,8 @@ const {ensureWalletSchema,createWallet}=require('./wallet');
 app.use(createWallet({pool,requireAuth,requireAdmin:requireFinanceAdmin}));
 const commissionWorkflow = createCommissionWorkflow({ pool, requireAuth });
 app.use("/api/commission", commissionWorkflow.router);
+const {ensureArtisanRecoverySchema,createArtisanRecoveryRouter}=require('./artisan-recovery');
+app.use(createArtisanRecoveryRouter({pool,requireAuth,requireAdmin:requireFinanceAdmin}));
 const marketplace = createMarketplace({ pool, indexFile: INDEX_FILE, requireAuth, requireAdmin: requireFinanceAdmin });
 app.use(marketplace.router);
 app.use(createAnalyticsRouter({ pool, requireAdmin: requireFinanceAdmin }));
@@ -1561,6 +1563,7 @@ async function start() {
     await ensureCommissionWorkflowSchema(pool);
     await ensureFinanceSchema();
     await ensureWalletSchema(pool);
+    await ensureArtisanRecoverySchema(pool);
     console.log("Database schema: OK");
 
     app.post("/api/auth/logout", (req, res) => {
