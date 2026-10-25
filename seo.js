@@ -69,6 +69,36 @@ function directoryProfile(row){
     completedOrders:Number(row.completed_orders||0)
   };
 }
+
+const RECOVERED_PUBLIC_ASSETS=Object.freeze({
+  'made-by-anthony-bd882baaa11e':Object.freeze({
+    avatar:'/assets/recovered-public/made-by-anthony-avatar.jpg',
+    hero:'/assets/recovered-public/made-by-anthony-hero.jpg'
+  }),
+  'naisu-toys-shop-71c59405275c':Object.freeze({
+    avatar:'/assets/recovered-public/naisu-toys-shop-avatar.jpg',
+    hero:'/assets/recovered-public/naisu-toys-shop-hero.png'
+  })
+});
+// Read-only recovered *public* listings are not application users.
+// Do not link accounts or accept direct commissions until ownership is verified.
+function recoveredPublicProfile(row) {
+  const p=row?.snapshot||{};
+  const assets=RECOVERED_PUBLIC_ASSETS[p.slug];
+  if(!assets || !row.cached_published || p.published!==true)return null;
+  const uid=String(row.old_user_id||'');
+  if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(uid))return null;
+  return {
+    id:'ART-'+uid,slug:p.slug,name:p.name||'',handle:p.handle||'',city:p.city||'',bio:p.bio||'',
+    response:p.response||'',specialties:Array.isArray(p.specialties)?p.specialties:[],
+    startingPrice:Number(p.startingPrice)||0,
+    avatar:assets.avatar,hero:assets.hero,portfolio:[],
+    updatedAt:p.updatedAt||row.exported_at||new Date().toISOString(),
+    published:true,recovered:true,readOnly:true,verified:false,
+    salesAmount:0,completedOrders:0
+  };
+}
+
 async function ensureSeoSchema(pool) {
   await pool.query(`CREATE TABLE IF NOT EXISTS public_artisan_profiles (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -76,11 +106,21 @@ async function ensureSeoSchema(pool) {
     profile JSONB NOT NULL,
     published BOOLEAN NOT NULL DEFAULT TRUE,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS recovered_artisan_staging (
+    source_profile_id TEXT PRIMARY KEY,
+    old_user_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    snapshot JSONB NOT NULL,
+    exported_at TIMESTAMPTZ NOT NULL,
+    cached_published BOOLEAN NOT NULL DEFAULT FALSE,
+    verification_status TEXT NOT NULL DEFAULT 'pending_owner_verification',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
 }
 const serviceCards=()=>SERVICES.map(s=>`<article class="card pad"><h2 class="seo-card-title"><a href="/dich-vu/${s.slug}">${escapeHtml(s.name)}</a></h2><p class="body">${escapeHtml(s.description)}</p><a class="seo-link" href="/dich-vu/${s.slug}">Tìm hiểu dịch vụ →</a></article>`).join('');
 function creatorCard(a) {
-  return `<article class="card creator-card">${a.hero?`<a href="/nghe-nhan/${a.slug}" tabindex="-1" aria-hidden="true"><img class="seo-cover" src="${escapeHtml(a.hero)}" alt="" width="640" height="400" loading="lazy" decoding="async"></a>`:''}<div class="creator-body"><h2 class="seo-card-title"><a href="/nghe-nhan/${a.slug}">${escapeHtml(a.name)}</a></h2><p class="small muted">${escapeHtml(a.city)} · ${escapeHtml(a.specialties.join(', '))}</p><p class="body">${escapeHtml(a.bio.slice(0,210))}</p><p class="small">${a.startingPrice>0?`Giá tham khảo từ ${money(a.startingPrice)}`:'Báo giá theo brief'}</p><a class="seo-link" href="/nghe-nhan/${a.slug}">Xem hồ sơ →</a></div></article>`;
+  return `<article class="card creator-card">${a.hero?`<a href="/nghe-nhan/${a.slug}" tabindex="-1" aria-hidden="true"><img class="seo-cover" src="${escapeHtml(a.hero)}" alt="" width="640" height="400" loading="lazy" decoding="async"></a>`:''}<div class="creator-body"><h2 class="seo-card-title"><a href="/nghe-nhan/${a.slug}">${escapeHtml(a.name)}</a></h2><p class="small muted">${escapeHtml(a.city)} · ${escapeHtml(a.specialties.join(', '))}</p>${a.recovered?'<p class="small muted">Hồ sơ khôi phục · Chưa liên kết tài khoản</p>':''}<p class="body">${escapeHtml(a.bio.slice(0,210))}</p><p class="small">${a.startingPrice>0?`Giá tham khảo từ ${money(a.startingPrice)}`:'Báo giá theo brief'}</p><a class="seo-link" href="/nghe-nhan/${a.slug}">Xem hồ sơ →</a></div></article>`;
 }
 const processHtml=()=>`<section class="seo-section"><h2 class="section-title">Từ ý tưởng đến thành phẩm</h2><div class="grid four">${[['01','Gửi brief','Mô tả ý tưởng, ảnh tham khảo, kích thước, ngân sách và thời hạn.'],['02','Trao đổi báo giá','Làm rõ phạm vi, vật liệu, các mốc công việc và chi phí với nghệ nhân.'],['03','Theo dõi chế tác','Trao đổi hình ảnh tiến độ và nghiệm thu theo mốc đã thống nhất.'],['04','Nhận thành phẩm','Thống nhất đóng gói, vận chuyển và kiểm tra sản phẩm khi nhận.']].map(([n,t,d])=>`<div class="card pad"><span class="eyebrow">${n}</span><h3>${t}</h3><p class="body">${d}</p></div>`).join('')}</div><p class="notice seo-note">Khách hàng giữ tiền theo từng mốc trong Ví Diora trước khi nghệ nhân bắt đầu. Sau nghiệm thu, khách xác nhận thanh toán để chuyển tiền sang ví nghệ nhân sau khi trừ phí dịch vụ.</p></section>`;
 function pageFor(pathname, artisans) {
@@ -94,7 +134,7 @@ function pageFor(pathname, artisans) {
   }
   if(pathname==='/nghe-nhan') return {...base,route:'explore',title:'Nghệ nhân diorama, miniature và custom figure | DioraLink',description:'Khám phá hồ sơ nghệ nhân đã công khai trên DioraLink: chuyên môn, giới thiệu, tác phẩm và giá tham khảo để chuẩn bị yêu cầu đặt làm.',breadcrumbs:[...base.breadcrumbs,['Nghệ nhân',pathname]],html:`<section class="page"><h1 class="section-title">Khám phá nghệ nhân</h1><p class="hero-copy">Tìm hiểu chuyên môn, tác phẩm và phong cách trước khi trao đổi brief.</p>${artisans.length?`<label class="label" for="public-creator-search">Tìm theo tên, thành phố hoặc chuyên môn</label><input id="public-creator-search" class="field" type="search" placeholder="Nhập tên hoặc chuyên môn" oninput="filterPublicCreators(this.value)"><div class="creator-grid seo-section">${artisans.map(a=>`<div data-creator-search="${escapeHtml([a.name,a.city,...a.specialties].join(' ').toLocaleLowerCase('vi'))}">${creatorCard(a)}</div>`).join('')}</div><p id="public-search-empty" class="body" hidden>Không tìm thấy nghệ nhân phù hợp.</p>`:'<div class="card pad"><h2 class="seo-card-title">Cộng đồng đang được xây dựng</h2><p class="body">Chưa có hồ sơ nghệ nhân được công khai. Nếu bạn là creator, hãy đăng ký và bổ sung hồ sơ để khách hàng có thể tìm hiểu tác phẩm của bạn.</p><a class="btn btn-mint" href="/ung-dung#account">Tham gia DioraLink</a></div>'}<a class="seo-link" href="/dich-vu">Tìm hiểu các lĩnh vực đặt làm →</a></section>`};
   const a=artisans.find(a=>pathname===`/nghe-nhan/${a.slug}`);
-  if(a) return {...base,route:`creator/${a.id}`,title:`${a.name}${a.specialties.length?' – '+a.specialties.slice(0,2).join(', '):''} | DioraLink`,description:`${a.name} tại ${a.city}. ${a.bio}`.slice(0,165),image:a.hero||a.avatar,breadcrumbs:[...base.breadcrumbs,['Nghệ nhân','/nghe-nhan'],[a.name,pathname]],html:`<article class="page"><div class="grid two">${a.hero?`<img class="seo-profile-cover card" src="${escapeHtml(a.hero)}" alt="Ảnh giới thiệu của ${escapeHtml(a.name)}" width="800" height="600" fetchpriority="high">`:''}<section class="card pad"><h1 class="section-title">${escapeHtml(a.name)}</h1><p class="small muted">${escapeHtml(a.handle)} · ${escapeHtml(a.city)}</p><p class="body seo-bio">${escapeHtml(a.bio)}</p><h2 class="seo-card-title">Chuyên môn</h2>${a.specialties.length?`<div class="wrap">${a.specialties.map(t=>`<span class="pill pill-mint">${escapeHtml(t)}</span>`).join('')}</div>`:'<p class="small muted">Nghệ nhân chưa cập nhật chuyên môn công khai.</p>'}<p class="body">${a.startingPrice>0?`Giá tham khảo từ <strong>${money(a.startingPrice)}</strong>. Báo giá cuối cùng theo brief.`:'Liên hệ để trao đổi báo giá theo brief.'}</p>${a.response?`<p class="small muted">Thời gian phản hồi do nghệ nhân cung cấp: ${escapeHtml(a.response)}</p>`:''}<div class="wrap seo-note"><a class="btn btn-mint" href="/ung-dung#commission" onclick="sessionStorage.setItem('dioralink_preferred_artisan', '${escapeHtml(a.id)}')">Gửi yêu cầu đặt làm</a><a class="btn" href="/marketplace?q=${encodeURIComponent(a.name)}">Xem sản phẩm đang bán</a></div></section></div>${a.portfolio.length?`<section class="seo-section"><h2 class="section-title">Tác phẩm của nghệ nhân</h2><div class="grid three">${a.portfolio.map((src,i)=>`<img class="seo-cover card" src="${escapeHtml(src)}" alt="Tác phẩm ${i+1} trong portfolio của ${escapeHtml(a.name)}" width="640" height="400" loading="lazy" decoding="async">`).join('')}</div></section>`:''}<p class="small muted seo-note">Thông tin và hình ảnh do nghệ nhân cung cấp. Hãy trao đổi trực tiếp về năng lực, phạm vi công việc và điều khoản thanh toán.</p><a class="seo-link" href="/nghe-nhan">← Xem các nghệ nhân khác</a></article>`};
+  if(a) return {...base,route:`creator/${a.id}`,title:`${a.name}${a.specialties.length?' – '+a.specialties.slice(0,2).join(', '):''} | DioraLink`,description:`${a.name} tại ${a.city}. ${a.bio}`.slice(0,165),image:a.hero||a.avatar,breadcrumbs:[...base.breadcrumbs,['Nghệ nhân','/nghe-nhan'],[a.name,pathname]],html:`<article class="page"><div class="grid two">${a.hero?`<img class="seo-profile-cover card" src="${escapeHtml(a.hero)}" alt="Ảnh giới thiệu của ${escapeHtml(a.name)}" width="800" height="600" fetchpriority="high">`:''}<section class="card pad"><h1 class="section-title">${escapeHtml(a.name)}</h1>${a.avatar?`<img class="avatar" src="${escapeHtml(a.avatar)}" alt="Avatar ${escapeHtml(a.name)}" width="80" height="80" loading="lazy">`:''}${a.recovered?'<p class="notice">Hồ sơ công khai được khôi phục từ dữ liệu trước sự cố. Chưa liên kết lại tài khoản nghệ nhân; hiện chưa thể nhận commission trực tiếp.</p>':''}<p class="small muted">${escapeHtml(a.handle)} · ${escapeHtml(a.city)}</p><p class="body seo-bio">${escapeHtml(a.bio)}</p><h2 class="seo-card-title">Chuyên môn</h2>${a.specialties.length?`<div class="wrap">${a.specialties.map(t=>`<span class="pill pill-mint">${escapeHtml(t)}</span>`).join('')}</div>`:'<p class="small muted">Nghệ nhân chưa cập nhật chuyên môn công khai.</p>'}<p class="body">${a.startingPrice>0?`Giá tham khảo từ <strong>${money(a.startingPrice)}</strong>. Báo giá cuối cùng theo brief.`:'Liên hệ để trao đổi báo giá theo brief.'}</p>${a.response?`<p class="small muted">Thời gian phản hồi do nghệ nhân cung cấp: ${escapeHtml(a.response)}</p>`:''}<div class="wrap seo-note">${a.readOnly?'<span class="pill">Chưa nhận yêu cầu trực tiếp</span>':`<a class="btn btn-mint" href="/ung-dung#commission" onclick="sessionStorage.setItem('dioralink_preferred_artisan', '${escapeHtml(a.id)}')">Gửi yêu cầu đặt làm</a>`}<a class="btn" href="/marketplace?q=${encodeURIComponent(a.name)}">Xem sản phẩm đang bán</a></div></section></div>${a.portfolio.length?`<section class="seo-section"><h2 class="section-title">Tác phẩm của nghệ nhân</h2><div class="grid three">${a.portfolio.map((src,i)=>`<img class="seo-cover card" src="${escapeHtml(src)}" alt="Tác phẩm ${i+1} trong portfolio của ${escapeHtml(a.name)}" width="640" height="400" loading="lazy" decoding="async">`).join('')}</div></section>`:''}<p class="small muted seo-note">Thông tin và hình ảnh do nghệ nhân cung cấp. Hãy trao đổi trực tiếp về năng lực, phạm vi công việc và điều khoản thanh toán.</p><a class="seo-link" href="/nghe-nhan">← Xem các nghệ nhân khác</a></article>`};
   if(pathname==='/quy-trinh') return {...base,route:'trust',title:'Quy trình đặt làm và thanh toán Ví Diora | DioraLink',description:'Tìm hiểu cách gửi brief, trao đổi báo giá, theo dõi tiến độ và nghiệm thu trên DioraLink. Thanh toán theo mốc bằng Ví Diora.',breadcrumbs:[...base.breadcrumbs,['Quy trình',pathname]],html:`<article class="page"><h1 class="section-title">Quy trình làm việc trên DioraLink</h1><p class="hero-copy">Làm rõ ý tưởng và trách nhiệm của mỗi bên trước khi bắt đầu chế tác.</p>${processHtml()}<section class="card pad"><h2 class="seo-card-title">Trước khi đặt làm</h2><ul class="seo-list"><li>Xem portfolio, hỏi về chất liệu và các sản phẩm tương tự nghệ nhân đã thực hiện.</li><li>Thống nhất phạm vi, số lần chỉnh sửa, lịch nghiệm thu và chi phí vận chuyển.</li><li>Lưu lại thỏa thuận thanh toán, điều kiện dừng dự án và cách xử lý phát sinh.</li></ul><a class="btn btn-mint" href="/ung-dung#commission">Bắt đầu với brief của bạn</a></section></article>`};
   if(pathname==='/ung-dung') return {...base,index:false,route:'account',title:'Tài khoản và quản lý dự án | DioraLink',description:'Đăng nhập DioraLink để quản lý yêu cầu đặt làm, hồ sơ nghệ nhân và dự án.',html:'<section class="page"><h1 class="section-title">Tài khoản DioraLink</h1><p class="body">Đang tải không gian làm việc…</p><noscript>Vui lòng bật JavaScript để đăng nhập và quản lý dự án.</noscript></section>'};
   return {...base,status:404,index:false,route:'not-found',title:'Không tìm thấy trang | DioraLink',description:'Trang bạn tìm không tồn tại hoặc đã được gỡ.',html:'<section class="page"><div class="eyebrow">404</div><h1 class="section-title">Không tìm thấy trang</h1><p class="body">Kiểm tra lại địa chỉ hoặc tiếp tục khám phá DioraLink.</p><a class="btn btn-mint" href="/">Về trang chủ</a> <a class="btn" href="/nghe-nhan">Tìm nghệ nhân</a></section>'};
@@ -119,7 +159,8 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
   const router=express.Router();
   const template=fs.readFileSync(indexFile,'utf8');
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
-  const list=async()=> (await pool.query(`
+  const list=async()=>{
+  const live=(await pool.query(`
     SELECT
       u.id AS user_id,
       u.name AS user_name,
@@ -154,6 +195,16 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     GROUP BY u.id,u.name,u.city,u.bio,u.avatar,u.updated_at,p.slug,p.profile,p.updated_at
     ORDER BY sales_amount DESC, RANDOM()
   `)).rows.map(directoryProfile);
+  const recoveredRows=(await pool.query(`SELECT old_user_id,snapshot,cached_published,exported_at
+    FROM recovered_artisan_staging
+    WHERE cached_published=TRUE AND verification_status <> 'rejected'
+    ORDER BY exported_at DESC`)).rows;
+  const knownIds=new Set(live.map(a=>a.id));
+  const knownSlugs=new Set(live.map(a=>a.slug));
+  const recovered=recoveredRows.map(recoveredPublicProfile)
+    .filter(a=>a&&!knownIds.has(a.id)&&!knownSlugs.has(a.slug));
+  return [...live,...recovered];
+};
   router.get('/api/public/artisans',wrap(async(req,res)=>res.json({artisans:await list()})));
   router.post('/api/artisan/public-profile',requireAuth,wrap(async(req,res)=>{
     if(req.user.role!=='artisan') return res.status(403).json({message:'Chỉ nghệ nhân được công khai hồ sơ.'});
@@ -213,5 +264,5 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
   router.use((err,req,res,next)=>{console.error('SEO route error:',err.message);res.status(503).set('Retry-After','120').json({message:'Không thể tải hoặc lưu hồ sơ. Vui lòng thử lại.'});});
   return router;
 }
-module.exports={createSeoRouter,ensureSeoSchema,pageFor,renderDocument,sanitizeProfile,publicProfile,slugify,SERVICES,safeImage};
+module.exports={createSeoRouter,ensureSeoSchema,pageFor,renderDocument,sanitizeProfile,publicProfile,slugify,SERVICES,safeImage,recoveredPublicProfile};
 
