@@ -1,0 +1,21 @@
+name: Restored storefront display
+on:
+  pull_request:
+    paths: ['marketplace.js','marketplace-pages.js','home.js','seo.js','test/restored-storefront.test.js','.github/workflows/restored-storefront.yml']
+  push:
+    branches: [main]
+    paths: ['marketplace.js','marketplace-pages.js','home.js','seo.js']
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --no-audit --no-fund
+      - run: node --check marketplace.js
+      - run: node --check marketplace-pages.js
+      - run: node --check home.js
+      - run: node --check seo.js
+      - run: node --test test/restored-storefront.test.js
