@@ -182,6 +182,8 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     FROM users u
     LEFT JOIN public_artisan_profiles p
       ON p.user_id=u.id AND p.published=TRUE
+    LEFT JOIN legacy_restore_control recovery_lock
+      ON recovery_lock.old_user_id=u.id
     LEFT JOIN market_orders o
       ON o.seller_id=u.id
     WHERE (
@@ -191,6 +193,7 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
         WHERE ur.user_id=u.id AND ur.role='artisan'
       )
     )
+      AND (recovery_lock.old_user_id IS NULL OR recovery_lock.access_verified=TRUE)
       AND NOT (LOWER(BTRIM(u.name))='anh' AND p.user_id IS NULL)
     GROUP BY u.id,u.name,u.city,u.bio,u.avatar,u.updated_at,p.slug,p.profile,p.updated_at
     ORDER BY sales_amount DESC, RANDOM()
