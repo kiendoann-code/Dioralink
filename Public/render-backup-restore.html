@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>DioraLink · Khôi phục PostgreSQL</title>
+<style>*{box-sizing:border-box}body{background:#f1faf9;color:#17414c;font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;margin:0;padding:35px 16px}main{max-width:660px;margin:auto;border:1px solid #c7e9e1;background:#fff;border-radius:20px;padding:30px;box-shadow:0 16px 60px #144f5112}h1{font-size:25px;margin:8px 0}h2{font-size:18px}.brand{color:#0d9991;font-size:23px;font-weight:800}p{margin:12px 0}.note{padding:14px;border-radius:12px;background:#e9f7f4}.warning{background:#fff8e3;padding:14px;border-radius:12px}button{padding:13px 18px;font:inherit;border:0;border-radius:9px;background:#078b83;color:#fff;font-weight:700;cursor:pointer}button:disabled{opacity:.5}input{max-width:100%;display:block;margin:15px 0}#status{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:18px}.muted{font-size:13px;color:#66838a}a{color:#02796f}</style></head>
+<body><main><div class="brand">DioraLink</div><h1>Nhập bản sao lưu Render — chế độ an toàn</h1>
+<p>Đăng nhập tài khoản quản trị DioraLink trước khi nhập bản sao lưu. File được tải lên máy chủ DioraLink và lưu trong <b>vùng đối soát riêng</b> trên Neon.</p>
+<div class="note">Bước này <b>KHÔNG ghi đè</b> các tài khoản hiện tại, Ví Diora, đơn hàng, sản phẩm mới hoặc quyền sở hữu hồ sơ. Sau khi nhập, dữ liệu được kiểm tra và hợp nhất ở một bước riêng.</div>
+<p class="warning">File có thông tin tài khoản, ảnh, lịch sử giao dịch. Không chia sẻ công khai, không tải lên nơi khác. Chỉ hỗ trợ bản backup đã xác minh ngày 25/10/2026.</p>
+<p id="access">Đang kiểm tra quyền quản trị...</p>
+<div id="form" hidden><input id="file" type="file" accept=".gz,.tar.gz,application/gzip"><button id="upload">Kiểm tra và nhập vào vùng đối soát</button></div>
+<div id="status" role="status" aria-live="polite"></div><p class="muted"><a href="/ung-dung">Quay về DioraLink</a></p></main>
+<script>
+const statusEl=document.getElementById('status'),form=document.getElementById('form');
+async function status(){
+ const res=await fetch('/api/admin/me',{credentials:'include'});
+ if(!res.ok){document.getElementById('access').innerHTML='Cần đăng nhập quản trị viên tại <a href="/ung-dung">DioraLink</a> trước.';return;}
+ document.getElementById('access').textContent='Đã xác thực quản trị viên. Bạn có thể chọn file.';
+ form.hidden=false;
+ const sum=await fetch('/api/admin/render-backup/summary',{credentials:'include'}).then(x=>x.json()).catch(()=>({}));
+ if(sum.imports?.length){statusEl.textContent='Đã có bản sao lưu trong vùng đối soát. Số bảng: '+Object.keys(sum.imports[0].table_counts).length+'. Không cần nhập lại nếu cùng một file.';}
+}
+document.getElementById('upload').addEventListener('click',async()=>{
+ const file=document.getElementById('file').files?.[0];
+ if(!file){statusEl.textContent='Vui lòng chọn file 2026-10-25T13_25Z.dir.tar.gz.';return;}
+ if(file.size>30*1024*1024){statusEl.textContent='File lớn hơn 30MB, không hợp lệ.';return;}
+ const b=document.getElementById('upload');b.disabled=true;statusEl.textContent='Đang chuyển bản sao lưu vào vùng đối soát. Không đóng tab khi chưa nhận được kết quả.';
+ try{
+  const res=await fetch('/api/admin/render-backup/stage',{method:'POST',credentials:'include',headers:{'Content-Type':'application/octet-stream','X-Dioralink-Stage-Only':'true'},body:await file.arrayBuffer()});
+  const j=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(j.message||'Server từ chối nhập file.');
+  statusEl.textContent=j.message+'\nTổng số dòng: '+j.totalRows+'\nSố bảng: '+Object.keys(j.tables||{}).length+'\n'+(j.alreadyImported?'File này đã từng được nhập; không tạo dữ liệu trùng.':'Dữ liệu gốc đã được lưu để đối soát.');
+ }catch(e){statusEl.textContent='Lỗi: '+e.message;}finally{b.disabled=false;}
+});
+status().catch(e=>statusEl.textContent='Không thể xác minh quản trị viên: '+e.message);
+</script></body></html>
