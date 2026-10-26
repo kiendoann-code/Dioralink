@@ -18,4 +18,4 @@ jobs:
       - run: node --check Public/recovery-claim.js
       - run: node --check Public/app.js
       - run: node --check Server.js
-      - run: node --test test/artisan-recovery.test.js
+      - run: node --test test/artisan-recovery.test.js test/legacy-owner-adoption.test.js

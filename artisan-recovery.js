@@ -129,12 +129,26 @@ function createArtisanRecoveryRouter({pool,requireAuth,requireAdmin}){
     const owner=(await c.query('SELECT id,role FROM users WHERE id=$1 FOR UPDATE',[claim.claimant_user_id])).rows[0];
     if(!owner||owner.role!=='artisan')err('Tài khoản phải là nghệ nhân.',409);
     if((await c.query("SELECT 1 FROM recovered_artisan_claims WHERE source_profile_id=$1 AND status='approved' OR claimant_user_id=$2 AND status='approved'",[claim.source_profile_id,owner.id])).rows[0])err('Hồ sơ hoặc chủ sở hữu đã được liên kết.',409);
+    const originalId=old.source_profile_id.replace(/^ART-/,'');
+    const legacy=(await c.query('SELECT old_user_id FROM legacy_restore_control WHERE old_user_id=$1 AND access_verified=FALSE FOR UPDATE',[originalId])).rows[0];
+    const archived=(legacy?(await c.query('SELECT user_id,slug,profile FROM public_artisan_profiles WHERE user_id=$1 AND slug=$2 FOR UPDATE',[originalId,old.snapshot.slug])).rows[0]:null);
     const occupied=(await c.query('SELECT user_id FROM public_artisan_profiles WHERE user_id=$1 OR slug=$2 FOR UPDATE',[owner.id,old.snapshot.slug])).rows;
-    if(occupied.length)err('Đã tồn tại hồ sơ hoặc đường dẫn tương ứng; cần xử lý thủ công.',409);
-    const media=(await c.query('SELECT slot FROM recovered_artisan_media WHERE source_profile_id=$1',[old.source_profile_id])).rows.map(x=>x.slot);
-    if((old.snapshot.avatar?.startsWith('asset:')&&!media.includes('avatar'))||(old.snapshot.hero?.startsWith('asset:')&&!media.includes('hero')))err('Chưa nhập đủ ảnh từ bản sao trình duyệt.',409);
-    const profile=restoredProfile(old.snapshot,media,old.source_profile_id);
-    await c.query('INSERT INTO public_artisan_profiles(user_id,slug,profile,published) VALUES($1,$2,$3,$4)',[owner.id,old.snapshot.slug,JSON.stringify(profile),old.cached_published]);
+    if(archived){
+      if(occupied.some(x=>x.user_id!==originalId))err('Đã có người sở hữu hồ sơ này, không thể chuyển tự động.',409);
+      const source=(await c.query("SELECT payload->>'published' AS was_published FROM render_backup_rows WHERE table_name='public_artisan_profiles' AND payload->>'user_id'=$1 AND payload->>'slug'=$2 LIMIT 1",[originalId,old.snapshot.slug])).rows[0];
+      if(!source)err('Không tìm được hồ sơ trong bản sao lưu gốc.',409);
+      const published=['t','true'].includes(String(source.was_published));
+      await c.query('UPDATE public_artisan_profiles SET user_id=$2,published=$3,updated_at=NOW() WHERE user_id=$1 AND slug=$4',[originalId,owner.id,published,old.snapshot.slug]);
+      // Only move recovered draft goods after independent proof of ownership.
+      // Financial ledgers, historical orders and commission participants stay untouched.
+      await c.query("UPDATE market_products SET seller_id=$2,updated_at=NOW() WHERE seller_id=$1 AND status='draft' AND id IN (SELECT product_id FROM legacy_restored_product_status)",[originalId,owner.id]);
+    }else{
+      if(occupied.length)err('Đã tồn tại hồ sơ hoặc đường dẫn tương ứng; cần xử lý thủ công.',409);
+      const media=(await c.query('SELECT slot FROM recovered_artisan_media WHERE source_profile_id=$1',[old.source_profile_id])).rows.map(x=>x.slot);
+      if((old.snapshot.avatar?.startsWith('asset:')&&!media.includes('avatar'))||(old.snapshot.hero?.startsWith('asset:')&&!media.includes('hero')))err('Chưa nhập đủ ảnh từ bản sao trình duyệt.',409);
+      const profile=restoredProfile(old.snapshot,media,old.source_profile_id);
+      await c.query('INSERT INTO public_artisan_profiles(user_id,slug,profile,published) VALUES($1,$2,$3,$4)',[owner.id,old.snapshot.slug,JSON.stringify(profile),old.cached_published]);
+    }
     await c.query("UPDATE recovered_artisan_staging SET verification_status='owner_verified' WHERE source_profile_id=$1",[old.source_profile_id]);
    }
    const status=action==='approve'?'approved':'rejected';
