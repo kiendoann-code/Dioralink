@@ -202,11 +202,20 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     FROM recovered_artisan_staging
     WHERE cached_published=TRUE AND verification_status <> 'rejected'
     ORDER BY exported_at DESC`)).rows;
-  const knownIds=new Set(live.map(a=>a.id));
-  const knownSlugs=new Set(live.map(a=>a.slug));
+  const oldPublic=(await pool.query(`SELECT p.user_id,p.slug,p.profile,p.updated_at
+    FROM public_artisan_profiles p
+    JOIN legacy_restore_control lock ON lock.old_user_id=p.user_id AND lock.access_verified=FALSE
+    JOIN render_backup_rows backup ON backup.table_name='public_artisan_profiles'
+       AND backup.payload->>'user_id'=p.user_id AND backup.payload->>'slug'=p.slug
+    WHERE p.published=FALSE AND backup.payload->>'published' IN ('true','t')
+    ORDER BY p.updated_at DESC`)).rows
+    .map(row=>({...publicProfile(row),recovered:true,readOnly:true,verified:false}));
+  const liveVisible=live.filter(a=>!oldPublic.some(old=>a.slug?.startsWith('artist-')&&old.name.toLocaleLowerCase('vi')===a.name.toLocaleLowerCase('vi')));
+  const knownIds=new Set([...liveVisible,...oldPublic].map(a=>a.id));
+  const knownSlugs=new Set([...liveVisible,...oldPublic].map(a=>a.slug));
   const recovered=recoveredRows.map(recoveredPublicProfile)
     .filter(a=>a&&!knownIds.has(a.id)&&!knownSlugs.has(a.slug));
-  return [...live,...recovered];
+  return [...oldPublic,...liveVisible,...recovered];
 };
   router.get('/api/public/artisans',wrap(async(req,res)=>res.json({artisans:await list()})));
   router.post('/api/artisan/public-profile',requireAuth,wrap(async(req,res)=>{
@@ -234,7 +243,11 @@ function createSeoRouter({pool,indexFile,requireAuth,getHomeSection,getSitemapEn
     res.json({message:'Đã ẩn hồ sơ công khai.'});
   }));
   router.get('/media/nghe-nhan/:slug/:slot',wrap(async(req,res)=>{
-    const result=await pool.query('SELECT profile FROM public_artisan_profiles WHERE slug=$1 AND published=TRUE',[req.params.slug]);
+    const result=await pool.query(`SELECT p.profile FROM public_artisan_profiles p
+      LEFT JOIN legacy_restore_control lock ON lock.old_user_id=p.user_id
+      WHERE p.slug=$1 AND (p.published=TRUE OR (lock.old_user_id IS NOT NULL AND lock.access_verified=FALSE
+      AND EXISTS (SELECT 1 FROM render_backup_rows b WHERE b.table_name='public_artisan_profiles'
+      AND b.payload->>'user_id'=p.user_id AND b.payload->>'slug'=p.slug AND b.payload->>'published' IN ('true','t'))))`,[req.params.slug]);
     const p=result.rows[0]?.profile; const slot=req.params.slot;
     const value=p&&(slot==='avatar'||slot==='hero'?p[slot]:/^portfolio-\d+$/.test(slot)?p.portfolio?.[Number(slot.split('-')[1])]:null);
     if(!value?.startsWith('data:image/')) return res.status(404).end();
