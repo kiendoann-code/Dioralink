@@ -1485,6 +1485,7 @@ app.use(createArtisanRecoveryRouter({pool,requireAuth,requireAdmin:requireFinanc
 const marketplace = createMarketplace({ pool, indexFile: INDEX_FILE, requireAuth, requireAdmin: requireFinanceAdmin });
 app.use(marketplace.router);
 app.use(createAnalyticsRouter({ pool, requireAdmin: requireFinanceAdmin }));
+require('./render-backup-stage').installRenderBackupStage({app,pool,requireAdmin:requireFinanceAdmin});
 app.use(createSeoRouter({ pool, indexFile: INDEX_FILE, requireAuth, getHomeSection: marketplace.getHomeSection, getSitemapEntries: marketplace.getSitemapEntries }));
 
 /* =========================

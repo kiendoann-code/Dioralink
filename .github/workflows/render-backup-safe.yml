@@ -1,0 +1,19 @@
+name: Safe Render backup import
+on:
+  pull_request:
+    paths: ['render-backup-stage.js','Server.js','Public/render-backup-restore.html','test/render-backup-stage.test.js','.github/workflows/render-backup-safe.yml']
+  push:
+    branches: [main]
+    paths: ['render-backup-stage.js','Server.js','Public/render-backup-restore.html']
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --no-audit --no-fund
+      - run: node --check Server.js
+      - run: node --check render-backup-stage.js
+      - run: node --test test/render-backup-stage.test.js
