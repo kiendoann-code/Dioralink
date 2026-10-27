@@ -39,4 +39,13 @@ Kết quả kiểm tra ngày 27/10/2026: 3 bài kiểm tra riêng của demo đ�
 phân bổ 6 triệu, kiểm tra dữ liệu và quyền truy cập của cả 25 tài khoản.
 Bộ kiểm tra chung còn lỗi ở fixture marketplace thiếu `legacy_restore_control`,
 ca kiểm tra SEO và kỳ vọng chặn số điện thoại trong wallet; chưa thay đổi các phần đó.
-Chưa triển khai lên website chính: đang chờ xác định nền tảng hosting hiện tại.
+Đã triển khai trang riêng lên `https://dioralink.xyz/demo-orders.html` từ commit `ba2e5e1`.
+Kiểm tra thực tế ngày 27/10/2026: trang trả 200, API chưa đăng nhập trả 401;
+một tài khoản customer và một artisan đọc được đúng 20 đơn/tổng 6.000.000 VND,
+đúng khoảng ngày mô phỏng. Health báo database connected. Đối soát Neon trước/sau:
+số đơn market_orders, commission_workflows và dòng diora_ledger đều không đổi.
+
+Theo yêu cầu đưa lên trang chính, trang chủ `/` cũng hiển thị trực tiếp khối
+`#don-hang-mo-phong`: tổng giá trị, phân bổ 5 ngày và đủ 20 đơn, có nhãn demo rõ ràng.
+Chỉ tên giả lập được hiển thị, không có email, số điện thoại, mật khẩu hoặc ID tài khoản.
+API chi tiết và trang quản trị vẫn giữ phân quyền. Không thay đổi bảng giao dịch thật.

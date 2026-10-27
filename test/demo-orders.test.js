@@ -12,6 +12,15 @@ test('rejects real-order flags, changed totals, dates, duplicate IDs and overlap
   const data=structuredClone(demoReport());change(data);assert.throws(()=>validateBatch(data));
  }
 });
+test('homepage directly renders all 20 labeled demo orders without private contact or account IDs',()=>{
+ const html=require('../home').homePage([]);
+ assert.match(html,/id="don-hang-mo-phong"/);assert.match(html,/KHÔNG PHẢI DOANH THU THẬT/);assert.match(html,/6\.000\.000 ₫/);
+ assert.equal((html.match(/data-demo-order=/g)||[]).length,20);
+ for(const id of participants)assert.ok(!html.includes(id));
+ assert.ok(!html.includes('@gmail.com'));assert.ok(!html.includes('11111111'));
+ for(const day of ['23','24','25','26','27'])assert.ok(html.includes(day+'/10/2026'));
+ assert.match(html,/<details open class="home-demo-details">/);
+});
 test('only designated accounts or admins can read demo; regular pages keep their headers',async()=>{
  const express=require('express');const app=express();
  const requireAuth=(req,res,next)=>{const id=req.headers['x-test-id'];if(!id)return res.sendStatus(401);req.user={id};next();};
