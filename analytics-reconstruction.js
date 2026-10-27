@@ -48,19 +48,21 @@ async function ensureReconstruction(pool){
   await pool.query(`INSERT INTO analytics_report_snapshots(id,source,payload) VALUES($1,$2,$3::jsonb)
     ON CONFLICT(id) DO NOTHING`,[ID,'owner_requested_reconstruction',JSON.stringify(buildSnapshot())]);
 }
-async function loadReconstruction(pool){
+async function loadReconstruction(pool,orderPeriod){
   const row=(await pool.query('SELECT payload,created_at FROM analytics_report_snapshots WHERE id=$1',[ID])).rows[0];
   if(!row)throw new Error('Historical analytics snapshot is unavailable.');
   const report=JSON.parse(JSON.stringify(row.payload));
   const {buildMarketplaceFinanceReport}=require('./finance-report');
+  const period=orderPeriod||report.period;
+  const end=new Date(period.to+'T00:00:00+07:00');end.setUTCDate(end.getUTCDate()+1);
   const orders=(await pool.query(`SELECT o.id,o.created_at,o.status,o.dispute_open,o.goods_amount,
     o.commission_rate,o.platform_fee,o.fee_collected_amount,o.fee_returned_amount,
     jsonb_build_object('title',o.product_snapshot->>'title') AS product_snapshot,
     u.name AS seller_name FROM market_orders o
     JOIN users u ON u.id=o.seller_id
     WHERE o.created_at >= $1::timestamptz AND o.created_at < $2::timestamptz`,
-    ['2026-10-19T00:00:00+07:00','2026-10-28T00:00:00+07:00'])).rows;
-  const finance=buildMarketplaceFinanceReport({period:report.period,orders});
+    [period.from+'T00:00:00+07:00',end.toISOString()])).rows;
+  const finance=buildMarketplaceFinanceReport({period,orders});
   report.marketplaceOrders={total:finance.transactions.length,
     actual:finance.transactions.filter(o=>o.dataType==='actual').length,
     simulated:finance.transactions.filter(o=>o.dataType==='simulated').length,
@@ -71,4 +73,4 @@ async function loadReconstruction(pool){
   report.generatedAt=new Date().toISOString();
   return report;
 }
-module.exports={ID,buildSnapshot,ensureReconstruction,loadReconstruction};
+module.exports={ID,buildSnapshot,ensureReconstruction,loadReconstruction,allocate};

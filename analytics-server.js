@@ -1,5 +1,6 @@
 const express=require('express');
 const {ensureReconstruction,loadReconstruction}=require('./analytics-reconstruction');
+const {START,END,reportingRange,historicalSlice,mergeReports}=require('./analytics-range');
 
 const CONVERSION_EVENTS=new Set([
   'signup_complete','commission_submitted','order_created','payment_reported',
@@ -97,7 +98,7 @@ async function ensureAnalyticsSchema(pool){
   await ensureReconstruction(pool);
 }
 
-function createAnalyticsRouter({pool,requireAdmin}){
+function createAnalyticsRouter({pool,requireAdmin,now=()=>new Date()}){
   const router=express.Router();
 
   router.get('/api/analytics/config',(req,res)=>{
@@ -212,7 +213,10 @@ function createAnalyticsRouter({pool,requireAdmin}){
     try{
       res.set('Cache-Control','no-store');
       if(req.query.period==='2026-10-19_2026-10-27')return res.json(await loadReconstruction(pool));
-      const days=Math.min(90,Math.max(1,Number(req.query?.days)||7));
+      const days=Math.min(90,Math.max(1,Math.floor(Number(req.query?.days))||30));
+      const period=reportingRange(days,now());
+      const params=[period.start,period.end,START,END];
+      const historical=historicalSlice(await loadReconstruction(pool,period),period);
       const [summaryR,scrollR,roleR,deviceR,pagesR,eventsR,dailyR]=await Promise.all([
         pool.query(`
           SELECT
@@ -224,8 +228,8 @@ function createAnalyticsRouter({pool,requireAdmin}){
             COUNT(*) FILTER (WHERE NOT engaged)::int AS bounced,
             COUNT(*) FILTER (WHERE conversion)::int AS converting_sessions
           FROM analytics_sessions
-          WHERE started_at>=NOW()-($1::text||' days')::interval
-        `,[days]),
+          WHERE started_at >= $1::timestamptz AND started_at < $2::timestamptz AND NOT (started_at >= $3::timestamptz AND started_at < $4::timestamptz)
+        `,params),
         pool.query(`
           SELECT
             COUNT(*)::int AS total,
@@ -235,30 +239,30 @@ function createAnalyticsRouter({pool,requireAdmin}){
             COUNT(*) FILTER (WHERE max_scroll>=90)::int AS s90,
             COUNT(*) FILTER (WHERE max_scroll>=100)::int AS s100
           FROM analytics_sessions
-          WHERE started_at>=NOW()-($1::text||' days')::interval
-        `,[days]),
+          WHERE started_at >= $1::timestamptz AND started_at < $2::timestamptz AND NOT (started_at >= $3::timestamptz AND started_at < $4::timestamptz)
+        `,params),
         pool.query(`
           SELECT role,COUNT(*)::int AS sessions
           FROM analytics_sessions
-          WHERE started_at>=NOW()-($1::text||' days')::interval
+          WHERE started_at >= $1::timestamptz AND started_at < $2::timestamptz AND NOT (started_at >= $3::timestamptz AND started_at < $4::timestamptz)
           GROUP BY role ORDER BY sessions DESC
-        `,[days]),
+        `,params),
         pool.query(`
           SELECT device,COUNT(*)::int AS sessions
           FROM analytics_sessions
-          WHERE started_at>=NOW()-($1::text||' days')::interval
+          WHERE started_at >= $1::timestamptz AND started_at < $2::timestamptz AND NOT (started_at >= $3::timestamptz AND started_at < $4::timestamptz)
           GROUP BY device ORDER BY sessions DESC
-        `,[days]),
+        `,params),
         pool.query(`
           WITH viewed AS (
             SELECT page_path,session_id,COUNT(*)::int AS views
             FROM analytics_events
-            WHERE event_name='page_view' AND created_at>=NOW()-($1::text||' days')::interval
+            WHERE event_name='page_view' AND created_at >= $1::timestamptz AND created_at < $2::timestamptz AND NOT (created_at >= $3::timestamptz AND created_at < $4::timestamptz) AND session_id IN (SELECT session_id FROM analytics_sessions WHERE NOT (started_at >= $3::timestamptz AND started_at < $4::timestamptz))
             GROUP BY page_path,session_id
           ), depth AS (
             SELECT page_path,session_id,MAX(scroll_depth)::int AS max_depth
             FROM analytics_events
-            WHERE event_name='scroll_depth' AND created_at>=NOW()-($1::text||' days')::interval
+            WHERE event_name='scroll_depth' AND created_at >= $1::timestamptz AND created_at < $2::timestamptz AND NOT (created_at >= $3::timestamptz AND created_at < $4::timestamptz) AND session_id IN (SELECT session_id FROM analytics_sessions WHERE NOT (started_at >= $3::timestamptz AND started_at < $4::timestamptz))
             GROUP BY page_path,session_id
           )
           SELECT v.page_path,SUM(v.views)::int AS views,COUNT(*)::int AS sessions,
@@ -270,30 +274,30 @@ function createAnalyticsRouter({pool,requireAdmin}){
             COUNT(*) FILTER (WHERE COALESCE(d.max_depth,0)>=100)::int AS s100
           FROM viewed v LEFT JOIN depth d USING(page_path,session_id)
           GROUP BY v.page_path ORDER BY views DESC LIMIT 12
-        `,[days]),
+        `,params),
         pool.query(`
           SELECT event_name,COUNT(*)::int AS events,COUNT(DISTINCT session_id)::int AS sessions
           FROM analytics_events
-          WHERE created_at>=NOW()-($1::text||' days')::interval
+          WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz AND NOT (created_at >= $3::timestamptz AND created_at < $4::timestamptz) AND session_id IN (SELECT session_id FROM analytics_sessions WHERE NOT (started_at >= $3::timestamptz AND started_at < $4::timestamptz))
             AND event_name IN (
               'view_marketplace','view_creator','view_product','start_commission',
               'commission_submitted','begin_checkout','order_created','signup_complete',
               'login','cta_click','form_start','form_submit'
             )
           GROUP BY event_name ORDER BY events DESC
-        `,[days]),
+        `,params),
         pool.query(`
           SELECT
-            TO_CHAR(DATE_TRUNC('day',started_at),'YYYY-MM-DD') AS day,
+            TO_CHAR(DATE_TRUNC('day',started_at AT TIME ZONE 'Asia/Ho_Chi_Minh'),'YYYY-MM-DD') AS day,
             COUNT(*)::int AS sessions,
             COUNT(DISTINCT visitor_id)::int AS visitors,
             COUNT(*) FILTER (WHERE NOT engaged)::int AS bounced,
             COALESCE(AVG(EXTRACT(EPOCH FROM (last_seen_at-started_at))),0) AS avg_session_seconds
           FROM analytics_sessions
-          WHERE started_at>=NOW()-($1::text||' days')::interval
-          GROUP BY DATE_TRUNC('day',started_at)
-          ORDER BY DATE_TRUNC('day',started_at)
-        `,[days])
+          WHERE started_at >= $1::timestamptz AND started_at < $2::timestamptz AND NOT (started_at >= $3::timestamptz AND started_at < $4::timestamptz)
+          GROUP BY DATE_TRUNC('day',started_at AT TIME ZONE 'Asia/Ho_Chi_Minh')
+          ORDER BY DATE_TRUNC('day',started_at AT TIME ZONE 'Asia/Ho_Chi_Minh')
+        `,params)
       ]);
 
       const s=summaryR.rows[0]||{};
@@ -302,18 +306,18 @@ function createAnalyticsRouter({pool,requireAdmin}){
       const eventMap=Object.fromEntries(eventsR.rows.map(r=>[r.event_name,{events:Number(r.events),sessions:Number(r.sessions)}]));
       const sessionCount=name=>Number(eventMap[name]?.sessions||0);
 
-      res.json({
+      const measured={
         source:'measured',
         rangeDays:days,
         generatedAt:new Date().toISOString(),
         kpis:{
           sessions,
           visitors:Number(s.visitors||0),
-          bounceRate:pct(s.bounced,sessions),
-          avgSessionSeconds:Math.round(Number(s.avg_session_seconds||0)),
-          pagesPerSession:Math.round(Number(s.pages_per_session||0)*100)/100,
-          avgScrollDepth:Math.round(Number(s.avg_scroll_depth||0)*10)/10,
-          conversionRate:pct(s.converting_sessions,sessions)
+          bounceRate:sessions?Number(s.bounced)*100/sessions:0,
+          avgSessionSeconds:Number(s.avg_session_seconds||0),
+          pagesPerSession:Number(s.pages_per_session||0),
+          avgScrollDepth:Number(s.avg_scroll_depth||0),
+          conversionRate:sessions?Number(s.converting_sessions)*100/sessions:0
         },
         scrollDepth:{
           '25':pct(scroll.s25,scroll.total),
@@ -361,7 +365,8 @@ function createAnalyticsRouter({pool,requireAdmin}){
           bounceRate:pct(r.bounced,r.sessions),
           avgSessionSeconds:Math.round(Number(r.avg_session_seconds||0))
         }))
-      });
+      };
+      res.json(mergeReports(measured,historical,period));
     }catch(error){
       next(error);
     }

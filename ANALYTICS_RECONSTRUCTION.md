@@ -18,9 +18,15 @@ No actual sessions, events, orders, wallets, authentication or database connecti
 settings are replaced. This source can reproduce this historical reconstruction;
 it is not a backup of future measured analytics or of the full database.
 
-The existing Admin Analytics screen defaults to this explicitly labelled historical
-period. The 7/30/90-day buttons continue to show measured data only. The historical
-snapshot is not added to those windows, avoiding overlap and double counting.
+The existing Admin Analytics screen defaults to 30 days. All 7/30/90-day windows
+use Vietnam calendar days including today. They include the relevant days of the
+historical snapshot, replacing measured sessions/events within 19–27 October in
+the report only, without deleting those records. Measured data outside that period
+is added; rates and averages are weighted by session counts. Partial windows use
+deterministic daily allocations. The standalone historical button remains for audit.
+Visitors across reconstructed and measured sources are estimates: the historical
+snapshot contains no original visitor IDs for cross-source deduplication. Partial
+historical windows use stable overlapping synthetic visitor cohorts.
 
 Order created and recognized sales are read from the same Marketplace finance
 report for 19 October 00:00 through 28 October 00:00 in Vietnam time. Counts retain
