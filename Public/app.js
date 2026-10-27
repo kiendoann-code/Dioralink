@@ -451,7 +451,7 @@ const NAV_ARTISAN=[['wallet','Ví Diora','wallet'],
 ];
 const NAV_ADMIN=[['admin-wallet','Ví Diora','wallet'],
   ['marketplace','Marketplace','store'],['admin-market','Kinh doanh Marketplace','chart-column'],
-  ['admin-dashboard','Finance','wallet-cards'],['admin-analytics','Analytics','activity'],['admin-commissions','Commissions','receipt-text'],['admin-complaints','Khiếu nại','shield-alert'],['admin-artisan-recovery','Khôi phục nghệ nhân','shield-check'],['admin-notifications','Notifications','bell']
+  ['admin-dashboard','Tài chính','wallet-cards'],['admin-analytics','Analytics','activity'],['admin-commissions','Commissions','receipt-text'],['admin-complaints','Khiếu nại','shield-alert'],['admin-artisan-recovery','Khôi phục nghệ nhân','shield-check'],['admin-notifications','Notifications','bell']
 ];
 
 function routeParts(){

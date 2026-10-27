@@ -30,3 +30,9 @@ URL: https://br-wispy-queen-b986jn5d-diorafinance.compute.c-7.eu-central-1.aws.n
 Kiểm thử phần tài chính và handler: 10/10 đạt. Kiểm tra trực tiếp sau triển khai: /api/health trả 200 và database connected; trang báo cáo/API tài chính trả 401 khi chưa đăng nhập hoặc sai thông tin; POST trả 405. Chưa kiểm tra đăng nhập thành công trên URL thật vì không có mật khẩu quản trị trong phiên; luồng đăng nhập đúng và quyền admin đã được kiểm thử tự động.
 
 Chính sách lâu dài trong AGENTS.md: không dùng Render, kể cả gián tiếp qua luồng Git tự triển khai cũ.
+
+## Hiệu chỉnh phạm vi theo yêu cầu người dùng
+
+Bản Neon Function riêng không đáp ứng yêu cầu truy cập trong website. Đích phát hành đúng là hai màn hình quản trị sẵn có: admin-dashboard (Tài chính) và admin-market (Kinh doanh Marketplace). Không điều hướng hai màn hình sang trang riêng hoặc yêu cầu đăng nhập lần nữa.
+
+Đã bổ sung financeReport vào API Marketplace và dùng chung bảng gộp tại màn hình Kinh doanh Marketplace; lọc đơn mô phỏng đúng khoảng ngày, giữ tổng thực thu chỉ từ dữ liệu thật. Kiểm thử endpoint hiện có, bộ lọc ngày và renderer hai màn hình: 10/10 đạt. Bản mã này chưa được phát hành lên website chính vì luồng phục vụ tên miền quan sát được vẫn qua Render, bị người dùng cấm.

@@ -1,8 +1,8 @@
 /* Lightweight bootstrap for the server-rendered public homepage.
    The full workspace bundle is loaded only when the visitor needs an interactive account feature. */
 (()=>{
-  const APP='/app.js?v=admin-finance-combined-20261027-2';
-  const MARKET='/marketplace.js?v=drafts-20261005-1';
+  const APP='/app.js?v=admin-finance-combined-20261027-3';
+  const MARKET='/marketplace.js?v=finance-combined-20261027-3';
   let fullPromise=null;
   const proxies={};
 

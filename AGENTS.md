@@ -1,5 +1,11 @@
 # DioraLink — project instructions
 
+## Admin finance scope
+
+- Finance and Marketplace reports must appear inside the existing website's admin navigation (`admin-dashboard` and `admin-market`).
+- A separate site, URL, login flow or Neon Function dashboard is not a substitute for updating those screens.
+- Merge simulated and actual rows in the report while retaining provenance and separating simulated values from actual receipts. Do not display a demo-code column.
+
 ## Hosting and database policy
 
 - The user confirmed on 27 October 2026 that DioraLink has already moved to Neon.
