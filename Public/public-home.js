@@ -1,7 +1,7 @@
 /* Lightweight bootstrap for the server-rendered public homepage.
    The full workspace bundle is loaded only when the visitor needs an interactive account feature. */
 (()=>{
-  const APP='/app.js?v=perf-mobile-20261007-1';
+  const APP='/app.js?v=admin-finance-demo-20261027-1';
   const MARKET='/marketplace.js?v=drafts-20261005-1';
   let fullPromise=null;
   const proxies={};
@@ -27,7 +27,7 @@
 
   function loadFull(){
     if(fullPromise)return fullPromise;
-    fullPromise=loadScript(MARKET).then(()=>loadScript(APP));
+    fullPromise=loadScript(MARKET).then(()=>loadScript('/admin-finance-demo.js?v=20261027-1')).then(()=>loadScript(APP));
     fullPromise.catch(()=>{fullPromise=null;});
     return fullPromise;
   }

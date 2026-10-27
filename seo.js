@@ -150,7 +150,7 @@ function renderDocument(template,page,artisans) {
   if(page.path==='/'){
     document=document.replace(
       /<script src="\/marketplace\.js\?v=[^"]+" defer><\/script>\s*<script src="\/app\.js\?v=[^"]+" defer><\/script>/,
-      '<script src="/public-home.js?v=perf-mobile-20261007-2" defer></script>'
+      '<script src="/public-home.js?v=admin-finance-demo-20261027-1" defer></script>'
     );
   }
   return document;

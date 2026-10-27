@@ -45,7 +45,9 @@ một tài khoản customer và một artisan đọc được đúng 20 đơn/t�
 đúng khoảng ngày mô phỏng. Health báo database connected. Đối soát Neon trước/sau:
 số đơn market_orders, commission_workflows và dòng diora_ledger đều không đổi.
 
-Theo yêu cầu đưa lên trang chính, trang chủ `/` cũng hiển thị trực tiếp khối
-`#don-hang-mo-phong`: tổng giá trị, phân bổ 5 ngày và đủ 20 đơn, có nhãn demo rõ ràng.
-Chỉ tên giả lập được hiển thị, không có email, số điện thoại, mật khẩu hoặc ID tài khoản.
-API chi tiết và trang quản trị vẫn giữ phân quyền. Không thay đổi bảng giao dịch thật.
+Vị trí hiển thị hiện tại là trang Tài chính nền tảng `/ung-dung#admin-dashboard`.
+Khối “Số liệu tài chính mô phỏng” nằm ở đầu trang, gồm tổng giá trị 6 triệu,
+phân bổ 5 ngày và đủ 20 đơn. Các chỉ số thực tế vẫn lấy từ API tài chính riêng.
+Đã gỡ khối mô phỏng khỏi trang chủ. Chỉ quản trị được xem khối tài chính demo;
+không thêm thao tác xác nhận thanh toán/thu hoa hồng cho các đơn này.
+Script giao diện đã đổi phiên bản để trình duyệt tải bản cập nhật.

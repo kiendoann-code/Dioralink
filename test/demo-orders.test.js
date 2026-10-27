@@ -12,14 +12,46 @@ test('rejects real-order flags, changed totals, dates, duplicate IDs and overlap
   const data=structuredClone(demoReport());change(data);assert.throws(()=>validateBatch(data));
  }
 });
-test('homepage directly renders all 20 labeled demo orders without private contact or account IDs',()=>{
+test('demo records are absent from the public homepage',()=>{
  const html=require('../home').homePage([]);
- assert.match(html,/id="don-hang-mo-phong"/);assert.match(html,/KHÔNG PHẢI DOANH THU THẬT/);assert.match(html,/6\.000\.000 ₫/);
- assert.equal((html.match(/data-demo-order=/g)||[]).length,20);
+ assert.ok(!html.includes('don-hang-mo-phong'));assert.ok(!html.includes('data-demo-order='));
  for(const id of participants)assert.ok(!html.includes(id));
- assert.ok(!html.includes('@gmail.com'));assert.ok(!html.includes('11111111'));
- for(const day of ['23','24','25','26','27'])assert.ok(html.includes(day+'/10/2026'));
- assert.match(html,/<details open class="home-demo-details">/);
+});
+test('finance demo shows all orders, escapes names and does not mutate actual finance data',()=>{
+ const {render}=require('../Public/admin-finance-demo');const data=structuredClone(demoReport());
+ data.orders[0].buyerName='<img src=x onerror=alert(1)>';
+ const before=JSON.stringify(data);const html=render(data);
+ assert.match(html,/SỐ LIỆU TÀI CHÍNH MÔ PHỎNG/);assert.match(html,/6\.000\.000 ₫/);
+ assert.equal((html.match(/data-finance-demo-order=/g)||[]).length,20);
+ assert.ok(!html.includes('<img'));assert.ok(html.includes('&lt;img'));
+ assert.equal(JSON.stringify(data),before);
+ assert.throws(()=>render({...data,isDemo:false}));
+ assert.throws(()=>render({...data,accountingRevenue:6000000}));
+});
+test('finance demo requests only the admin endpoint and handles denied access without rendering amounts',async()=>{
+ const {load}=require('../Public/admin-finance-demo');let called='';
+ const target={isConnected:true,innerHTML:'',textContent:''};
+ await load(target,async path=>{called=path;return {ok:false,status:401};});
+ assert.equal(called,'/api/admin/demo/orders');assert.equal(target.innerHTML,'');assert.match(target.textContent,/đăng nhập quản trị/);
+ await load(target,async()=>({ok:true,json:async()=>demoReport()}));
+ assert.match(target.innerHTML,/6\.000\.000 ₫/);
+ const detached={isConnected:false,innerHTML:'left page'};
+ await load(detached,async()=>({ok:true,json:async()=>demoReport()}));assert.equal(detached.innerHTML,'left page');
+});
+test('finance dashboard renders demo and actual totals into separate containers',async()=>{
+ const fs=require('node:fs'),vm=require('node:vm');
+ const code=fs.readFileSync(require('node:path').join(__dirname,'../Public/app.js'),'utf8');
+ const start=code.indexOf('async function renderAdminDashboard(){');const end=code.indexOf('async function renderAdminCommissions(){',start);
+ const elements={'app':{},'admin-finance-demo':{isConnected:true},'admin-finance-content':{}};
+ const actual={summary:{gross:123,platformFee:12,unpaid:12,collected:0},commissions:[]};
+ const before=JSON.stringify(actual);
+ const context={document:{getElementById:id=>elements[id]},window:{DioraFinanceDemo:require('../Public/admin-finance-demo')},loadAdminFinance:async()=>actual,adminApi:async path=>{assert.equal(path,'/api/admin/demo/orders');return {ok:true,json:async()=>demoReport()};},money:n=>String(n)+' VND',esc:s=>String(s)};
+ vm.createContext(context);vm.runInContext(code.slice(start,end),context);
+ await context.renderAdminDashboard();await new Promise(resolve=>setImmediate(resolve));
+ assert.match(elements['admin-finance-content'].innerHTML,/123 VND/);
+ assert.ok(!elements['admin-finance-content'].innerHTML.includes('6000000'));
+ assert.match(elements['admin-finance-demo'].innerHTML,/6\.000\.000 ₫/);
+ assert.equal(JSON.stringify(actual),before);
 });
 test('only designated accounts or admins can read demo; regular pages keep their headers',async()=>{
  const express=require('express');const app=express();
