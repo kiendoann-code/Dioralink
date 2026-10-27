@@ -17,6 +17,7 @@
 
 ## Availability and free-tier quota protection
 
+- On 28 October 2026 the user purchased Neon Launch for the existing project, verified as `launch_v3`. Preserve that plan and the existing database. This supersedes Free-only for Neon; Render remains Free. No further plan upgrades or new paid resources are authorized.
 - On 27 October 2026 the user required prevention of quota-related connection outages and explicitly reaffirmed Free only, with no charges. Do not upgrade Neon or Render, create paid services, or bypass provider limits.
 - Check current database usage and remaining allowance before production traffic tests, bulk reads, exports, or repeated diagnostic runs. Do not run synthetic traffic campaigns or load tests against the live website; use local fixtures for testing.
 - Keep database responses small: avoid transferring inline image bodies for listings and reports, and fetch only the requested media item. Preserve original media and transaction data.
