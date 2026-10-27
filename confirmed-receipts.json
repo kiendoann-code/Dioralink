@@ -1,0 +1,126 @@
+{
+  "confirmedOn": "2026-10-27",
+  "basis": "Owner confirmed full payment in chat; report-only recognition, no wallet credit.",
+  "orders": [
+    {
+      "id": "DEMO-202610-001",
+      "goodsAmount": 150000,
+      "receivedAmount": 150000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-002",
+      "goodsAmount": 200000,
+      "receivedAmount": 200000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-003",
+      "goodsAmount": 250000,
+      "receivedAmount": 250000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-004",
+      "goodsAmount": 300000,
+      "receivedAmount": 300000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-005",
+      "goodsAmount": 200000,
+      "receivedAmount": 200000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-006",
+      "goodsAmount": 250000,
+      "receivedAmount": 250000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-007",
+      "goodsAmount": 350000,
+      "receivedAmount": 350000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-008",
+      "goodsAmount": 400000,
+      "receivedAmount": 400000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-009",
+      "goodsAmount": 150000,
+      "receivedAmount": 150000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-010",
+      "goodsAmount": 250000,
+      "receivedAmount": 250000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-011",
+      "goodsAmount": 300000,
+      "receivedAmount": 300000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-012",
+      "goodsAmount": 350000,
+      "receivedAmount": 350000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-013",
+      "goodsAmount": 200000,
+      "receivedAmount": 200000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-014",
+      "goodsAmount": 300000,
+      "receivedAmount": 300000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-015",
+      "goodsAmount": 400000,
+      "receivedAmount": 400000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-016",
+      "goodsAmount": 450000,
+      "receivedAmount": 450000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-017",
+      "goodsAmount": 250000,
+      "receivedAmount": 250000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-018",
+      "goodsAmount": 350000,
+      "receivedAmount": 350000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-019",
+      "goodsAmount": 400000,
+      "receivedAmount": 400000,
+      "rate": 10
+    },
+    {
+      "id": "DEMO-202610-020",
+      "goodsAmount": 500000,
+      "receivedAmount": 500000,
+      "rate": 10
+    }
+  ]
+}

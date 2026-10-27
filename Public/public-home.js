@@ -27,7 +27,7 @@
 
   function loadFull(){
     if(fullPromise)return fullPromise;
-    fullPromise=loadScript(MARKET).then(()=>loadScript('/admin-finance-demo.js?v=20261027-3')).then(()=>loadScript(APP));
+    fullPromise=loadScript(MARKET).then(()=>loadScript('/admin-finance-demo.js?v=20261027-6')).then(()=>loadScript(APP));
     fullPromise.catch(()=>{fullPromise=null;});
     return fullPromise;
   }

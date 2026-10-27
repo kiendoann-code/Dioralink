@@ -29,3 +29,7 @@ Bộ kiểm thử toàn dự án từng có 9 lỗi không liên quan, đã tái
 ## Bản thử riêng trước đó
 
 Function diorafinance trên Neon đã được tạo trong quá trình làm việc nhưng người dùng xác nhận đó không phải đích sử dụng. Không gắn URL function vào website và không coi function này là bản triển khai hoàn tất cho hai màn hình quản trị. Các file functions/ chỉ phục vụ bản thử riêng đó.
+
+## Xác nhận thu tiền ngày 27/10/2026
+
+Chủ website xác nhận đã thu đủ 20 đơn, tổng 6.000.000 VND. confirmed-receipts.json lưu từng mã nguồn, số tiền và tỷ lệ 10% tại thời điểm xác nhận. Báo cáo hiển thị trạng thái thanh toán thành công và nguồn quản trị xác nhận; dữ liệu gốc được giữ nguyên. Theo công thức được người dùng xác nhận, cột Phí được hưởng bằng giá trị đơn; Đã thu ròng bằng khoản nhận nhân tỷ lệ (tổng 600.000 VND). Phí còn phải thu vẫn dựa trên phí theo tỷ lệ, không lấy giá trị đơn trừ phí đã thu. Khoản đã lưu dưới dạng phí không nhân tỷ lệ lần nữa. Không ghi có ví hoặc tạo đơn trùng trong Neon. File xuất có bảng tài chính tổng hợp và giao dịch tổng hợp cùng số liệu với màn hình.

@@ -47,7 +47,7 @@ test('finance dashboard loads one combined backend report',async()=>{
  const context={document:{getElementById:id=>elements[id]},window:{DioraFinanceDemo:require('../Public/admin-finance-demo')},loadAdminFinance:async()=>({report}),esc:String};
  vm.createContext(context);vm.runInContext(code.slice(start,end),context);await context.renderAdminDashboard();
  const html=elements['admin-finance-content'].innerHTML;
- assert.match(html,/6\.000\.000 ₫/);assert.match(html,/Chưa hạch toán/);assert.ok(!html.includes('Mã demo'));assert.ok(!html.includes('DEMO-'));
+ assert.match(html,/6\.000\.000 ₫/);assert.match(html,/Đã thanh toán thành công/);assert.ok(!html.includes('Mã demo'));assert.ok(!html.includes('DEMO-'));
 });
 
 test('only designated accounts or admins can read demo; regular pages keep their headers',async()=>{

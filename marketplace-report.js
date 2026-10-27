@@ -3,6 +3,14 @@ const ExcelJS=require('exceljs');
 async function reportWorkbook(report){
  const book=new ExcelJS.Workbook();book.creator='DioraLink';book.created=new Date();
  const add=(name,headers,widths)=>{const s=book.addWorksheet(name,{views:[{state:'frozen',ySplit:1}]});s.columns=headers.map((header,i)=>({header,width:widths?.[i]||22}));s.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};s.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF103640'}};s.getRow(1).height=32;s.getRow(1).alignment={vertical:'middle',wrapText:true};return s;};
+ if(report.financeReport){
+  const r=report.financeReport;
+  const summary=add('Tai chinh tong hop',['Chỉ tiêu','Giá trị'],[48,30]);
+  summary.addRows([['Giá trị giao dịch',r.actual.gross],['Phí được hưởng',r.actual.platformFee],['Đã thu ròng',r.actual.collected],['Phí còn phải thu',r.actual.unpaid]]);summary.getColumn(2).numFmt='#,##0';
+  const detail=add('Giao dich tong hop',['Ngày (VN)','Người bán','Đơn / Dự án','Giá trị','Tỷ lệ đã lưu','Phí đã lưu','Phí được hưởng','Đã thu ròng','Trạng thái','Nguồn'],[25,28,40,22,18,22,22,22,32,28]);
+  for(const o of r.transactions)detail.addRow([new Date(new Date(o.date).getTime()+7*3600e3),o.seller,o.title,o.gross,o.rate===null?null:o.rate/100,o.fee,o.earned,o.collected,o.status==='payment_succeeded'?'Đã thanh toán thành công':o.status,o.source==='owner_confirmed'?'Quản trị xác nhận':o.source==='demo'?'Báo cáo nội bộ':o.source]);
+  detail.getColumn(1).numFmt='dd/mm/yyyy hh:mm';detail.getColumn(5).numFmt='0.00%';for(const col of [4,6,7,8])detail.getColumn(col).numFmt='#,##0';
+ }
  const t=report.totals;
  const s=add('Tong quan',['Chỉ tiêu','Giá trị'],[50,45]);
  s.addRows([['Kỳ báo cáo (ngày tạo đơn, giờ Việt Nam)',`${report.period.from} – ${report.period.to}`],['Thời điểm xuất (UTC)',new Date()],['Tổng số đơn',t.orders],['Đơn hoàn tất, không tranh chấp',t.completed],['Doanh số tiền hàng hoàn tất (VND)',t.goods],['Phí vận chuyển đơn hoàn tất (VND)',t.shipping],['Phí DioraLink được hưởng (VND)',t.platformFee],['Nghệ nhân được hưởng từ tiền hàng (VND)',t.artistNet],['Phí nền tảng đã thu ròng (VND)',t.feeCollected],['Phí nền tảng còn phải thu (VND)',t.feeOutstanding],['Phí cần hoàn lại sau hủy/hoàn đơn (VND)',t.feeReturnDue],['Tiền đơn đã hoàn cho khách (VND)',t.refunded],['Đơn đang tranh chấp',t.disputes],['Đơn đã hủy',t.cancelled],['Giá trị tiền hàng trung bình đơn hoàn tất',t.averageOrder],['Cách tính','Thống kê trạng thái hiện tại của các đơn được tạo trong kỳ. Doanh số không phải lợi nhuận. Phí vận chuyển tách riêng. Chỉ đơn hoàn tất và không có tranh chấp mở được ghi nhận doanh số/phí được hưởng.']]);
