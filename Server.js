@@ -1313,6 +1313,7 @@ app.post('/api/finance/commission/confirm',requireAuth,(req,res,next)=>{
 });
 
 app.get('/api/admin/finance',requireFinanceAdmin,asyncRoute(async(_req,res)=>{
+  res.set('Cache-Control','no-store');
   await ensureFinanceSchema();
   const summary=(await pool.query(`
     SELECT
@@ -1338,7 +1339,8 @@ app.get('/api/admin/finance',requireFinanceAdmin,asyncRoute(async(_req,res)=>{
       unpaid:Number(summary.unpaid||0),
       collected:Number(summary.collected||0)
     },
-    commissions
+    commissions,
+    report:await require('./finance-report').loadFinanceReport(pool)
   });
 }));
 

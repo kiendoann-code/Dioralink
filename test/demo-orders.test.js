@@ -38,21 +38,18 @@ test('finance demo requests only the admin endpoint and handles denied access wi
  const detached={isConnected:false,innerHTML:'left page'};
  await load(detached,async()=>({ok:true,json:async()=>demoReport()}));assert.equal(detached.innerHTML,'left page');
 });
-test('finance dashboard renders demo and actual totals into separate containers',async()=>{
+test('finance dashboard loads one combined backend report',async()=>{
  const fs=require('node:fs'),vm=require('node:vm');
  const code=fs.readFileSync(require('node:path').join(__dirname,'../Public/app.js'),'utf8');
- const start=code.indexOf('async function renderAdminDashboard(){');const end=code.indexOf('async function renderAdminCommissions(){',start);
- const elements={'app':{},'admin-finance-demo':{isConnected:true},'admin-finance-content':{}};
- const actual={summary:{gross:123,platformFee:12,unpaid:12,collected:0},commissions:[]};
- const before=JSON.stringify(actual);
- const context={document:{getElementById:id=>elements[id]},window:{DioraFinanceDemo:require('../Public/admin-finance-demo')},loadAdminFinance:async()=>actual,adminApi:async path=>{assert.equal(path,'/api/admin/demo/orders');return {ok:true,json:async()=>demoReport()};},money:n=>String(n)+' VND',esc:s=>String(s)};
- vm.createContext(context);vm.runInContext(code.slice(start,end),context);
- await context.renderAdminDashboard();await new Promise(resolve=>setImmediate(resolve));
- assert.match(elements['admin-finance-content'].innerHTML,/123 VND/);
- assert.ok(!elements['admin-finance-content'].innerHTML.includes('6000000'));
- assert.match(elements['admin-finance-demo'].innerHTML,/6\.000\.000 ₫/);
- assert.equal(JSON.stringify(actual),before);
+ const start=code.indexOf('async function renderAdminDashboard(){'),end=code.indexOf('async function renderAdminCommissions(){',start);
+ const elements={app:{},'admin-finance-content':{isConnected:true}};
+ const report=require('../finance-report').buildFinanceReport([],[]);
+ const context={document:{getElementById:id=>elements[id]},window:{DioraFinanceDemo:require('../Public/admin-finance-demo')},loadAdminFinance:async()=>({report}),esc:String};
+ vm.createContext(context);vm.runInContext(code.slice(start,end),context);await context.renderAdminDashboard();
+ const html=elements['admin-finance-content'].innerHTML;
+ assert.match(html,/6\.000\.000 ₫/);assert.match(html,/Mô phỏng/);assert.ok(!html.includes('Mã demo'));assert.ok(!html.includes('DEMO-'));
 });
+
 test('only designated accounts or admins can read demo; regular pages keep their headers',async()=>{
  const express=require('express');const app=express();
  const requireAuth=(req,res,next)=>{const id=req.headers['x-test-id'];if(!id)return res.sendStatus(401);req.user={id};next();};
