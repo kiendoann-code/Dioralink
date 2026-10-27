@@ -1472,7 +1472,7 @@ app.post('/api/admin/commissions/:id/collect',requireFinanceAdmin,asyncRoute(asy
 /* Public pages are rendered on the server; private workspace remains a SPA. */
 app.get('/index.html', (_req, res) => res.redirect(301, '/'));
 app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '7d', setHeaders(res, filePath) {
-  if (filePath.endsWith('.html')) {
+  if (filePath.endsWith('.html') || filePath.endsWith('.js')) {
     res.setHeader('Cache-Control', 'no-cache');
     return;
   }
