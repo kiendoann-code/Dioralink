@@ -53,7 +53,10 @@ async function loadReconstruction(pool){
   if(!row)throw new Error('Historical analytics snapshot is unavailable.');
   const report=JSON.parse(JSON.stringify(row.payload));
   const {buildMarketplaceFinanceReport}=require('./finance-report');
-  const orders=(await pool.query(`SELECT o.*,u.name AS seller_name FROM market_orders o
+  const orders=(await pool.query(`SELECT o.id,o.created_at,o.status,o.dispute_open,o.goods_amount,
+    o.commission_rate,o.platform_fee,o.fee_collected_amount,o.fee_returned_amount,
+    jsonb_build_object('title',o.product_snapshot->>'title') AS product_snapshot,
+    u.name AS seller_name FROM market_orders o
     JOIN users u ON u.id=o.seller_id
     WHERE o.created_at >= $1::timestamptz AND o.created_at < $2::timestamptz`,
     ['2026-10-19T00:00:00+07:00','2026-10-28T00:00:00+07:00'])).rows;

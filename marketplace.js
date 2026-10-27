@@ -108,10 +108,18 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
  const auth=[requireAuth];
  const publicSelect="SELECT p.*,COALESCE(a.profile->>'name',CASE WHEN lc.old_user_id IS NOT NULL AND lc.access_verified=FALSE THEN archived.profile->>'name' END,u.name) AS seller_name,u.city AS seller_city,(p.status='draft' AND lc.old_user_id IS NOT NULL AND lc.access_verified=FALSE AND restored.old_status='active') AS restore_preview FROM market_products p JOIN users u ON u.id=p.seller_id LEFT JOIN public_artisan_profiles a ON a.user_id=p.seller_id AND a.published=TRUE LEFT JOIN public_artisan_profiles archived ON archived.user_id=p.seller_id AND archived.published=FALSE LEFT JOIN legacy_restored_product_status restored ON restored.product_id=p.id LEFT JOIN legacy_restore_control lc ON lc.old_user_id=p.seller_id";
  const visibleWhere="(p.status='active' OR (p.status='draft' AND restored.old_status='active' AND lc.old_user_id IS NOT NULL AND lc.access_verified=FALSE))";
+ // Convert inline images to their existing public URLs in PostgreSQL, before transfer.
+ // Keep raw product reads for checkout snapshots and seller editing.
+ const productFields='id,seller_id,slug,title,description,category,condition,price,shipping_fee,stock,status,version,created_at,updated_at'.split(',').map(k=>'p.'+k).join(',');
+ const publicImages=`COALESCE((SELECT jsonb_agg(CASE WHEN image.value LIKE 'data:%'
+   THEN '/media/market/'||p.id::text||'/'||(image.ordinality-1)::text||'?v='||p.version::text
+   ELSE image.value END ORDER BY image.ordinality)
+   FROM jsonb_array_elements_text(p.images) WITH ORDINALITY AS image(value,ordinality)), '[]'::jsonb) AS images`;
+ const lightPublicSelect=publicSelect.replace('p.*',productFields+','+publicImages);
  const getProducts=async(limit=24,offset=0,search='',category='',sort='new')=>{
   const params=[`%${search.replace(/[\\%_]/g,'\\$&')}%`,category,limit,offset];
   const order=sort==='price_asc'?'p.price ASC,p.created_at DESC':sort==='price_desc'?'p.price DESC,p.created_at DESC':'p.created_at DESC';
-  return (await pool.query(`${publicSelect} WHERE ${visibleWhere} AND (p.title ILIKE $1 OR p.description ILIKE $1 OR COALESCE(a.profile->>'name',u.name) ILIKE $1) AND ($2='' OR p.category=$2) ORDER BY ${order} LIMIT $3 OFFSET $4`,params)).rows.map(publicProduct);
+  return (await pool.query(`${lightPublicSelect} WHERE ${visibleWhere} AND (p.title ILIKE $1 OR p.description ILIKE $1 OR COALESCE(a.profile->>'name',u.name) ILIKE $1) AND ($2='' OR p.category=$2) ORDER BY ${order} LIMIT $3 OFFSET $4`,params)).rows.map(publicProduct);
  };
  const getProduct=async(pid)=>(await pool.query(publicSelect+' WHERE p.id=$1',[pid])).rows[0];
  const summaryFields='id,buyer_id,seller_id,product_id,quantity,payment_method,status,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,tracking_number,terms_version,terms_accepted_at,dispute_open,stock_released,fee_collected_amount,fee_returned_amount,completed_at,created_at,updated_at'.split(',').map(k=>'o.'+k).join(',');
@@ -152,7 +160,8 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
   });res.json({product:publicProduct(await getProduct(pid))});
  }));
  router.get('/media/market/:id/:index',wrap(async(req,res)=>{
-  const p=(await pool.query(`SELECT p.images,p.status,(p.status='draft' AND lc.old_user_id IS NOT NULL AND lc.access_verified=FALSE AND restored.old_status='active') AS preview FROM market_products p LEFT JOIN legacy_restore_control lc ON lc.old_user_id=p.seller_id LEFT JOIN legacy_restored_product_status restored ON restored.product_id=p.id WHERE p.id=$1`,[id(req.params.id)])).rows[0];const i=integer(req.params.index,0,5,'Ảnh');const v=p?.images?.[i];
+  const i=integer(req.params.index,0,5,'Ảnh');
+  const p=(await pool.query(`SELECT p.images->>$2::int AS image,p.status,(p.status='draft' AND lc.old_user_id IS NOT NULL AND lc.access_verified=FALSE AND restored.old_status='active') AS preview FROM market_products p LEFT JOIN legacy_restore_control lc ON lc.old_user_id=p.seller_id LEFT JOIN legacy_restored_product_status restored ON restored.product_id=p.id WHERE p.id=$1`,[id(req.params.id),i])).rows[0];const v=p?.image;
   if(!p||(p.status!=='active'&&!p.preview)||!v?.startsWith('data:image/'))return res.status(404).end();const [prefix,body]=v.split(',');res.set('Cache-Control','public, max-age=300').set('X-Content-Type-Options','nosniff').type(prefix.slice(5).split(';')[0]).send(Buffer.from(body,'base64'));
  }));
  router.post('/api/market/orders',...auth,wrap(async(req,res)=>{
@@ -197,7 +206,7 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
  router.get('/api/admin/market/report',requireAdmin,wrap(async(req,res)=>{const result=await report(req.query);result.orders=result.orders.map(o=>{const r=sanitizeOrder(o,req.user,true);delete r.product_snapshot.images;delete r.terms_snapshot;delete r.recipient;delete r.bank_snapshot;return r;});res.json(result);}));
  router.get('/api/admin/market/export.xlsx',requireAdmin,wrap(async(req,res)=>{const r=await report(req.query);const workbook=await reportWorkbook(r);res.set('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition',`attachment; filename="DioraLink-Marketplace-${r.period.from}-${r.period.to}.xlsx"`);res.send(Buffer.from(await workbook.xlsx.writeBuffer()));}));
  router.get('/marketplace',wrap(async(req,res)=>{const page=integer(req.query.page||1,1,100000,'Trang'),search=text(req.query.q,100),category=text(req.query.category,60),sort=req.query.sort||'new';const products=await getProducts(25,(page-1)*24,search,category,sort);const p=marketPage(products.slice(0,24),{page,search,category,sort,more:products.length>24});res.type('html').set('Cache-Control','no-cache').send(renderDocument(template,p,[]));}));
- router.get('/marketplace/:slug',wrap(async(req,res,next)=>{const row=(await pool.query(publicSelect+" WHERE p.slug=$1 AND "+visibleWhere,[req.params.slug])).rows[0];if(!row)return next();const p=publicProduct(row);res.type('html').set('Cache-Control','no-cache').send(renderDocument(template,productPage(p),[]));}));
+ router.get('/marketplace/:slug',wrap(async(req,res,next)=>{const row=(await pool.query(lightPublicSelect+" WHERE p.slug=$1 AND "+visibleWhere,[req.params.slug])).rows[0];if(!row)return next();const p=publicProduct(row);res.type('html').set('Cache-Control','no-cache').send(renderDocument(template,productPage(p),[]));}));
  router.get('/dieu-khoan-mua-hang',(req,res)=>res.type('html').set('Cache-Control','no-cache').send(renderDocument(template,termsPage(),[])));
  router.use((error,req,res,next)=>{if(!req.path.startsWith('/api/')&&!req.path.startsWith('/marketplace')&&!req.path.startsWith('/media/market'))return next(error);const status=error.status||500;if(status===500)console.error('Marketplace:',error);res.status(status).json({message:status===500?'Không thể xử lý yêu cầu. Vui lòng thử lại.':error.message});});
  return {router,getHomeSection:async()=>homeSection(await getProducts(6)),getSitemapEntries:async()=>{const rows=(await pool.query("SELECT slug,updated_at FROM market_products WHERE status='active' ORDER BY created_at DESC")).rows;return [{path:'/marketplace'},{path:'/dieu-khoan-mua-hang'},...rows.map(r=>({path:'/marketplace/'+r.slug,lastmod:r.updated_at}))];}};
