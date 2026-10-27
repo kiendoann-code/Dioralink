@@ -14,3 +14,11 @@
 - The user cannot obtain another backup from the former database. Do not require another recovery, replace the existing dataset, change database connections, or run destructive database operations to deploy application code.
 - Update the existing website through its established deployment path. Do not create another reporting site or migrate hosting to solve a dashboard edit.
 - Preserve existing data and authentication; do not create a replacement project or switch database connections merely to deploy a change.
+
+## Availability and free-tier quota protection
+
+- On 27 October 2026 the user required prevention of quota-related connection outages and explicitly reaffirmed Free only, with no charges. Do not upgrade Neon or Render, create paid services, or bypass provider limits.
+- Check current database usage and remaining allowance before production traffic tests, bulk reads, exports, or repeated diagnostic runs. Do not run synthetic traffic campaigns or load tests against the live website; use local fixtures for testing.
+- Keep database responses small: avoid transferring inline image bodies for listings and reports, and fetch only the requested media item. Preserve original media and transaction data.
+- Do not repeatedly restart or redeploy to try to clear an exhausted provider quota. Report the specific exhausted allowance and the provider's current reset time. Do not claim recovery until a database read and the relevant website flow succeed.
+- Free-tier limits cannot guarantee uninterrupted availability. If the provider blocks connections, preserve the existing project, data and authentication; explain any remaining external blocker without promising an automatic or immediate unlock.
