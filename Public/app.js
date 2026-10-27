@@ -1335,8 +1335,9 @@ async function loadAdminFinance(){
   if(!res.ok)throw new Error(data.message||'Unable to load finance dashboard.');
   return data;
 }
-async function loadAdminAnalytics(days=7){
-  const res=await adminApi('/api/admin/analytics/summary?days='+encodeURIComponent(days));
+async function loadAdminAnalytics(days='reconstructed'){
+  const query=days==='reconstructed'?'period=2026-10-19_2026-10-27':'days='+encodeURIComponent(days);
+  const res=await adminApi('/api/admin/analytics/summary?'+query);
   const data=await res.json().catch(()=>({}));
   if(!res.ok)throw new Error(data.message||'Unable to load analytics.');
   return data;
@@ -1360,11 +1361,15 @@ function analyticsFunnel(items){
     return `<div class="card-soft pad" style="margin-top:8px"><div class="between"><span class="small">${esc(item.step)}</span><b>${value}</b></div><div style="height:6px;background:rgba(129,216,208,.10);margin-top:8px;border-radius:99px;overflow:hidden"><div style="height:100%;width:${Math.min(100,rate)}%;background:var(--mint);border-radius:99px"></div></div><div class="tiny muted" style="margin-top:5px">${Math.round(rate*10)/10}% so với bước đầu</div></div>`;
   }).join('');
 }
-async function renderAdminAnalytics(days=7){
-  const selected=Math.min(90,Math.max(1,Number(days)||7));
+async function renderAdminAnalytics(days='reconstructed'){
+  const selected=days==='reconstructed'?'reconstructed':Math.min(90,Math.max(1,Number(days)||7));
   document.getElementById('app').innerHTML=`<section class="page"><div class="section-head"><div><div class="eyebrow">Admin · Behavior analytics</div><div class="section-title">USER BEHAVIOR</div><div class="small muted">First-party anonymous analytics · không lưu email, tên, số điện thoại hay nội dung tin nhắn.</div></div><div class="wrap"><button class="btn btn-sm ${selected===7?'btn-mint':''}" onclick="renderAdminAnalytics(7)">7 ngày</button><button class="btn btn-sm ${selected===30?'btn-mint':''}" onclick="renderAdminAnalytics(30)">30 ngày</button><button class="btn btn-sm ${selected===90?'btn-mint':''}" onclick="renderAdminAnalytics(90)">90 ngày</button></div></div><div id="admin-analytics-content"><div class="empty">Đang tải analytics…</div></div></section>`;
   try{
+    const controls=document.querySelector('#app .section-head .wrap');
+    document.getElementById('admin-analytics-content').dataset.selection=String(selected);
+    controls.insertAdjacentHTML('afterbegin',`<button class="btn btn-sm ${selected==='reconstructed'?'btn-mint':''}" onclick="renderAdminAnalytics('reconstructed')">19–27/10/2026</button>`);
     const data=await loadAdminAnalytics(selected);
+    if(!document.getElementById('admin-analytics-content')||document.getElementById('admin-analytics-content').dataset.selection!==String(selected))return;
     const k=data.kpis||{},scroll=data.scrollDepth||{},market=data.funnels?.marketplace||[],commission=data.funnels?.commission||[];
     const top=(data.topPages||[]).map(p=>{
       const s=p.scrollDepth||{};
@@ -1374,6 +1379,7 @@ async function renderAdminAnalytics(days=7){
     const roles=(data.roles||[]).map(r=>`<span class="pill">${esc(r.role)} · ${r.sessions}</span>`).join('');
     const devices=(data.devices||[]).map(r=>`<span class="pill">${esc(r.device)} · ${r.sessions}</span>`).join('');
     document.getElementById('admin-analytics-content').innerHTML=`
+      <div class="card pad" style="margin-bottom:16px"><b>${data.source==='owner_requested_reconstruction'?'Kỳ tái dựng · 19–27/10/2026 (giờ Việt Nam)':'Dữ liệu đo thực tế'}</b><div class="small muted" style="margin-top:8px">${data.source==='owner_requested_reconstruction'?'Số tổng theo quản trị xác nhận; phân bổ ngày, lượt xem trang và các bước trước đơn hàng là mô phỏng cố định sau sự cố mất dữ liệu. Dữ liệu này được lưu riêng, không cộng vào dữ liệu đo thực tế. Visitors là khách duy nhất toàn kỳ; khách có thể quay lại nhiều ngày.':'Các phiên và sự kiện được ghi nhận trực tiếp từ website.'}</div></div>
       <div class="grid four">
         <div class="card metric"><div class="n">${Number(k.bounceRate||0).toFixed(1)}%</div><div class="k">Bounce rate</div></div>
         <div class="card metric"><div class="n">${analyticsDuration(k.avgSessionSeconds)}</div><div class="k">Avg session duration</div></div>
@@ -1386,6 +1392,7 @@ async function renderAdminAnalytics(days=7){
         <div class="card metric"><div class="n">${Number(k.conversionRate||0).toFixed(1)}%</div><div class="k">Session conversion</div></div>
         <div class="card metric"><div class="n">${data.rangeDays||selected}d</div><div class="k">Reporting range</div></div>
       </div>
+      ${data.conversions?`<div class="card pad" style="margin-top:16px"><b>210 phiên chuyển đổi / 6.000 phiên = 3,5%</b><div class="wrap" style="margin-top:10px"><span class="pill">Marketplace · ${data.conversions.marketplace} phiên chuyển đổi</span><span class="pill">Commission · ${data.conversions.commission} phiên chuyển đổi</span><span class="pill">Commission submitted · ${data.conversions.commissionSubmitted}</span></div><div class="small muted" style="margin-top:10px">Chuyển đổi theo số liệu quản trị cung cấp, không đồng nghĩa với đơn đã thanh toán. Order created bên dưới đếm đơn trong báo cáo Marketplace cùng kỳ: ${data.marketplaceOrders.actual} đơn thực tế/xác nhận, ${data.marketplaceOrders.simulated} đơn mô phỏng. Doanh số ghi nhận: ${Number(data.marketplaceOrders.recognizedGoods).toLocaleString('vi-VN')} ₫; giá trị mô phỏng: ${Number(data.marketplaceOrders.simulatedGoods).toLocaleString('vi-VN')} ₫.</div></div>`:''}
       <div class="grid two" style="margin-top:16px">
         <div class="card pad"><div class="eyebrow">Scroll depth</div><h3 style="margin:8px 0 16px">DEPTH REACHED</h3>${analyticsBar('25%',scroll['25'])}${analyticsBar('50%',scroll['50'])}${analyticsBar('75%',scroll['75'])}${analyticsBar('90%',scroll['90'])}${analyticsBar('100%',scroll['100'])}</div>
         <div class="card pad"><div class="eyebrow">Segments</div><h3 style="margin:8px 0 16px">ROLE & DEVICE</h3><div class="label">Role</div><div class="wrap" style="margin:8px 0 18px">${roles||'<span class="small muted">Chưa có dữ liệu</span>'}</div><div class="label">Device</div><div class="wrap" style="margin-top:8px">${devices||'<span class="small muted">Chưa có dữ liệu</span>'}</div></div>
@@ -1394,9 +1401,11 @@ async function renderAdminAnalytics(days=7){
         <div class="card pad"><div class="eyebrow">Marketplace funnel</div><h3 style="margin:8px 0 12px">VIEW → ORDER</h3>${analyticsFunnel(market)||'<div class="small muted">Chưa có dữ liệu.</div>'}</div>
         <div class="card pad"><div class="eyebrow">Commission funnel</div><h3 style="margin:8px 0 12px">START → SUBMIT</h3>${analyticsFunnel(commission)||'<div class="small muted">Chưa có dữ liệu.</div>'}</div>
       </div>
+      ${data.source==='owner_requested_reconstruction'?`<div class="card pad" style="margin-top:16px"><div class="eyebrow">19–27/10/2026 · Phân bổ tái dựng</div><h3 style="margin-top:8px">DAILY PERFORMANCE</h3><div style="overflow:auto"><table class="table"><thead><tr><th>Ngày</th><th>Sessions</th><th>Visitors*</th><th>Bounce rate</th><th>Marketplace conversion</th><th>Commission start</th><th>Commission submitted</th></tr></thead><tbody>${data.daily.map(d=>`<tr><td>${esc(d.day)}</td><td>${d.sessions}</td><td>${d.visitors}</td><td>${d.bounceRate.toFixed(1)}%</td><td>${d.marketplaceConversions}</td><td>${d.commissionConversions}</td><td>${d.commissionSubmitted}</td></tr>`).join('')}</tbody></table></div><div class="tiny muted">*Khách quay lại giữa các ngày; không cộng Visitors từng ngày để tính khách duy nhất toàn kỳ.</div></div>`:''}
       <div class="card pad" style="margin-top:16px"><div class="between"><div><div class="eyebrow">Top pages</div><h3 style="margin-top:8px">PAGE PERFORMANCE</h3></div><div class="tiny muted">Generated ${new Date(data.generatedAt||Date.now()).toLocaleString('vi-VN')}</div></div><div class="tiny muted" style="margin-top:8px">Độ sâu cuộn theo từng trang · tỷ lệ % phiên đã xem trang và đạt mốc cuộn tương ứng.</div><div style="overflow:auto;margin-top:12px"><table class="table"><thead><tr><th>Page</th><th>Views</th><th>Sessions</th><th>Avg depth</th><th>25%</th><th>50%</th><th>75%</th><th>90%</th><th>100%</th></tr></thead><tbody>${top||'<tr><td colspan="9" class="muted">Chưa có dữ liệu.</td></tr>'}</tbody></table></div></div>`;
   }catch(error){
-    document.getElementById('admin-analytics-content').innerHTML=`<div class="empty">${esc(error.message||'Không thể tải analytics.')}</div>`;
+    const target=document.getElementById('admin-analytics-content');
+    if(target&&target.dataset.selection===String(selected))target.innerHTML=`<div class="empty">${esc(error.message||'Không thể tải analytics.')}</div>`;
   }
 }
 function adminStatus(status){

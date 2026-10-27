@@ -1,4 +1,5 @@
 const express=require('express');
+const {ensureReconstruction,loadReconstruction}=require('./analytics-reconstruction');
 
 const CONVERSION_EVENTS=new Set([
   'signup_complete','commission_submitted','order_created','payment_reported',
@@ -93,6 +94,7 @@ async function ensureAnalyticsSchema(pool){
   await pool.query('CREATE INDEX IF NOT EXISTS analytics_events_session_idx ON analytics_events(session_id,created_at)');
   await pool.query('CREATE INDEX IF NOT EXISTS analytics_events_name_idx ON analytics_events(event_name,created_at DESC)');
   await pool.query('CREATE INDEX IF NOT EXISTS analytics_events_page_idx ON analytics_events(page_path,created_at DESC)');
+  await ensureReconstruction(pool);
 }
 
 function createAnalyticsRouter({pool,requireAdmin}){
@@ -208,6 +210,8 @@ function createAnalyticsRouter({pool,requireAdmin}){
 
   router.get('/api/admin/analytics/summary',requireAdmin,async(req,res,next)=>{
     try{
+      res.set('Cache-Control','no-store');
+      if(req.query.period==='2026-10-19_2026-10-27')return res.json(await loadReconstruction(pool));
       const days=Math.min(90,Math.max(1,Number(req.query?.days)||7));
       const [summaryR,scrollR,roleR,deviceR,pagesR,eventsR,dailyR]=await Promise.all([
         pool.query(`
@@ -299,6 +303,7 @@ function createAnalyticsRouter({pool,requireAdmin}){
       const sessionCount=name=>Number(eventMap[name]?.sessions||0);
 
       res.json({
+        source:'measured',
         rangeDays:days,
         generatedAt:new Date().toISOString(),
         kpis:{
