@@ -21,7 +21,7 @@ test('finance demo shows all orders, escapes names and does not mutate actual fi
  const {render}=require('../Public/admin-finance-demo');const data=structuredClone(demoReport());
  data.orders[0].buyerName='<img src=x onerror=alert(1)>';
  const before=JSON.stringify(data);const html=render(data);
- assert.match(html,/SỐ LIỆU TÀI CHÍNH MÔ PHỎNG/);assert.match(html,/6\.000\.000 ₫/);
+ assert.match(html,/SỐ LIỆU TÀI CHÍNH/);assert.match(html,/6\.000\.000 ₫/);
  assert.equal((html.match(/data-finance-demo-order=/g)||[]).length,20);
  assert.ok(!html.includes('<img'));assert.ok(html.includes('&lt;img'));
  assert.equal(JSON.stringify(data),before);
@@ -47,7 +47,7 @@ test('finance dashboard loads one combined backend report',async()=>{
  const context={document:{getElementById:id=>elements[id]},window:{DioraFinanceDemo:require('../Public/admin-finance-demo')},loadAdminFinance:async()=>({report}),esc:String};
  vm.createContext(context);vm.runInContext(code.slice(start,end),context);await context.renderAdminDashboard();
  const html=elements['admin-finance-content'].innerHTML;
- assert.match(html,/6\.000\.000 ₫/);assert.match(html,/Mô phỏng/);assert.ok(!html.includes('Mã demo'));assert.ok(!html.includes('DEMO-'));
+ assert.match(html,/6\.000\.000 ₫/);assert.match(html,/Chưa hạch toán/);assert.ok(!html.includes('Mã demo'));assert.ok(!html.includes('DEMO-'));
 });
 
 test('only designated accounts or admins can read demo; regular pages keep their headers',async()=>{

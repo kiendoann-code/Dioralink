@@ -16,7 +16,7 @@ test('existing Marketplace admin endpoint and screen merge simulated and actual 
   const target={},elements={'market-report-data':target,'market-report-from':{},'market-report-to':{}};
   const context={document:{getElementById:id=>elements[id]},window:{DioraFinanceDemo:require('../Public/admin-finance-demo')},marketAPI:async()=>report,marketReportQuery:()=>'',currentRoute:()=> 'admin-market',marketStatuses:{},marketAdminReport:null,money:String,esc:String,marketBarChart:()=>'',marketError:e=>{throw e;}};
   vm.createContext(context);vm.runInContext(code.slice(start,end),context);await context.loadMarketReport();
-  assert.match(target.innerHTML,/6\.000\.000/);assert.match(target.innerHTML,/Giao dịch và hoa hồng tổng hợp/);assert.ok(!target.innerHTML.includes('Mã demo'));assert.ok(!target.innerHTML.includes('compute.c-7'));
+  assert.match(target.innerHTML,/6\.000\.000/);assert.match(target.innerHTML,/Giao dịch và hoa hồng tổng hợp/);assert.doesNotMatch(target.innerHTML.replace(/<[^>]*>/g,''),/mô phỏng|demo|test|thử nghiệm|giả lập|Đối soát đơn thật trong kỳ/i);assert.match(target.innerHTML,/Chưa hạch toán/);assert.ok(!target.innerHTML.includes('compute.c-7'));
   assert.equal((await f.pool.query('SELECT COUNT(*)::int AS n FROM market_orders')).rows[0].n,0);
  }finally{await f.close();}
 });

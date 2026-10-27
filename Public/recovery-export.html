@@ -136,7 +136,7 @@ $("export").addEventListener("click",async()=>{
    const download=URL.createObjectURL(file);
    const a=document.createElement("a");a.href=download;a.download="DioraLink_CuuHoSoNgheNhan_"+new Date().toISOString().slice(0,10)+".json";
    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(download),60000);
-   $("result").textContent="Đã tạo file: "+data.artists.length+" hồ sơ nghệ nhân thực (không tính bản demo), "+data.drafts.length+" bản nháp biểu mẫu, "+data.imageDrafts.length+" bản nháp ảnh sản phẩm, "+images.items.length+" ảnh bổ sung. Ảnh chưa lấy được: "+images.missing.length+".\nNếu file chứa thông tin thật, có thể sử dụng làm nguồn đối chiếu để dựng lại hồ sơ và sản phẩm.";
+   $("result").textContent="Đã tạo file: "+data.artists.length+" hồ sơ nghệ nhân thực, "+data.drafts.length+" bản nháp biểu mẫu, "+data.imageDrafts.length+" bản nháp ảnh sản phẩm, "+images.items.length+" ảnh bổ sung. Ảnh chưa lấy được: "+images.missing.length+".\nNếu file chứa thông tin thật, có thể sử dụng làm nguồn đối chiếu để dựng lại hồ sơ và sản phẩm.";
  }catch(err){
    $("result").textContent="Không thể xuất dữ liệu: "+String(err?.message||err);
  }finally{$("export").disabled=false;}
