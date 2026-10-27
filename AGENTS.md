@@ -8,9 +8,9 @@
 
 ## Hosting and database policy
 
-- The user confirmed on 27 October 2026 that DioraLink has already moved to Neon.
-- Use the existing Neon project and deployment setup. Do not use Render again.
-- Do not call Render tools or APIs, deploy or provision on Render, or trigger an old deployment workflow that uses Render (including through a Git push).
-- Historical Render references in documentation, DNS, headers, or old workflows are legacy information, not authorization to use Render.
-- If the current application deployment path is unclear, inspect the existing Neon setup and relevant deployment history before proposing another migration or asking the user to choose a host.
+- The database has moved to the existing Neon project; preserve that database and its connection configuration.
+- On 27 October 2026 the user lifted the Render ban and authorized deployment to the existing website, subject to no new paid services or plan upgrades. This supersedes the earlier Render prohibition.
+- Before deployment, verify that the existing Render web service remains on the Free plan. Do not create paid resources, upgrade a plan, or resume the expired Render database.
+- The user cannot obtain another backup from the former database. Do not require another recovery, replace the existing dataset, change database connections, or run destructive database operations to deploy application code.
+- Update the existing website through its established deployment path. Do not create another reporting site or migrate hosting to solve a dashboard edit.
 - Preserve existing data and authentication; do not create a replacement project or switch database connections merely to deploy a change.
