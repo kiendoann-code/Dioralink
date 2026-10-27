@@ -1,5 +1,6 @@
 ﻿node_modules/
 .env
+.neon-finance/
 *.log
 .DS_Store
 
