@@ -88,6 +88,8 @@ const { createMarketplace, ensureMarketplaceSchema } = require("./marketplace");
 const { createAnalyticsRouter, ensureAnalyticsSchema } = require("./analytics-server");
 const { createCommissionWorkflow, ensureCommissionWorkflowSchema } = require("./commission-workflow");
 
+const {createCommunity,ensureCommunitySchema}=require('./community');
+
 const COOKIE_NAME = "dioralink_session";
 
 function normalizeAccountRole(value) {
@@ -1486,6 +1488,7 @@ const {ensureArtisanRecoverySchema,createArtisanRecoveryRouter}=require('./artis
 app.use(createArtisanRecoveryRouter({pool,requireAuth,requireAdmin:requireFinanceAdmin}));
 const marketplace = createMarketplace({ pool, indexFile: INDEX_FILE, requireAuth, requireAdmin: requireFinanceAdmin });
 app.use(marketplace.router);
+app.use(createCommunity({pool,requireAuth,requireAdmin:requireFinanceAdmin,getUserFromRequest}));
 app.use(require('./demo-orders').createDemoOrdersRouter({requireAuth,requireAdmin:requireFinanceAdmin}));
 app.use(createAnalyticsRouter({ pool, requireAdmin: requireFinanceAdmin }));
 require('./render-backup-stage').installRenderBackupStage({app,pool,requireAdmin:requireFinanceAdmin});
@@ -1563,6 +1566,7 @@ async function start() {
 
     await ensureSeoSchema(pool);
     await ensureMarketplaceSchema(pool);
+    await ensureCommunitySchema(pool);
     await ensureAnalyticsSchema(pool);
     await ensureCommissionWorkflowSchema(pool);
     await ensureFinanceSchema();

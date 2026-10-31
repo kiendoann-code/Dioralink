@@ -1,0 +1,92 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const express=require('express');
+const {PGlite}=require('@electric-sql/pglite');
+const {createCommunity,ensureCommunitySchema}=require('../community');
+test('Community permissions, votes, thread isolation, moderation and bounded responses',async()=>{
+ const db=new PGlite();await db.waitReady;
+ const query=(sql,params)=>params?db.query(sql,params):db.exec(sql).then(r=>r.at(-1));
+ const pool={query,connect:async()=>({query,release(){}})};
+ await query("CREATE TABLE users(id TEXT PRIMARY KEY,name TEXT);INSERT INTO users VALUES('a','An'),('b','Bình'),('c','Chi');");
+ await ensureCommunitySchema(pool);await ensureCommunitySchema(pool);
+ const app=express();app.use(express.json({limit:'18mb'}));
+ const auth=(req,res,next)=>{const u=req.get('x-user');if(!['a','b','c'].includes(u))return res.sendStatus(401);req.user={id:u};next();};
+ const admin=(req,res,next)=>{if(req.get('x-admin')!=='yes')return res.sendStatus(403);req.admin={id:'admin'};next();};
+ app.use(createCommunity({pool,requireAuth:auth,requireAdmin:admin,getUserFromRequest:async req=>req.get('x-user')?{id:req.get('x-user')}:null}));
+ app.use((err,req,res,next)=>res.status(500).json({message:err.message}));
+ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
+ async function api(path,body,user,admin=false){const r=await fetch('http://127.0.0.1:'+server.address().port+'/api/'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(user?{'x-user':user}:{}),...(admin?{'x-admin':'yes'}:{})},body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json().catch(()=>null)};}
+ const payload={group:'questions',tag:'Hỏi đáp',title:'Cách làm cây miniature?',body:'Mình đang thử làm một cây miniature và cần hướng dẫn.'};
+ try{
+  assert.equal((await api('community/posts',payload)).status,401);
+  const p=await api('community/posts',payload,'a');assert.equal(p.status,201);const id=p.data.id;
+  assert.equal((await api('community/posts',payload,'a')).status,429);
+  assert.equal((await api('community/posts',{...payload,group:'invalid'},'b')).status,400);
+  assert.equal((await api('community/posts/'+id)).data.post.score,null);
+  assert.equal((await api(`community/entries/${id}/vote`,{value:1},'a')).status,400);
+  for(const value of [1,1,-1,0,1])assert.equal((await api(`community/entries/${id}/vote`,{value},'b')).status,200);
+  assert.equal((await query('SELECT * FROM community_votes')).rows.length,1);
+  await query("UPDATE community_entries SET created_at=NOW()-INTERVAL '2 hours'");
+  assert.equal((await api('community/posts/'+id)).data.post.score,1);
+  for(const sort of ['hot','new','top']){const feed=await api('community/posts?sort='+sort);assert.equal(feed.status,200,JSON.stringify(feed.data));assert.equal(feed.data.posts[0].id,id);assert.equal('body' in feed.data.posts[0],false);assert.equal('rank_score' in feed.data.posts[0],false);}
+  const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=';
+  const files=[{name:'cây.png',type:'image/png',data:png},{name:'ghi-chú.txt',type:'text/plain',data:Buffer.from('Ghi chú vật liệu 🌿').toString('base64')}];
+  assert.equal((await api(`community/posts/${id}/comments`,{attachments:files})).status,401);
+  assert.equal((await api(`community/posts/${id}/comments`,{body:'',attachments:[]} ,'b')).status,400);
+  assert.equal((await api(`community/posts/${id}/comments`,{body:'Tệp sai',attachments:[{name:'fake.png',type:'image/png',data:Buffer.from('<script>bad</script>').toString('base64')}]},'b')).status,400);
+  const c=await api(`community/posts/${id}/comments`,{body:'Bạn thử dây đồng và bột cỏ nhé. 🌿😊',attachments:files},'b');assert.equal(c.status,201);const cid=c.data.id;
+  const detail=(await api('community/posts/'+id)).data;
+  const media=detail.comments.find(c=>c.id===cid).attachments;assert.equal(media.length,2);assert.equal('data' in media[0],false);assert.equal(JSON.stringify(detail).includes(png),false);
+  async function readFile(file){return fetch('http://127.0.0.1:'+server.address().port+file.url);}
+  const image=await readFile(media.find(f=>f.mime==='image/png'));assert.equal(image.status,200);assert.equal(image.headers.get('x-content-type-options'),'nosniff');assert.deepEqual(Buffer.from(await image.arrayBuffer()),Buffer.from(png,'base64'));
+  const document=await readFile(media.find(f=>f.mime==='text/plain'));assert.match(document.headers.get('content-disposition'),/^attachment/);assert.equal(await document.text(),'Ghi chú vật liệu 🌿');
+  const reply=await api(`community/posts/${id}/comments`,{parent:cid,body:'',attachments:[{name:'notes.pdf',type:'application/pdf',data:Buffer.from('%PDF-1.4\nfixture').toString('base64')}]},'a');assert.equal(reply.status,201);
+  assert.equal((await api(`community/posts/${id}/answer`,{comment:cid},'b')).status,403);
+  assert.equal((await api(`community/posts/${id}/answer`,{comment:cid},'a')).status,200);
+  const other=await api('community/posts',payload,'c');assert.equal(other.status,201);
+  await query("UPDATE community_entries SET created_at=NOW()-INTERVAL '2 hours'");
+  assert.equal((await api(`community/posts/${other.data.id}/comments`,{body:'Sai bài thảo luận',parent:cid},'b')).status,400);
+  assert.equal((await api(`community/posts/${other.data.id}/answer`,{comment:cid},'c')).status,400);
+  assert.equal((await api(`community/posts/${id}/save`,{saved:true},'b')).status,200);
+  assert.equal((await api('community/posts?saved=1',null,'b')).data.posts.length,1);
+  assert.equal((await api('community/posts?saved=1')).status,401);
+  assert.equal((await api(`community/entries/${cid}/report`,{reason:'Nội dung cần kiểm tra lại.'},'c')).status,200);
+  assert.equal((await api('admin/community')).status,403);
+  assert.equal((await api('admin/community',null,null,true)).data.reports.length,1);
+  assert.equal((await api(`admin/community/${cid}`,{action:'hide',reason:'Nội dung chưa đúng nội quy.'},null,true)).status,200);
+  const hidden=(await api('community/posts/'+id)).data;assert.equal(hidden.post.accepted_id,null);assert.equal(hidden.comments.find(c=>c.id===cid).body,'[Nội dung đã được gỡ]');assert.equal(hidden.comments.length,2);
+  assert.equal(hidden.comments.find(c=>c.id===cid).attachments.length,0);assert.equal((await readFile(media[0])).status,404);
+  assert.equal((await query('SELECT * FROM community_moderation')).rows.length,1);
+  assert.equal((await api(`admin/community/${id}`,{action:'lock',reason:'Tạm khóa để kiểm tra nội dung.'},null,true)).status,200);
+  assert.equal((await api(`community/posts/${id}/comments`,{body:'Thử gửi khi khóa'},'b')).status,409);
+  assert.equal((await api(`community/entries/${id}/report`,{reason:'Bài đã khóa vẫn cần được báo cáo.'},'b')).status,200);
+  assert.equal((await api(`admin/community/${id}`,{action:'hide',reason:'Gỡ bài theo nội quy cộng đồng.'},null,true)).status,200);
+  assert.equal((await api('community/posts/'+id)).status,404);
+  const replyFile=(await query('SELECT id FROM community_attachments WHERE entry_id=$1',[reply.data.id])).rows[0];assert.equal((await readFile({url:'/api/community/attachments/'+replyFile.id})).status,404);
+  assert.equal((await api(`community/entries/${reply.data.id}/vote`,{value:1},'c')).status,404);
+  assert.equal((await api('community/posts?saved=1',null,'b')).data.posts.length,0);
+  assert.equal((await api(`admin/community/${id}`,{action:'restore',reason:'Khôi phục sau khi kiểm tra lại.'},null,true)).status,200);
+  assert.equal((await api('community/posts/'+id)).status,200);
+  for(let i=0;i<22;i++)await query('INSERT INTO community_entries(id,author_id,group_id,title,body,tag) VALUES($1,$2,$3,$4,$5,$6)',[require('node:crypto').randomUUID(),'a','guides','Bài hướng dẫn '+i,'x'.repeat(10000),'Hướng dẫn']);
+  const page=await api('community/posts?group=guides&sort=new');assert.equal(page.data.posts.length,20);assert.equal(page.data.hasMore,true);assert.equal(page.data.posts[0].excerpt.length,280);
+  const next=await api('community/posts?group=guides&sort=new&offset=20');assert.equal(next.data.posts.length,2);assert.equal(next.data.hasMore,false);assert.ok(!next.data.posts.some(p=>page.data.posts.some(q=>p.id===q.id)));
+  assert.equal((await api('community/posts?q='+encodeURIComponent("' OR 1=1 --"))).data.posts.length,0);
+ }finally{await new Promise(r=>server.close(r));await db.close();}
+});
+test('Attachment validation bounds uploads and accepts an image-only or document comment',()=>{
+ const {attachmentsInput}=require('../community');
+ const pdf={name:'guide.pdf',type:'application/pdf',data:Buffer.from('%PDF-1.4\nfixture').toString('base64')};
+ assert.equal(attachmentsInput([pdf])[0].mime,'application/pdf');
+ assert.throws(()=>attachmentsInput([pdf,pdf,pdf,pdf]),/3 tệp/);
+ assert.throws(()=>attachmentsInput([{...pdf,data:Buffer.alloc(2097153,65).toString('base64')}]),/2 MB/);
+ assert.throws(()=>attachmentsInput([{...pdf,type:'text/html'}]),/Chỉ hỗ trợ/);
+ assert.throws(()=>attachmentsInput([{...pdf,data:'%%%='}]),/không hợp lệ/);
+ assert.equal(attachmentsInput([{...pdf,name:'../a\n.pdf'}])[0].name.includes('\n'),false);
+});
+test('Community escapes text and attribute values and is mounted in existing navigation',()=>{
+ const fs=require('fs'),vm=require('vm'),path=require('path');const source=fs.readFileSync(path.join(__dirname,'../Public/community.js'),'utf8');const context=vm.createContext({});vm.runInContext(source,context);
+ assert.equal(vm.runInContext('communityEscape(\'<script>"&\\\'\')',context),'&lt;script&gt;&quot;&amp;&#39;');
+ const app=fs.readFileSync(path.join(__dirname,'../Public/app.js'),'utf8');assert.match(app,/'community':renderCommunity/);assert.match(app,/const protectedAdmin=\['admin-community'/);
+ const html=fs.readFileSync(path.join(__dirname,'../Public/index.html'),'utf8');assert.ok(html.indexOf('/community.js?')<html.indexOf('/app.js?'));assert.match(html,/href="\/ung-dung#community"/);
+});
