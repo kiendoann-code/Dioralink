@@ -116,8 +116,8 @@ function createArtisanRecoveryRouter({pool,requireAuth,requireAdmin}){
  r.use(['/api/artisan/recovery','/api/admin/artisan-recovery'],(req,res,next)=>{res.set('Cache-Control','no-store');next();});
  r.get('/api/artisan/recovery',requireAuth,wrap(async(req,res)=>{
   if(!isArtisan(req))err('Chỉ dành cho nghệ nhân.',403);
-  const profiles=(await pool.query('SELECT source_profile_id,name,cached_published FROM recovered_artisan_staging ORDER BY name')).rows
-    .filter(p=>p.cached_published||norm(p.name)===norm(req.user.name))
+  const profiles=(await pool.query('SELECT source_profile_id,old_user_id,name,cached_published FROM recovered_artisan_staging ORDER BY name')).rows
+    .filter(p=>p.cached_published||String(p.old_user_id)===String(req.user.id)||norm(p.name)===norm(req.user.name))
     .map(p=>({id:p.source_profile_id,name:p.name,published:p.cached_published}));
   const claims=(await pool.query(`SELECT c.id,c.source_profile_id,c.status,c.created_at,c.reviewed_at,c.admin_note,s.name
    FROM recovered_artisan_claims c JOIN recovered_artisan_staging s ON s.source_profile_id=c.source_profile_id
@@ -131,7 +131,7 @@ function createArtisanRecoveryRouter({pool,requireAuth,requireAdmin}){
   const claim=await tx(pool,async c=>{
    const old=(await c.query('SELECT * FROM recovered_artisan_staging WHERE source_profile_id=$1 FOR UPDATE',[id])).rows[0];
    if(!old)err('Hồ sơ không tồn tại.',404);
-   if(!old.cached_published&&norm(old.name)!==norm(req.user.name))err('Hồ sơ này chưa công khai.',403);
+   if(!old.cached_published&&String(old.old_user_id)!==String(req.user.id)&&norm(old.name)!==norm(req.user.name))err('Hồ sơ này chưa công khai.',403);
    if((await c.query("SELECT 1 FROM recovered_artisan_claims WHERE source_profile_id=$1 AND status='approved'",[id])).rows[0])err('Hồ sơ đã có chủ sở hữu.',409);
    if((await c.query("SELECT 1 FROM recovered_artisan_claims WHERE claimant_user_id=$1 AND status='approved'",[req.user.id])).rows[0])err('Bạn đã liên kết một hồ sơ.',409);
    const existing=(await c.query('SELECT id,status FROM recovered_artisan_claims WHERE source_profile_id=$1 AND claimant_user_id=$2',[id,req.user.id])).rows[0];
