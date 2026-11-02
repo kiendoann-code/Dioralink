@@ -50,11 +50,18 @@ test('concurrent last-unit checkout, replay and cancellation conserve inventory'
  await act(o,who,'cancel',{note:'Khách thay đổi nhu cầu'});await act(o,who,'cancel',{note:'Gửi hủy lặp lại'},409);
  assert.equal((await f.api('/api/market/products/'+p.id)).data.product.stock,1);
 });
-test('wallet orders conceal buyers and only admin dispatches, receipt pays seller once',async()=>{
+test('wallet orders conceal buyers, sellers update SPX, buyer receipt pays seller once',async()=>{
  const p=await product(),o=await order(p);await act(o,'buyer','accept',{},409);await act(o,'seller','accept');
  const seller=await f.api('/api/market/orders/'+o.id,{user:'seller'});assert.match(seller.data.order.buyer_id,/^KH-/);assert.ok(!JSON.stringify(seller.data).includes('0901234567'));assert.ok(!JSON.stringify(seller.data).includes('Khách An'));
- await act(o,'seller','ship',{tracking_number:'SPXTEST12345'},409);
- await act(o,'admin','ship',{tracking_number:'SPXTEST12345'});const complete=await act(o,'buyer','receive');assert.equal(complete.status,'completed');assert.equal(Number(complete.fee_collected_amount),160000);
+ await act(o,'buyer','ship',{tracking_number:'SPXTEST12345'},409);
+ const shipped=await act(o,'seller','ship',{tracking_number:'SPXTEST12345'});assert.equal(shipped.status,'shipped');
+ await act(o,'buyer','update_tracking',{tracking_number:'SPXTEST12346'},409);
+ await act(o,'seller','update_tracking',{tracking_number:'SPXTEST12346'});
+ const corrected=await act(o,'admin','update_tracking',{tracking_number:'SPXTEST12347'});assert.equal(corrected.tracking_number,'SPXTEST12347');
+ await act(o,'seller','receive',{},409);
+ assert.equal((await f.pool.query("SELECT status FROM diora_holds WHERE ref=$1",['market:'+o.id])).rows[0].status,'held');
+ assert.equal((await f.pool.query("SELECT COUNT(*)::int AS n FROM diora_ledger WHERE ref=$1 AND kind='sale'",['market:'+o.id])).rows[0].n,0);
+ const complete=await act(o,'buyer','receive');assert.equal(complete.status,'completed');assert.equal(Number(complete.fee_collected_amount),160000);
  await act(o,'buyer','receive',{},409);await act(o,'admin','collect_fee',{reference:'FEE123'},409);
  const entries=(await f.pool.query("SELECT * FROM diora_ledger WHERE ref=$1 AND kind='sale'",['market:'+o.id])).rows;assert.equal(entries.length,1);assert.equal(Number(entries[0].delta),1870000);
 });

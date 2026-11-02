@@ -13,7 +13,7 @@
 
 - Đơn Marketplace mới thanh toán bằng ví: giữ tổng tiền lúc đặt, hoàn khi khách hủy đơn chờ xác nhận, giải ngân khi khách nhận hàng. Tiền hàng trừ phí dịch vụ; phí giao hàng được chuyển cùng khoản cho nghệ nhân.
 - Dữ liệu đơn COD/chuyển khoản cũ được giữ nguyên. Đơn mới không dùng chuyển khoản trực tiếp cho nghệ nhân vì điều đó có thể tiết lộ danh tính người gửi.
-- Người mua chỉ hiện mã KH theo từng đơn/yêu cầu. Tên, điện thoại, địa chỉ không được gửi về API cho nghệ nhân. Admin xem thông tin nhận hàng và cập nhật vận đơn SPX; không tích hợp API tạo vận đơn SPX tự động.
+- Người mua chỉ hiện mã KH theo từng đơn/yêu cầu. Tên, điện thoại, địa chỉ không được gửi về API cho nghệ nhân. Admin xem thông tin nhận hàng và điều phối giao hàng; nghệ nhân hoặc admin được nhập, chỉnh mã vận đơn SPX khi đơn ở trạng thái phù hợp, nhưng nghệ nhân không xem được thông tin riêng của khách. Không tích hợp API tạo vận đơn SPX tự động.
 - Commission mới: khách giữ tiền từng mốc trước khi nghệ nhân bắt đầu. Nghệ nhân gửi bằng chứng; khách nghiệm thu, sau đó xác nhận thanh toán bằng ví. Chuyển tiền và thu phí diễn ra trong cùng giao dịch cơ sở dữ liệu.
 - Mốc chưa bắt đầu được hoàn khoản giữ khi dừng. Mốc đang làm/bàn giao cần admin đối soát; admin có thể hoàn hoặc giải ngân với lý do. Khoản đã giải ngân không tự động thu hồi từ ví nghệ nhân.
 - Phí commission tính theo tổng ngân sách dự án; phí Marketplace tính theo tiền hàng. Mức phí: 10% <2m; 8% ≤5m; 7% ≤10m; 5% >10m.
