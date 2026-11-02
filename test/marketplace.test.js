@@ -197,6 +197,9 @@ test('a combined purchase has one SPX shipment, one receipt confirmation and one
  assert.equal(Number(ledger[0].delta),295000);
  const sellerOrders=await f.api('/api/market/orders?role=seller',{user:'seller'});
  assert.equal(sellerOrders.data.orders.filter(x=>x.id===o.id).length,1);
+ const listItem=sellerOrders.data.orders.find(x=>x.id===o.id);
+ assert.equal(listItem.product_snapshot.items.length,2);
+ assert.ok(listItem.product_snapshot.items.every(x=>!Object.hasOwn(x,'images')),'order lists must exclude nested base64 images');
  const report=(await f.api('/api/admin/market/report',{admin:true})).data;
  assert.ok(report.products.some(p=>p.id===a.id&&p.goods>=120000));
  assert.ok(report.products.some(p=>p.id===b.id&&p.goods>=180000));
