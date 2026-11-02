@@ -5,8 +5,8 @@
 - `/marketplace`, product URLs and the homepage render live products in HTML with Vietnamese metadata, canonical URLs, Product/Offer markup and sitemap entries. No sample products are inserted in production.
 - Artists manage products, photos, prices, available stock and payment settings at `/ung-dung#market-seller`; sales are at `#market-sales`.
 - Customers choose bank transfer or COD, supply delivery details, and actively accept versioned terms before an order is stored. Purchase history is at `#market-orders`.
-- Artists accept orders and supply an SPX tracking number. Bank transfers require seller verification of actual receipt before shipping. COD completes after buyer receipt and seller payout reconciliation.
-- Parties exchange evidence in the order history. Admin can resolve disputes, record full refunds, restore physically returned stock, and reconcile fees.
+- New wallet orders (terms 2026-11-02) hold funds until the seller supplies SPX shipment evidence and an admin independently verifies carrier handoff, with a verification reference and written basis. Admin verification atomically releases funds to the seller's wallet and completes the sale without buyer receipt. Original buyer-receipt terms remain binding for older wallet orders; historical transfer/COD flows are unchanged.
+- Parties exchange evidence in the order history. Post-release refunds cannot reuse escrow funds and require separate recovery/compensation handling. SPX verification is currently manual: no direct carrier API is integrated, so seller-entered labels or fake tracking numbers never trigger wallet payout.
 - Admin reporting at `/ung-dung#admin-market` includes daily trends, seller/product breakdowns, statuses, disputes and an XLSX workbook with four sheets.
 
 ## Financial rules
@@ -22,7 +22,7 @@ Source: user-provided `check 4.docx`, section 5.3, transaction commission table.
 
 The document's overlapping 5,000,000 boundary is implemented in the 8% tier. Fees round to the nearest VND. Artist share is goods minus platform fee; it is not profit after materials, taxes or delivery costs. Shipping is charged once per order. One order contains one product, with quantity.
 
-Price, fee rate, product description/images, bank instructions and the accepted terms are frozen in each order. Reports select orders by creation date in Vietnam time, and evaluate their current status. They are not cash-flow-period reports. Only completed orders without an open dispute contribute earned sales/fees. Actual fee receipts, outstanding fees, refunds and fees owed back are shown separately. Reports cover at most 366 days and 20,000 orders per current/comparison period.
+Price, fee rate, product description/images, bank instructions and the accepted terms are frozen in each order. Reports select orders by creation date in Vietnam time, and evaluate their current status. They are not cash-flow-period reports. Only completed orders without an open dispute contribute earned sales/fees. For wallet orders under the 2026-11-02 terms, completion follows admin-verified carrier handoff, not buyer confirmation of receipt. Actual fee receipts, outstanding fees, refunds and fees owed back are shown separately. Reports cover at most 366 days and 20,000 orders per current/comparison period.
 
 ## Payment, shipping and dispute operations
 

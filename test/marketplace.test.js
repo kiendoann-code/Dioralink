@@ -57,7 +57,7 @@ test('wallet payout follows admin verification of evidenced SPX handoff, never b
  const shipped=await act(o,'seller','ship',{tracking_number:'SPX123456',evidence:[image]});assert.equal(shipped.status,'shipped');
  await act(o,'buyer','receive',{},409);
  await act(o,'seller','verify_dispatch',{reference:'SPX001',note:'Đã đối chiếu SPX thực tế.',dispatch_verified:true},409);
- await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Đã đối chiếu SPX thực tế.',dispatch_verified:true},409);
+ await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Thiếu căn cứ.',dispatch_verified:true},409);
  const released=await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Đã trực tiếp đối chiếu SPX xác nhận tiếp nhận kiện hàng.',dispatch_verified:true});
  assert.equal(released.status,'completed');assert.equal(released.payment_status,'received');
  await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Xác minh lại SPX đủ chữ.',dispatch_verified:true},409);
@@ -68,7 +68,7 @@ test('wallet payout follows admin verification of evidenced SPX handoff, never b
 test('legacy wallet orders still pay when buyer confirms receipt',async()=>{
  const p=await product(),o=await order(p);await f.pool.query('UPDATE market_orders SET terms_version=$2 WHERE id=$1',[o.id,'2026-10-14-wallet-v1']);
  await act(o,'seller','accept');await act(o,'seller','ship',{tracking_number:'SPXLEGACY123'});
- await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Đã đối chiếu SPX thực tế.',dispatch_verified:true},409);
+ await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Thiếu căn cứ.',dispatch_verified:true},409);
  assert.equal((await f.pool.query("SELECT status FROM diora_holds WHERE ref=$1",['market:'+o.id])).rows[0].status,'held');
  const done=await act(o,'buyer','receive');assert.equal(done.status,'completed');
  assert.equal((await f.pool.query("SELECT status FROM diora_holds WHERE ref=$1",['market:'+o.id])).rows[0].status,'released');
