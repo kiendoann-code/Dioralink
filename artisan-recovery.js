@@ -126,8 +126,11 @@ function createArtisanRecoveryRouter({pool,requireAuth,requireAdmin}){
    if(claim.status!=='pending')err('Yêu cầu đã được xử lý.',409);
    if(action==='approve'){
     const old=(await c.query('SELECT * FROM recovered_artisan_staging WHERE source_profile_id=$1 FOR UPDATE',[claim.source_profile_id])).rows[0];
-    const owner=(await c.query('SELECT id,role FROM users WHERE id=$1 FOR UPDATE',[claim.claimant_user_id])).rows[0];
-    if(!owner||owner.role!=='artisan')err('Tài khoản phải là nghệ nhân.',409);
+    const owner=(await c.query(`SELECT u.id,u.role,
+      EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='artisan') AS artisan_enabled
+      FROM users u WHERE u.id=$1 FOR UPDATE`,[claim.claimant_user_id])).rows[0];
+    // Switching to Artisan adds user_roles; the original users.role is deliberately unchanged.
+    if(!owner||(owner.role!=='artisan'&&!owner.artisan_enabled))err('Tài khoản chưa bật chế độ Nghệ nhân.',409);
     if((await c.query("SELECT 1 FROM recovered_artisan_claims WHERE source_profile_id=$1 AND status='approved' OR claimant_user_id=$2 AND status='approved'",[claim.source_profile_id,owner.id])).rows[0])err('Hồ sơ hoặc chủ sở hữu đã được liên kết.',409);
     const originalId=old.source_profile_id.replace(/^ART-/,'');
     const legacy=(await c.query('SELECT old_user_id FROM legacy_restore_control WHERE old_user_id=$1 AND access_verified=FALSE FOR UPDATE',[originalId])).rows[0];
