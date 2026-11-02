@@ -5,7 +5,7 @@ const {fund,settle}=require('./wallet');
 const crypto=require('node:crypto');
 const fs=require('node:fs');
 const {safeImage,slugify,renderDocument}=require('./seo');
-const {TERMS_VERSION,TERMS,text,fail,integer,amounts,shippingAddress,fingerprint,period,aggregate}=require('./marketplace-core');
+const {TERMS_VERSION,TERMS,payoutOnVerifiedDispatch,text,fail,integer,amounts,shippingAddress,fingerprint,period,aggregate}=require('./marketplace-core');
 const {reportWorkbook}=require('./marketplace-report');
 const {productPage,marketPage,termsPage,homeSection}=require('./marketplace-pages');
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -78,15 +78,22 @@ async function changeOrder(c,o,actor,action,b={}){
   case 'cancel':need((buyer&&o.status==='pending')||(seller&&['pending','accepted'].includes(o.status)&&['pending','awaiting_cod'].includes(o.payment_status)));need(note.length>=5,'Vui lòng ghi lý do hủy.');o.status='cancelled';await releaseStock(c,o);break;
   case 'report_payment':need(buyer&&o.status==='accepted'&&o.payment_method==='transfer'&&['pending','reported'].includes(o.payment_status));need(ref.length>=3||evidence.length>0,'Cần mã giao dịch hoặc chứng từ chuyển khoản.');o.payment_status='reported';break;
   case 'confirm_payment':need(seller&&o.status==='accepted'&&o.payment_method==='transfer'&&['pending','reported'].includes(o.payment_status));need(ref.length>=3,'Ghi mã giao dịch đã kiểm tra trong tài khoản ngân hàng.');o.payment_status='received';break;
-  case 'ship':need((seller||isAdmin)&&o.status==='accepted');need(o.payment_method==='cod'||['received','wallet_held'].includes(o.payment_status),'Phải xác nhận nhận tiền trước khi giao đơn chuyển khoản.');o.tracking_number=trackingCode(b.tracking_number);o.status='shipped';break;
-  case 'update_tracking':need((seller||isAdmin)&&o.status==='shipped');o.tracking_number=trackingCode(b.tracking_number);break;
-  case 'receive':need(buyer&&o.status==='shipped');o.status=o.payment_method!=='cod'?'completed':'delivered';if(o.status==='completed')o.completed_at=new Date();break;
+  case 'ship':need((seller||isAdmin)&&o.status==='accepted');need(o.payment_method==='cod'||['received','wallet_held'].includes(o.payment_status),'Phải xác nhận nhận tiền trước khi giao đơn chuyển khoản.');if(payoutOnVerifiedDispatch(o))need(evidence.length>0,'Cần chứng từ SPX đã tiếp nhận kiện hàng.',409);o.tracking_number=trackingCode(b.tracking_number);o.status='shipped';break;
+  case 'verify_dispatch':{
+   need(isAdmin&&o.status==='shipped'&&payoutOnVerifiedDispatch(o),'Chỉ quản trị được xác minh SPX cho đơn chưa giải ngân.');
+   need(b.dispatch_verified===true&&note.length>=20&&ref.length>=6,'Quản trị cần đối chiếu thực tế SPX, ghi mã xác minh và căn cứ tối thiểu 20 ký tự.');
+   const proof=(await c.query("SELECT 1 FROM market_order_events WHERE order_id=$1 AND action='ship' AND jsonb_array_length(evidence)>0 LIMIT 1",[o.id])).rows[0];
+   need(!!proof,'Đơn chưa có chứng từ bàn giao SPX.');
+   o.status='completed';o.completed_at=new Date();break;
+  }
+  case 'update_tracking':need((seller||isAdmin)&&(o.status==='shipped'||(o.status==='completed'&&payoutOnVerifiedDispatch(o))));o.tracking_number=trackingCode(b.tracking_number);break;
+  case 'receive':need(buyer&&o.status==='shipped'&&!payoutOnVerifiedDispatch(o));o.status=o.payment_method!=='cod'?'completed':'delivered';if(o.status==='completed')o.completed_at=new Date();break;
   case 'cod_received':need(seller&&o.status==='delivered'&&o.payment_method==='cod');need(ref.length>=3,'Ghi mã đối soát tiền COD từ SPX.');o.payment_status='cod_received';o.status='completed';o.completed_at=new Date();break;
   case 'dispute':need((buyer||seller)&&!['cancelled','refunded','refund_pending'].includes(o.status));need(note.length>=20,'Mô tả tranh chấp tối thiểu 20 ký tự.');need(evidence.length>0,'Vui lòng đính kèm ít nhất một ảnh hoặc video bằng chứng.');o.dispute_open=true;break;
   case 'comment':need(note.length>=2||evidence.length>0,'Nhập nội dung hoặc chứng cứ.');break;
   case 'resolve_continue':need(isAdmin&&o.dispute_open&&o.status!=='refund_pending');need(note.length>=20,'Ghi căn cứ xử lý ít nhất 20 ký tự.');o.dispute_open=false;break;
   case 'cancel_unpaid':need(isAdmin&&o.dispute_open&&['pending','accepted'].includes(o.status)&&['pending','awaiting_cod'].includes(o.payment_status));need(note.length>=20,'Ghi căn cứ xử lý ít nhất 20 ký tự.');o.status='cancelled';o.dispute_open=false;await releaseStock(c,o);break;
-  case 'refund':need(isAdmin&&o.dispute_open&&['received','cod_received','wallet_held'].includes(o.payment_status)&&!['refund_pending','refunded','cancelled'].includes(o.status));need(note.length>=20,'Ghi phương án hoàn và căn cứ xử lý ít nhất 20 ký tự.');o.status='refund_pending';o.payment_status='refund_pending';break;
+  case 'refund':need(isAdmin&&o.dispute_open&&['received','cod_received','wallet_held'].includes(o.payment_status)&&!['refund_pending','refunded','cancelled'].includes(o.status));need(note.length>=20,'Ghi phương án hoàn và căn cứ xử lý ít nhất 20 ký tự.');if(o.payment_method==='wallet'){const h=(await c.query('SELECT status FROM diora_holds WHERE ref=$1',['market:'+o.id])).rows[0];need(h?.status==='held','Tiền đã giải ngân, không thể hoàn tự động từ khoản giữ. Quản trị cần xử lý bồi hoàn riêng.');}o.status='refund_pending';o.payment_status='refund_pending';break;
   case 'refund_sent':need(seller&&o.status==='refund_pending'&&o.payment_status==='refund_pending');need(ref.length>=3&&evidence.length>0,'Cần mã giao dịch và ảnh chứng từ hoàn tiền.');o.payment_status='refund_sent';break;
   case 'confirm_refund':need(buyer&&o.status==='refund_pending'&&o.payment_status==='refund_sent');o.status='refunded';o.payment_status='refunded';o.dispute_open=false;break;
   case 'admin_confirm_refund':need(isAdmin&&o.status==='refund_pending'&&o.payment_status==='refund_sent');need(note.length>=20&&ref.length>=3,'Ghi căn cứ kiểm chứng và mã giao dịch hoàn tiền.');o.status='refunded';o.payment_status='refunded';o.dispute_open=false;break;
@@ -97,7 +104,7 @@ async function changeOrder(c,o,actor,action,b={}){
  }
  if(o.payment_method==='wallet'){
   if(action==='cancel'||action==='cancel_unpaid'||action==='refund'){await settle(c,'market:'+o.id,true);o.payment_status='refunded';if(action==='refund'){o.status='refunded';o.dispute_open=false;await releaseStock(c,o);}}
-  if(action==='receive'){const hold=await settle(c,'market:'+o.id);if(!hold)fail('Không tìm thấy khoản tiền giữ của đơn; vui lòng liên hệ quản trị.',409);o.payment_status='received';o.fee_collected_amount=Number(o.platform_fee);}
+  if((action==='verify_dispatch'&&payoutOnVerifiedDispatch(o))||(action==='receive'&&!payoutOnVerifiedDispatch(o))){const hold=await settle(c,'market:'+o.id);if(!hold||hold.status!=='released')fail('Khoản tiền giữ chưa thể giải ngân; liên hệ quản trị.',409);o.payment_status='received';o.fee_collected_amount=Number(o.platform_fee);}
  }
  await c.query(`UPDATE market_orders SET status=$2,payment_status=$3,tracking_number=$4,dispute_open=$5,stock_released=$6,completed_at=$7,fee_collected_amount=$8,fee_returned_amount=$9,updated_at=NOW() WHERE id=$1`,[o.id,o.status,o.payment_status,o.tracking_number,o.dispute_open,o.stock_released,o.completed_at,o.fee_collected_amount,o.fee_returned_amount]);
  await event(c,o,actor,action,[note,ref?'Mã chứng từ: '+ref:''].filter(Boolean).join('\n'),evidence);

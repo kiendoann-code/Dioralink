@@ -50,20 +50,28 @@ test('concurrent last-unit checkout, replay and cancellation conserve inventory'
  await act(o,who,'cancel',{note:'Khách thay đổi nhu cầu'});await act(o,who,'cancel',{note:'Gửi hủy lặp lại'},409);
  assert.equal((await f.api('/api/market/products/'+p.id)).data.product.stock,1);
 });
-test('wallet orders conceal buyers, sellers update SPX, buyer receipt pays seller once',async()=>{
- const p=await product(),o=await order(p);await act(o,'buyer','accept',{},409);await act(o,'seller','accept');
- const seller=await f.api('/api/market/orders/'+o.id,{user:'seller'});assert.match(seller.data.order.buyer_id,/^KH-/);assert.ok(!JSON.stringify(seller.data).includes('0901234567'));assert.ok(!JSON.stringify(seller.data).includes('Khách An'));
- await act(o,'buyer','ship',{tracking_number:'SPXTEST12345'},409);
- const shipped=await act(o,'seller','ship',{tracking_number:'SPXTEST12345'});assert.equal(shipped.status,'shipped');
- await act(o,'buyer','update_tracking',{tracking_number:'SPXTEST12346'},409);
- await act(o,'seller','update_tracking',{tracking_number:'SPXTEST12346'});
- const corrected=await act(o,'admin','update_tracking',{tracking_number:'SPXTEST12347'});assert.equal(corrected.tracking_number,'SPXTEST12347');
- await act(o,'seller','receive',{},409);
+test('wallet payout follows admin verification of evidenced SPX handoff, never buyer confirmation',async()=>{
+ const p=await product(),o=await order(p);await act(o,'seller','accept');
+ await act(o,'buyer','ship',{tracking_number:'SPX123456',evidence:[image]},409);
+ await act(o,'seller','ship',{tracking_number:'SPX123456'},409);
+ const shipped=await act(o,'seller','ship',{tracking_number:'SPX123456',evidence:[image]});assert.equal(shipped.status,'shipped');
+ await act(o,'buyer','receive',{},409);
+ await act(o,'seller','verify_dispatch',{reference:'SPX001',note:'Đã đối chiếu SPX thực tế.',dispatch_verified:true},409);
+ await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Đã đối chiếu SPX thực tế.',dispatch_verified:true},409);
+ const released=await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Đã trực tiếp đối chiếu SPX xác nhận tiếp nhận kiện hàng.',dispatch_verified:true});
+ assert.equal(released.status,'completed');assert.equal(released.payment_status,'received');
+ await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Xác minh lại SPX đủ chữ.',dispatch_verified:true},409);
+ await act(o,'seller','update_tracking',{tracking_number:'SPX123457'});
+ assert.equal((await f.pool.query("SELECT status FROM diora_holds WHERE ref=$1",['market:'+o.id])).rows[0].status,'released');
+ assert.equal((await f.pool.query("SELECT count(*)::int AS n FROM diora_ledger WHERE kind='sale' AND ref=$1",['market:'+o.id])).rows[0].n,1);
+});
+test('legacy wallet orders still pay when buyer confirms receipt',async()=>{
+ const p=await product(),o=await order(p);await f.pool.query('UPDATE market_orders SET terms_version=$2 WHERE id=$1',[o.id,'2026-10-14-wallet-v1']);
+ await act(o,'seller','accept');await act(o,'seller','ship',{tracking_number:'SPXLEGACY123'});
+ await act(o,'admin','verify_dispatch',{reference:'SPX001',note:'Đã đối chiếu SPX thực tế.',dispatch_verified:true},409);
  assert.equal((await f.pool.query("SELECT status FROM diora_holds WHERE ref=$1",['market:'+o.id])).rows[0].status,'held');
- assert.equal((await f.pool.query("SELECT COUNT(*)::int AS n FROM diora_ledger WHERE ref=$1 AND kind='sale'",['market:'+o.id])).rows[0].n,0);
- const complete=await act(o,'buyer','receive');assert.equal(complete.status,'completed');assert.equal(Number(complete.fee_collected_amount),160000);
- await act(o,'buyer','receive',{},409);await act(o,'admin','collect_fee',{reference:'FEE123'},409);
- const entries=(await f.pool.query("SELECT * FROM diora_ledger WHERE ref=$1 AND kind='sale'",['market:'+o.id])).rows;assert.equal(entries.length,1);assert.equal(Number(entries[0].delta),1870000);
+ const done=await act(o,'buyer','receive');assert.equal(done.status,'completed');
+ assert.equal((await f.pool.query("SELECT status FROM diora_holds WHERE ref=$1",['market:'+o.id])).rows[0].status,'released');
 });
 test('wallet dispute freezes payout and admin refunds held funds with audit trail',async()=>{
  const p=await product(),o=await order(p);await act(o,'seller','accept');
@@ -79,7 +87,7 @@ test('SSR, homepage, sitemap and product schema use live catalog; missing URLs a
  assert.match((await f.api('/dieu-khoan-mua-hang')).data,/Hủy và tranh chấp/);
 });
 test('XLSX values reconcile with report and formula-like text stays literal',async()=>{
- const p=await product({title:'=1+1 mẫu thử'}),o=await order(p);await act(o,'seller','accept');await act(o,'admin','ship',{tracking_number:'SPXEXCEL123'});await act(o,'buyer','receive');
+ const p=await product({title:'=1+1 mẫu thử'}),o=await order(p);await act(o,'seller','accept');await act(o,'admin','ship',{tracking_number:'SPXEXCEL123',evidence:[image]});await act(o,'admin','verify_dispatch',{reference:'SPXEXCEL',note:'Đã kiểm tra biên nhận SPX tiếp nhận kiện hàng thực tế.',dispatch_verified:true});
  const report=(await f.api('/api/admin/market/report',{admin:true})).data;
  const response=await fetch(f.url+'/api/admin/market/export.xlsx',{headers:{'x-test-admin':'yes'}});assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/spreadsheetml/);
  const book=new ExcelJS.Workbook();await book.xlsx.load(Buffer.from(await response.arrayBuffer()));assert.equal(book.worksheets.length,4);
