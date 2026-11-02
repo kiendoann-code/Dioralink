@@ -9,7 +9,8 @@ test('Archived profile ownership requires explicit authenticated admin approval'
 });
 test('Archived profile and restored drafts only move after approval',()=>{
  assert.ok(code.includes("UPDATE public_artisan_profiles SET user_id=$2,published=$3"));
- assert.ok(code.includes("UPDATE market_products SET seller_id=$2"));
+ assert.ok(code.includes("UPDATE market_products AS product"));
+ assert.ok(code.includes("access_verified=TRUE,commerce_enabled=TRUE"));
  assert.ok(code.includes("legacy_restored_product_status"));
  assert.ok(code.includes("status='draft'"));
 });

@@ -46,6 +46,64 @@ function validBytes(mime,buf){
  if(mime==='image/webp')return buf.toString('ascii',0,4)==='RIFF'&&buf.toString('ascii',8,12)==='WEBP';
  return false;
 }
+
+/**
+ * Restore only products marked in the old, read-only import manifest after
+ * independent admin ownership verification. This never moves orders or funds.
+ * An already verified lock makes this operation a no-op (including on restarts).
+ */
+async function unlockVerifiedArtisanShop(client,originalId,ownerId){
+ const control=(await client.query('SELECT access_verified FROM legacy_restore_control WHERE old_user_id=$1 FOR UPDATE',[originalId])).rows[0];
+ if(!control||control.access_verified)return 0;
+ const goods=await client.query(`UPDATE market_products AS product
+   SET seller_id=$2,
+       status=CASE WHEN original.old_status='active' THEN 'active' ELSE 'draft' END,
+       version=CASE WHEN original.old_status='active' THEN product.version+1 ELSE product.version END,
+       updated_at=NOW()
+   FROM legacy_restored_product_status AS original
+   WHERE original.product_id=product.id AND product.seller_id=$1
+     AND product.status='draft' AND original.old_status IN ('active','draft')
+   RETURNING product.id`,[originalId,ownerId]);
+ await client.query('UPDATE legacy_restore_control SET access_verified=TRUE,commerce_enabled=TRUE,verified_at=COALESCE(verified_at,NOW()) WHERE old_user_id=$1 AND access_verified=FALSE',[originalId]);
+ return goods.rowCount??goods.rows.length;
+}
+
+/**
+ * Repair approvals created before shop unlocking was part of approval.
+ * Both verified claim and correctly linked public profile must exist.
+ * This function intentionally does not trust the old seller ID alone.
+ */
+async function reconcileApprovedArtisanShops(pool){
+ const approved=(await pool.query(`SELECT claim.id
+   FROM recovered_artisan_claims claim
+   JOIN recovered_artisan_staging staging ON staging.source_profile_id=claim.source_profile_id
+   JOIN legacy_restore_control lock ON lock.old_user_id=staging.old_user_id::text AND lock.access_verified=FALSE
+   JOIN public_artisan_profiles profile ON profile.user_id=claim.claimant_user_id
+     AND profile.slug=staging.snapshot->>'slug'
+   JOIN users account ON account.id=claim.claimant_user_id
+   WHERE claim.status='approved' AND staging.verification_status='owner_verified'
+     AND (account.role='artisan' OR EXISTS
+       (SELECT 1 FROM user_roles ur WHERE ur.user_id=account.id AND ur.role='artisan'))`)).rows;
+ let repaired=0;
+ for(const row of approved){
+  await tx(pool,async client=>{
+   const check=(await client.query(`SELECT staging.old_user_id::text AS original_id,claim.claimant_user_id AS owner_id
+     FROM recovered_artisan_claims claim
+     JOIN recovered_artisan_staging staging ON staging.source_profile_id=claim.source_profile_id
+     JOIN public_artisan_profiles profile ON profile.user_id=claim.claimant_user_id
+       AND profile.slug=staging.snapshot->>'slug'
+     JOIN users account ON account.id=claim.claimant_user_id
+     WHERE claim.id=$1 AND claim.status='approved'
+       AND staging.verification_status='owner_verified'
+       AND (account.role='artisan' OR EXISTS
+         (SELECT 1 FROM user_roles ur WHERE ur.user_id=account.id AND ur.role='artisan'))
+     FOR UPDATE OF claim`,[row.id])).rows[0];
+   if(check){await unlockVerifiedArtisanShop(client,check.original_id,check.owner_id);repaired++;}
+  });
+ }
+ return repaired;
+}
+
 function createArtisanRecoveryRouter({pool,requireAuth,requireAdmin}){
  const r=express.Router(),wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
  const isArtisan=req=>req.user?.role==='artisan'||req.user?.roles?.includes('artisan');
@@ -142,9 +200,8 @@ function createArtisanRecoveryRouter({pool,requireAuth,requireAdmin}){
       if(!source)err('Không tìm được hồ sơ trong bản sao lưu gốc.',409);
       const published=['t','true'].includes(String(source.was_published));
       await c.query('UPDATE public_artisan_profiles SET user_id=$2,published=$3,updated_at=NOW() WHERE user_id=$1 AND slug=$4',[originalId,owner.id,published,old.snapshot.slug]);
-      // Only move recovered draft goods after independent proof of ownership.
+      // Product ownership/status is restored only after independent admin approval.
       // Financial ledgers, historical orders and commission participants stay untouched.
-      await c.query("UPDATE market_products SET seller_id=$2,updated_at=NOW() WHERE seller_id=$1 AND status='draft' AND id IN (SELECT product_id FROM legacy_restored_product_status)",[originalId,owner.id]);
     }else{
       if(occupied.length)err('Đã tồn tại hồ sơ hoặc đường dẫn tương ứng; cần xử lý thủ công.',409);
       const media=(await c.query('SELECT slot FROM recovered_artisan_media WHERE source_profile_id=$1',[old.source_profile_id])).rows.map(x=>x.slot);
@@ -152,6 +209,7 @@ function createArtisanRecoveryRouter({pool,requireAuth,requireAdmin}){
       const profile=restoredProfile(old.snapshot,media,old.source_profile_id);
       await c.query('INSERT INTO public_artisan_profiles(user_id,slug,profile,published) VALUES($1,$2,$3,$4)',[owner.id,old.snapshot.slug,JSON.stringify(profile),old.cached_published]);
     }
+    await unlockVerifiedArtisanShop(c,originalId,owner.id);
     await c.query("UPDATE recovered_artisan_staging SET verification_status='owner_verified' WHERE source_profile_id=$1",[old.source_profile_id]);
    }
    const status=action==='approve'?'approved':'rejected';
@@ -174,4 +232,4 @@ function createArtisanRecoveryRouter({pool,requireAuth,requireAdmin}){
   res.status(error.status||500).json({message:error.status?error.message:'Không thể xử lý yêu cầu.'});
  });return r;
 }
-module.exports={ensureArtisanRecoverySchema,createArtisanRecoveryRouter,restoredProfile,norm,validBytes};
+module.exports={ensureArtisanRecoverySchema,reconcileApprovedArtisanShops,unlockVerifiedArtisanShop,createArtisanRecoveryRouter,restoredProfile,norm,validBytes};
