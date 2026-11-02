@@ -15,7 +15,7 @@ async function fixture(){
  for(const u of Object.values(users))await pool.query('INSERT INTO users(id,name,email,city,role) VALUES($1,$2,$3,$4,$5)',[u.id,u.name,u.email||'',u.city||'',u.role]);
  await ensureSeoSchema(pool);await ensureMarketplaceSchema(pool);
  // These recovery metadata tables exist in production; the isolated fixture must mirror them.
- await pool.query("CREATE TABLE legacy_restore_control(old_user_id TEXT PRIMARY KEY,access_verified BOOLEAN NOT NULL DEFAULT FALSE); CREATE TABLE legacy_restored_product_status(product_id UUID PRIMARY KEY,old_status TEXT NOT NULL DEFAULT 'draft');");
+ await pool.query("CREATE TABLE legacy_restore_control(old_user_id TEXT PRIMARY KEY,access_verified BOOLEAN NOT NULL DEFAULT FALSE); CREATE TABLE legacy_restored_product_status(product_id UUID PRIMARY KEY,old_status TEXT NOT NULL DEFAULT 'draft'); CREATE TABLE render_backup_rows(table_name TEXT NOT NULL,payload JSONB NOT NULL DEFAULT '{}');");
 
  await pool.query("ALTER TABLE users ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW(); ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''; ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''; CREATE TABLE user_roles(user_id TEXT,role TEXT); CREATE TABLE platform_admins(id TEXT PRIMARY KEY); INSERT INTO platform_admins VALUES('admin'); CREATE TABLE admin_notifications(admin_id TEXT,title TEXT,body TEXT,route TEXT); CREATE TABLE platform_complaints(subject_ref TEXT,status TEXT);");
  const wallet=require('../wallet');await wallet.ensureWalletSchema(pool);
