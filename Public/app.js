@@ -443,7 +443,7 @@ const NAV_PUBLIC=[
   ['home','Home','house'],['community','Community','messages-square'],['marketplace','Marketplace','store'],['services','Dịch vụ','layers'],['explore','Creators','compass'],['trust','Trust','badge-check']
 ];
 const NAV_CUSTOMER=[['wallet','Ví Diora','wallet'],
-  ['community','Community','messages-square'],['marketplace','Marketplace','store'],['market-orders','Đơn mua','shopping-bag'],
+  ['community','Community','messages-square'],['marketplace','Marketplace','store'],['market-cart','Giỏ hàng','shopping-cart'],['market-orders','Đơn mua','shopping-bag'],
   ['customer-dashboard','Dashboard','layout-dashboard'],['explore','Creators','compass'],['commission','New Commission','plus-circle'],['requests','Requests','file-text'],['projects','Projects','layers'],['messages','Messages','message-circle'],['complaints','Khiếu nại','shield-alert'],['saved','Saved','bookmark'],['account','Account','user']
 ];
 const NAV_ARTISAN=[['wallet','Ví Diora','wallet'],
