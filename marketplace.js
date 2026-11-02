@@ -66,7 +66,17 @@ function publicProduct(p){return {id:p.id,slug:p.slug,title:p.title,description:
 function sanitizeOrder(o,viewer,admin=false){const copy={...o};if(!admin&&viewer?.id!==o.buyer_id){copy.buyer_id=alias(o.id);copy.buyer_name=alias(o.id);copy.recipient={name:alias(o.id),phone:'Do nền tảng quản lý',address:'DioraLink điều phối giao hàng'};}delete copy.request_hash;delete copy.request_key;if(o.status==='pending')copy.bank_snapshot={};return copy;}
 async function transaction(pool,fn){const client=await pool.connect();try{await client.query('BEGIN');const result=await fn(client);await client.query('COMMIT');return result;}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}}
 async function event(client,o,actor,action,note='',evidence=[]){await client.query('INSERT INTO market_order_events(id,order_id,actor_id,actor_role,action,note,evidence) VALUES($1,$2,$3,$4,$5,$6,$7)',[crypto.randomUUID(),o.id,actor.id,actor.role,action,note,JSON.stringify(evidence)]);}
-async function releaseStock(c,o){if(!o.stock_released){await c.query('UPDATE market_products SET stock=stock+$1,updated_at=NOW() WHERE id=$2',[o.quantity,o.product_id]);o.stock_released=true;}}
+async function releaseStock(c,o){
+ if(o.stock_released)return;
+ const items=(await c.query('SELECT product_id,quantity FROM market_order_items WHERE order_id=$1 ORDER BY product_id',[o.id])).rows;
+ if(items.length){
+  for(const item of items)await c.query('UPDATE market_products SET stock=stock+$1,updated_at=NOW() WHERE id=$2',[item.quantity,item.product_id]);
+ }else{
+  // Legacy single-item orders created before cart support.
+  await c.query('UPDATE market_products SET stock=stock+$1,updated_at=NOW() WHERE id=$2',[o.quantity,o.product_id]);
+ }
+ o.stock_released=true;
+}
 function buyerNote(value){if(value===undefined||value===null||value==='')return '';if(typeof value!=='string'||value.trim().length>1000)fail('Ghi chú tối đa 1.000 ký tự.');return value.trim();}
 function trackingCode(value){const code=text(value,50).toUpperCase();if(!/^[A-Z0-9-]{6,50}$/.test(code))fail('Nhập mã vận đơn SPX gồm 6–50 ký tự chữ/số/dấu gạch.',409);return code;}
 async function changeOrder(c,o,actor,action,b={}){

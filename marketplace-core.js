@@ -46,7 +46,12 @@ function aggregate(rows,p){
    totals.completed++;totals.goods+=goods;totals.shipping+=Number(o.shipping_amount);totals.platformFee+=fee;totals.artistNet+=goods-fee;
    if(day){day.completed++;day.goods+=goods;day.platformFee+=fee;}
    const s=sellers.get(o.seller_id)||{id:o.seller_id,name:o.seller_name,orders:0,goods:0,platformFee:0,artistNet:0};s.orders++;s.goods+=goods;s.platformFee+=fee;s.artistNet+=goods-fee;sellers.set(o.seller_id,s);
-   const a=products.get(o.product_id)||{id:o.product_id,title:o.product_snapshot.title,quantity:0,goods:0};a.quantity+=o.quantity;a.goods+=goods;products.set(o.product_id,a);
+   const lines=Array.isArray(o.product_snapshot?.items)&&o.product_snapshot.items.length?o.product_snapshot.items:[{product_id:o.product_id,title:o.product_snapshot.title,quantity:o.quantity,goods_amount:goods}];
+   for(const item of lines){
+    const pid=item.product_id||o.product_id;
+    const a=products.get(pid)||{id:pid,title:item.title,quantity:0,goods:0};
+    a.quantity+=Number(item.quantity);a.goods+=Number(item.goods_amount);products.set(pid,a);
+   }
   }
  }
  totals.averageOrder=totals.completed?Math.round(totals.goods/totals.completed):0;

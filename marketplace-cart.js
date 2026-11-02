@@ -9,7 +9,9 @@ async function transaction(pool,fn){const c=await pool.connect();try{await c.que
 async function ensureCartSchema(pool){
  await pool.query([
  'CREATE TABLE IF NOT EXISTS market_cart_items(buyer_id TEXT NOT NULL REFERENCES users(id),product_id UUID NOT NULL REFERENCES market_products(id),quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 99),created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),PRIMARY KEY(buyer_id,product_id));',
- 'CREATE TABLE IF NOT EXISTS market_cart_checkouts(buyer_id TEXT NOT NULL REFERENCES users(id),request_key UUID NOT NULL,request_hash TEXT NOT NULL,seller_id TEXT NOT NULL REFERENCES users(id),order_ids UUID[] NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),PRIMARY KEY(buyer_id,request_key));'
+ 'CREATE TABLE IF NOT EXISTS market_cart_checkouts(buyer_id TEXT NOT NULL REFERENCES users(id),request_key UUID NOT NULL,request_hash TEXT NOT NULL,seller_id TEXT NOT NULL REFERENCES users(id),order_ids UUID[] NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),PRIMARY KEY(buyer_id,request_key));',
+ 'CREATE TABLE IF NOT EXISTS market_order_items(order_id UUID NOT NULL REFERENCES market_orders(id),product_id UUID NOT NULL REFERENCES market_products(id),quantity INTEGER NOT NULL CHECK(quantity>0),unit_price BIGINT NOT NULL CHECK(unit_price>0),goods_amount BIGINT NOT NULL CHECK(goods_amount>=0),product_snapshot JSONB NOT NULL,PRIMARY KEY(order_id,product_id));',
+ 'CREATE INDEX IF NOT EXISTS market_order_items_product ON market_order_items(product_id);'
  ].join('\n'));
 }
 function totals(items){
@@ -76,22 +78,42 @@ function createCartRouter({pool,requireAuth}){
    const products=(await c.query('SELECT p.*,i.quantity FROM market_cart_items i JOIN market_products p ON p.id=i.product_id WHERE i.buyer_id=$1 AND p.seller_id=$2 ORDER BY p.id FOR UPDATE OF p,i',[req.user.id,seller])).rows;
    if(!products.length)fail('Giỏ không có sản phẩm của nghệ nhân này.',409);
    if(products.length>40)fail('Tối đa 40 mặt hàng trong một lượt thanh toán.',409);
-   let shipping=Math.max(...products.map(p=>Number(p.shipping_fee)));
-   const batch=crypto.randomUUID(),orders=[];
+   // One checkout creates one order, tracking number, wallet hold and receipt confirmation.
+   // Keep all product lines snapshotted for accurate stock and historical reporting.
    for(const p of products){
     if(p.status!=='active'||p.stock<p.quantity||!p.stock)fail('Sản phẩm "'+p.title+'" đã hết hoặc thay đổi số lượng. Hãy cập nhật giỏ.',409);
     if(p.seller_id===req.user.id)fail('Không thể mua sản phẩm của chính mình.',409);
-    const n=amounts(Number(p.price),p.quantity,shipping);shipping=0;
-    const oid=crypto.randomUUID(),orderKey=crypto.randomUUID();
-    const snapshot={title:p.title,description:p.description,category:p.category,condition:p.condition,price:Number(p.price),slug:p.slug,images:p.images,version:p.version};
-    const o=(await c.query("INSERT INTO market_orders(id,request_key,buyer_id,seller_id,product_id,request_hash,product_snapshot,quantity,recipient,bank_snapshot,payment_method,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,terms_version,terms_snapshot,buyer_note,cart_batch_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'{}'::jsonb,'wallet','wallet_held',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *",[
-     oid,orderKey,req.user.id,p.seller_id,p.id,hash,JSON.stringify(snapshot),p.quantity,JSON.stringify(recipient),n.goods,n.shipping,n.total,n.rate,n.fee,n.artistNet,TERMS_VERSION,JSON.stringify(TERMS),note,batch
-    ])).rows[0];
-    await fund(c,'market:'+oid,req.user.id,p.seller_id,n.total,n.fee);
-    await c.query('UPDATE market_products SET stock=stock-$1,updated_at=NOW() WHERE id=$2',[p.quantity,p.id]);
-    await c.query('INSERT INTO market_order_events(id,order_id,actor_id,actor_role,action,note) VALUES($1,$2,$3,$4,$5,$6)',[crypto.randomUUID(),oid,req.user.id,'customer','created','Đặt từ giỏ hàng, đồng ý '+TERMS_VERSION]);
-    orders.push(o);
    }
+   const goods=products.reduce((sum,p)=>sum+Number(p.price)*p.quantity,0);
+   const shipping=Math.max(...products.map(p=>Number(p.shipping_fee)));
+   const sums=amounts(goods,1,shipping);
+   const items=products.map(p=>({
+    product_id:p.id,quantity:p.quantity,unit_price:Number(p.price),
+    goods_amount:Number(p.price)*p.quantity,title:p.title,description:p.description,
+    category:p.category,condition:p.condition,slug:p.slug,version:p.version,images:p.images
+   }));
+   const first=items[0],units=products.reduce((sum,p)=>sum+p.quantity,0);
+   const snapshot={
+    title:items.length===1?first.title:'Đơn gồm '+items.length+' sản phẩm',
+    description:items.length===1?first.description:'Các sản phẩm gửi cùng một kiện hàng.',
+    category:first.category,condition:first.condition,price:goods,
+    slug:first.slug,version:first.version,images:first.images,items
+   };
+   const oid=crypto.randomUUID(),batch=crypto.randomUUID();
+   const order=(await c.query("INSERT INTO market_orders(id,request_key,buyer_id,seller_id,product_id,request_hash,product_snapshot,quantity,recipient,bank_snapshot,payment_method,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,terms_version,terms_snapshot,buyer_note,cart_batch_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'{}'::jsonb,'wallet','wallet_held',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *",[
+     oid,crypto.randomUUID(),req.user.id,seller,first.product_id,hash,JSON.stringify(snapshot),units,JSON.stringify(recipient),
+     sums.goods,sums.shipping,sums.total,sums.rate,sums.fee,sums.artistNet,TERMS_VERSION,JSON.stringify(TERMS),note,batch
+   ])).rows[0];
+   for(const p of products){
+    const item=items.find(x=>x.product_id===p.id);
+    await c.query('INSERT INTO market_order_items(order_id,product_id,quantity,unit_price,goods_amount,product_snapshot) VALUES($1,$2,$3,$4,$5,$6)',[
+      oid,p.id,p.quantity,item.unit_price,item.goods_amount,JSON.stringify(item)
+    ]);
+    await c.query('UPDATE market_products SET stock=stock-$1,updated_at=NOW() WHERE id=$2',[p.quantity,p.id]);
+   }
+   await fund(c,'market:'+oid,req.user.id,seller,sums.total,sums.fee);
+   await c.query('INSERT INTO market_order_events(id,order_id,actor_id,actor_role,action,note) VALUES($1,$2,$3,$4,$5,$6)',[crypto.randomUUID(),oid,req.user.id,'customer','created','Đơn nhiều sản phẩm từ giỏ hàng; đồng ý '+TERMS_VERSION]);
+   const orders=[order];
    await c.query('DELETE FROM market_cart_items WHERE buyer_id=$1 AND product_id=ANY($2::uuid[])',[req.user.id,products.map(p=>p.id)]);
    await c.query('INSERT INTO market_cart_checkouts(buyer_id,request_key,request_hash,seller_id,order_ids) VALUES($1,$2,$3,$4,$5)',[req.user.id,key,hash,seller,orders.map(o=>o.id)]);
    return {orders,replayed:false};
