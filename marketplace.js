@@ -140,7 +140,13 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
  };
  const getProduct=async(pid)=>(await pool.query(publicSelect+' WHERE p.id=$1',[pid])).rows[0];
  const summaryFields='id,buyer_id,seller_id,product_id,quantity,payment_method,status,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,tracking_number,buyer_note,cart_batch_id,terms_version,terms_accepted_at,dispute_open,stock_released,fee_collected_amount,fee_returned_amount,completed_at,created_at,updated_at'.split(',').map(k=>'o.'+k).join(',');
- const listOrders=async(where,params,light=false)=> (await pool.query(`SELECT ${light?summaryFields+",(o.product_snapshot - 'images') AS product_snapshot":'o.*'},u.name AS seller_name,b.name AS buyer_name FROM market_orders o JOIN users u ON u.id=o.seller_id JOIN users b ON b.id=o.buyer_id ${where}`,params)).rows;
+ // Listing and reporting should keep all item totals but omit base64 images in every nested line.
+ const lightSnapshot=`CASE WHEN jsonb_typeof(o.product_snapshot->'items')='array'
+   THEN jsonb_set(o.product_snapshot - 'images','{items}',
+     COALESCE((SELECT jsonb_agg(item.value - 'images' ORDER BY item.ordinality)
+       FROM jsonb_array_elements(o.product_snapshot->'items') WITH ORDINALITY AS item(value,ordinality)),'[]'::jsonb))
+   ELSE o.product_snapshot - 'images' END`;
+ const listOrders=async(where,params,light=false)=> (await pool.query(`SELECT ${light?summaryFields+','+lightSnapshot+' AS product_snapshot':'o.*'},u.name AS seller_name,b.name AS buyer_name FROM market_orders o JOIN users u ON u.id=o.seller_id JOIN users b ON b.id=o.buyer_id ${where}`,params)).rows;
  const readOrder=async(req,admin=false)=>{
   const o=(await listOrders('WHERE o.id=$1',[id(req.params.id)]))[0];if(!o||(!admin&&req.user.id!==o.buyer_id&&req.user.id!==o.seller_id))fail('Không tìm thấy đơn hàng.',404);
   const events=(await pool.query('SELECT * FROM market_order_events WHERE order_id=$1 ORDER BY created_at,id',[o.id])).rows;
