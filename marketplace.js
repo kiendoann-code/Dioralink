@@ -27,12 +27,16 @@ async function ensureMarketplaceSchema(pool){
  CREATE INDEX IF NOT EXISTS market_orders_buyer ON market_orders(buyer_id,created_at DESC);
  CREATE INDEX IF NOT EXISTS market_orders_seller ON market_orders(seller_id,created_at DESC);
  CREATE INDEX IF NOT EXISTS market_orders_date ON market_orders(created_at);
+ ALTER TABLE market_orders ADD COLUMN IF NOT EXISTS buyer_note TEXT NOT NULL DEFAULT '';
+ ALTER TABLE market_orders ADD COLUMN IF NOT EXISTS cart_batch_id UUID;
+ CREATE INDEX IF NOT EXISTS market_orders_cart_batch ON market_orders(cart_batch_id);
  CREATE TABLE IF NOT EXISTS market_order_events (
   id UUID PRIMARY KEY,order_id UUID NOT NULL REFERENCES market_orders(id),actor_id TEXT NOT NULL,actor_role TEXT NOT NULL,action TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',evidence JSONB NOT NULL DEFAULT '[]',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
  CREATE INDEX IF NOT EXISTS market_events_order ON market_order_events(order_id,created_at);
  ALTER TABLE market_orders DROP CONSTRAINT IF EXISTS market_orders_payment_method_check;
  ALTER TABLE market_orders ADD CONSTRAINT market_orders_payment_method_check CHECK(payment_method IN ('transfer','cod','wallet'));
  `);
+ await require('./marketplace-cart').ensureCartSchema(pool);
 }
 function settingsInput(b){const s={bank_name:text(b.bank_name,120),account_name:text(b.account_name,150),account_number:text(b.account_number,40),allow_transfer:b.allow_transfer===true,allow_cod:b.allow_cod===true};if(s.allow_transfer&&(!s.bank_name||!s.account_name||!/^\d{6,30}$/.test(s.account_number)))fail('Điền đầy đủ ngân hàng, chủ tài khoản và số tài khoản để nhận chuyển khoản.');if(!s.allow_transfer&&!s.allow_cod)fail('Chọn ít nhất một phương thức thanh toán.');return s;}
 function marketImage(value){try{const image=safeImage(value);if(!image)fail('Ảnh không được để trống.');return image;}catch(e){fail(e.message);}}
@@ -63,6 +67,7 @@ function sanitizeOrder(o,viewer,admin=false){const copy={...o};if(!admin&&viewer
 async function transaction(pool,fn){const client=await pool.connect();try{await client.query('BEGIN');const result=await fn(client);await client.query('COMMIT');return result;}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}}
 async function event(client,o,actor,action,note='',evidence=[]){await client.query('INSERT INTO market_order_events(id,order_id,actor_id,actor_role,action,note,evidence) VALUES($1,$2,$3,$4,$5,$6,$7)',[crypto.randomUUID(),o.id,actor.id,actor.role,action,note,JSON.stringify(evidence)]);}
 async function releaseStock(c,o){if(!o.stock_released){await c.query('UPDATE market_products SET stock=stock+$1,updated_at=NOW() WHERE id=$2',[o.quantity,o.product_id]);o.stock_released=true;}}
+function buyerNote(value){if(value===undefined||value===null||value==='')return '';if(typeof value!=='string'||value.trim().length>1000)fail('Ghi chú tối đa 1.000 ký tự.');return value.trim();}
 function trackingCode(value){const code=text(value,50).toUpperCase();if(!/^[A-Z0-9-]{6,50}$/.test(code))fail('Nhập mã vận đơn SPX gồm 6–50 ký tự chữ/số/dấu gạch.',409);return code;}
 async function changeOrder(c,o,actor,action,b={}){
  const isAdmin=actor.role==='admin',seller=actor.id===o.seller_id&&actor.role==='artisan',buyer=!isAdmin&&actor.id===o.buyer_id;
@@ -124,7 +129,7 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
   return (await pool.query(`${lightPublicSelect} WHERE ${visibleWhere} AND (p.title ILIKE $1 OR p.description ILIKE $1 OR COALESCE(a.profile->>'name',u.name) ILIKE $1) AND ($2='' OR p.category=$2) ORDER BY ${order} LIMIT $3 OFFSET $4`,params)).rows.map(publicProduct);
  };
  const getProduct=async(pid)=>(await pool.query(publicSelect+' WHERE p.id=$1',[pid])).rows[0];
- const summaryFields='id,buyer_id,seller_id,product_id,quantity,payment_method,status,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,tracking_number,terms_version,terms_accepted_at,dispute_open,stock_released,fee_collected_amount,fee_returned_amount,completed_at,created_at,updated_at'.split(',').map(k=>'o.'+k).join(',');
+ const summaryFields='id,buyer_id,seller_id,product_id,quantity,payment_method,status,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,tracking_number,buyer_note,cart_batch_id,terms_version,terms_accepted_at,dispute_open,stock_released,fee_collected_amount,fee_returned_amount,completed_at,created_at,updated_at'.split(',').map(k=>'o.'+k).join(',');
  const listOrders=async(where,params,light=false)=> (await pool.query(`SELECT ${light?summaryFields+",(o.product_snapshot - 'images') AS product_snapshot":'o.*'},u.name AS seller_name,b.name AS buyer_name FROM market_orders o JOIN users u ON u.id=o.seller_id JOIN users b ON b.id=o.buyer_id ${where}`,params)).rows;
  const readOrder=async(req,admin=false)=>{
   const o=(await listOrders('WHERE o.id=$1',[id(req.params.id)]))[0];if(!o||(!admin&&req.user.id!==o.buyer_id&&req.user.id!==o.seller_id))fail('Không tìm thấy đơn hàng.',404);
@@ -166,11 +171,12 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
   const p=(await pool.query(`SELECT p.images->>$2::int AS image,p.status,(p.status='draft' AND lc.old_user_id IS NOT NULL AND lc.access_verified=FALSE AND restored.old_status='active') AS preview FROM market_products p LEFT JOIN legacy_restore_control lc ON lc.old_user_id=p.seller_id LEFT JOIN legacy_restored_product_status restored ON restored.product_id=p.id WHERE p.id=$1`,[id(req.params.id),i])).rows[0];const v=p?.image;
   if(!p||(p.status!=='active'&&!p.preview)||!v?.startsWith('data:image/'))return res.status(404).end();const [prefix,body]=v.split(',');res.set('Cache-Control','public, max-age=300').set('X-Content-Type-Options','nosniff').type(prefix.slice(5).split(';')[0]).send(Buffer.from(body,'base64'));
  }));
+ router.use(require('./marketplace-cart').createCartRouter({pool,requireAuth}));
  router.post('/api/market/orders',...auth,wrap(async(req,res)=>{
   if(req.user.role!=='customer')fail('Đăng nhập tài khoản khách hàng để mua.',403);
   if(req.body.accepted_terms!==true||req.body.terms_version!==TERMS_VERSION)fail('Vui lòng đọc và đồng ý phiên bản điều khoản mua hàng hiện tại.',409);
-  const pid=id(req.body.product_id),key=id(req.body.request_key),quantity=integer(req.body.quantity,1,99,'Số lượng'),recipient=shippingAddress(req.body.recipient||{}),method=req.body.payment_method;
-  const hash=fingerprint({pid,quantity,recipient,method,version:req.body.product_version,terms:TERMS_VERSION});
+  const pid=id(req.body.product_id),key=id(req.body.request_key),quantity=integer(req.body.quantity,1,99,'Số lượng'),recipient=shippingAddress(req.body.recipient||{}),method=req.body.payment_method,note=buyerNote(req.body.buyer_note);
+  const hash=fingerprint({pid,quantity,recipient,method,version:req.body.product_version,terms:TERMS_VERSION,note});
   const existing=async c=>(await c.query('SELECT * FROM market_orders WHERE buyer_id=$1 AND request_key=$2',[req.user.id,key])).rows[0];
   const replay=o=>{if(o.request_hash!==hash)fail('Mã yêu cầu đã dùng cho một nội dung khác.',409);return o;};
   let result;
@@ -186,7 +192,7 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
    const n=amounts(Number(p.price),quantity,Number(p.shipping_fee)),oid=crypto.randomUUID();
    const snapshot={title:p.title,description:p.description,category:p.category,condition:p.condition,price:Number(p.price),slug:p.slug,images:p.images,version:p.version};
    const bank=method==='transfer'?{bank_name:settings.bank_name,account_name:settings.account_name,account_number:settings.account_number}:{};
-   const o=(await c.query(`INSERT INTO market_orders(id,request_key,buyer_id,seller_id,product_id,request_hash,product_snapshot,quantity,recipient,bank_snapshot,payment_method,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,terms_version,terms_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,[oid,key,req.user.id,p.seller_id,pid,hash,JSON.stringify(snapshot),quantity,JSON.stringify(recipient),JSON.stringify(bank),method,method==='cod'?'awaiting_cod':'pending',n.goods,n.shipping,n.total,n.rate,n.fee,n.artistNet,TERMS_VERSION,JSON.stringify(TERMS)])).rows[0];
+   const o=(await c.query(`INSERT INTO market_orders(id,request_key,buyer_id,seller_id,product_id,request_hash,product_snapshot,quantity,recipient,bank_snapshot,payment_method,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,terms_version,terms_snapshot,buyer_note) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *`,[oid,key,req.user.id,p.seller_id,pid,hash,JSON.stringify(snapshot),quantity,JSON.stringify(recipient),JSON.stringify(bank),method,method==='cod'?'awaiting_cod':'pending',n.goods,n.shipping,n.total,n.rate,n.fee,n.artistNet,TERMS_VERSION,JSON.stringify(TERMS),note])).rows[0];
    if(method==='wallet'){await fund(c,'market:'+oid,req.user.id,p.seller_id,n.total,n.fee);await c.query("UPDATE market_orders SET payment_status='wallet_held' WHERE id=$1",[oid]);o.payment_status='wallet_held';}
    await c.query('UPDATE market_products SET stock=stock-$1,updated_at=NOW() WHERE id=$2',[quantity,pid]);await event(c,o,{id:req.user.id,role:'customer'},'created','Khách đã đọc và đồng ý '+TERMS_VERSION);return o;
   });}catch(e){if(e.code==='23505'){const o=await existing(pool);if(!o)throw e;result=replay(o);}else throw e;}
