@@ -54,6 +54,7 @@ async function expire(pool){
   await pool.query(
     "UPDATE commission_workflows SET status='expired', updated_at=NOW() "+
     "WHERE status IN ('pending','proposal_received') AND created_at < NOW()-INTERVAL '72 hours' "+
+    "AND (payload->>'expiryOverrideUntil' IS NULL OR (payload->>'expiryOverrideUntil')::timestamptz <= NOW()) "+
     "AND COALESCE(payload->'project','null'::jsonb)='null'::jsonb"
   );
 }
