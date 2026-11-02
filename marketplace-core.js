@@ -1,14 +1,12 @@
 'use strict';
 const crypto=require('node:crypto');
-const TERMS_VERSION='2026-11-02-wallet-spx-verified-v2';
-const VERIFIED_DISPATCH_TERMS=new Set([TERMS_VERSION]);
-function payoutOnVerifiedDispatch(o){return o.payment_method==='wallet'&&VERIFIED_DISPATCH_TERMS.has(o.terms_version);}
+const TERMS_VERSION='2026-10-14-wallet-v1';
 const TERMS=[
- ['Thanh toán bằng Ví Diora','Đơn mới giữ đủ tổng tiền trong Ví Diora khi đặt hàng. Tiền tự động chuyển vào Ví Diora nghệ nhân (trừ phí nền tảng) sau khi kiện hàng đã được quản trị xác minh thực sự bàn giao cho SPX, không cần khách bấm xác nhận nhận hàng. Chỉ có mã vận đơn chưa đủ điều kiện giải ngân.'],
+ ['Thanh toán bằng Ví Diora','Đơn mới giữ đủ tổng tiền trong Ví Diora khi đặt hàng. Tiền được chuyển vào ví nghệ nhân sau khi khách xác nhận nhận hàng, trừ phí dịch vụ.'],
  ['Nạp và rút tiền','Nạp chỉ được cộng sau khi admin đối soát ngân hàng. Nhập đúng mã nạp và số tiền. DioraLink không chịu trách nhiệm đối với sai sót do người gửi nhập sai thông tin; vui lòng liên hệ hỗ trợ với chứng từ để kiểm tra. Rút tiền được xử lý bởi admin; số tiền yêu cầu rút sẽ tạm giữ.'],
  ['Ẩn danh người mua','Nghệ nhân chỉ thấy mã khách theo đơn; tên, điện thoại và địa chỉ nhận hàng do nền tảng quản lý và dùng để điều phối giao hàng. Khách vẫn xem được thông tin nghệ nhân.'],
- ['Giao hàng','Nghệ nhân nhập mã SPX và đính kèm chứng từ giao kiện cho đơn vị vận chuyển. Quản trị đối chiếu việc tiếp nhận thực tế với SPX, rồi xác nhận bàn giao để hệ thống tự động giải ngân. Chưa có API tự động xác minh SPX; không chia sẻ thông tin liên hệ cá nhân.'],
- ['Hủy và tranh chấp','Khách có thể hủy đơn đang chờ xác nhận để hoàn số tiền giữ. Khi có tranh chấp, tiền chưa giải ngân tiếp tục được giữ để admin xem xét chứng cứ. Sau khi quản trị xác minh bàn giao và giải ngân, tranh chấp sau gửi hàng cần được xử lý riêng; tiền không tự động hoàn từ khoản giữ đã giải ngân.'],
+ ['Giao hàng','Admin điều phối vận đơn và cập nhật mã SPX. Không gửi thông tin liên hệ cá nhân trong trao đổi.'],
+ ['Hủy và tranh chấp','Khách có thể hủy đơn đang chờ xác nhận để hoàn số tiền giữ. Khi có tranh chấp, tiền chưa giải ngân tiếp tục được giữ để admin xem xét chứng cứ. Giao dịch đã giải ngân cần được đối soát và xử lý riêng, không tự động hoàn.'],
  ['Phí dịch vụ','Phí trên tiền hàng: 10% dưới 2 triệu; 8% từ 2 đến 5 triệu; 7% trên 5 đến 10 triệu; 5% trên 10 triệu đồng. Phí vận chuyển được tách riêng.']
 ];
 const text=(v,n=3000)=>typeof v==='string'?v.trim().slice(0,n):'';
@@ -54,5 +52,5 @@ function aggregate(rows,p){
  totals.averageOrder=totals.completed?Math.round(totals.goods/totals.completed):0;
  return {period:{from:p.from,to:p.to},totals,trend:[...days.values()],sellers:[...sellers.values()].sort((a,b)=>b.goods-a.goods),products:[...products.values()].sort((a,b)=>b.goods-a.goods),orders:rows};
 }
-module.exports={TERMS_VERSION,TERMS,payoutOnVerifiedDispatch,text,fail,integer,feeRate,amounts,shippingAddress,fingerprint,period,aggregate};
+module.exports={TERMS_VERSION,TERMS,text,fail,integer,feeRate,amounts,shippingAddress,fingerprint,period,aggregate};
 

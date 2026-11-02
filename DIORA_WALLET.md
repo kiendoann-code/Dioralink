@@ -11,7 +11,7 @@
 
 ## Đơn hàng và commission
 
-- Đơn Marketplace mới từ điều khoản 02/11/2026: nghệ nhân gửi mã SPX và chứng từ SPX tiếp nhận kiện hàng; quản trị kiểm tra vận đơn và xác nhận thực tế. Ngay khi quản trị xác minh, hệ thống giải ngân tự động vào Ví Diora nghệ nhân, không cần khách xác nhận nhận hàng. Các đơn mua theo điều khoản cũ vẫn giải ngân khi khách xác nhận; không thay đổi hồi tố. Tiền hàng trừ phí dịch vụ và chuyển cùng phí vận chuyển.
+- Đơn Marketplace mới thanh toán bằng ví: giữ tổng tiền lúc đặt, hoàn khi khách hủy đơn chờ xác nhận, giải ngân khi khách nhận hàng. Tiền hàng trừ phí dịch vụ; phí giao hàng được chuyển cùng khoản cho nghệ nhân.
 - Dữ liệu đơn COD/chuyển khoản cũ được giữ nguyên. Đơn mới không dùng chuyển khoản trực tiếp cho nghệ nhân vì điều đó có thể tiết lộ danh tính người gửi.
 - Người mua chỉ hiện mã KH theo từng đơn/yêu cầu. Tên, điện thoại, địa chỉ không được gửi về API cho nghệ nhân. Admin xem thông tin nhận hàng và điều phối giao hàng; nghệ nhân hoặc admin được nhập, chỉnh mã vận đơn SPX khi đơn ở trạng thái phù hợp, nhưng nghệ nhân không xem được thông tin riêng của khách. Không tích hợp API tạo vận đơn SPX tự động.
 - Commission mới: khách giữ tiền từng mốc trước khi nghệ nhân bắt đầu. Nghệ nhân gửi bằng chứng; khách nghiệm thu, sau đó xác nhận thanh toán bằng ví. Chuyển tiền và thu phí diễn ra trong cùng giao dịch cơ sở dữ liệu.
