@@ -133,15 +133,16 @@ test('same-seller cart payment is atomic, one shipping charge and no duplicate p
  const body={seller_id:'seller',request_key:randomUUID(),payment_method:'wallet',recipient:{name:'Khách Bình',phone:'0911222333',address:'Tầng 2 số 25 đường Láng Hà Nội'},buyer_note:note,accepted_terms:true,terms_version:TERMS_VERSION};
  const [one,two]=await Promise.all([f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body}),f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body})]);
  assert.deepEqual([one.status,two.status].sort(),[200,201],JSON.stringify([one.data,two.data]));
- const orders=one.data.orders;assert.equal(orders.length,2);
- assert.equal(orders.reduce((v,o)=>v+Number(o.shipping_amount),0),50000);
- assert.equal(orders.reduce((v,o)=>v+Number(o.total_amount),0),1850000);
- assert.ok(orders.every(o=>o.buyer_note===note&&o.payment_status==='wallet_held'&&o.cart_batch_id===orders[0].cart_batch_id));
+ const orders=one.data.orders;assert.equal(orders.length,1);
+ assert.equal(Number(orders[0].shipping_amount),50000);
+ assert.equal(Number(orders[0].total_amount),1850000);
+ assert.equal(orders[0].buyer_note,note);assert.equal(orders[0].payment_status,'wallet_held');assert.equal(orders[0].quantity,2);assert.equal(orders[0].product_snapshot.items.length,2);assert.equal(Number(orders[0].platform_fee),180000);
  assert.equal((await f.api('/api/market/cart',{user:'buyer2'})).data.items.length,0);
  assert.equal((await f.api('/api/market/products/'+a.id)).data.product.stock,3);
  assert.equal((await f.api('/api/market/products/'+b.id)).data.product.stock,4);
- const hold=await f.pool.query('SELECT COUNT(*)::int AS n FROM diora_holds WHERE ref=$1 OR ref=$2',['market:'+orders[0].id,'market:'+orders[1].id]);
- assert.equal(hold.rows[0].n,2);
+ const hold=await f.pool.query('SELECT COUNT(*)::int AS n FROM diora_holds WHERE ref=$1',['market:'+orders[0].id]);
+ assert.equal(hold.rows[0].n,1);
+ const lines=(await f.pool.query('SELECT product_id,quantity,goods_amount FROM market_order_items WHERE order_id=$1',[orders[0].id])).rows;assert.equal(lines.length,2);
  const conflict=await f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body:{...body,buyer_note:'Nội dung ghi chú khác'}});
  assert.equal(conflict.status,409);
 });
@@ -158,4 +159,67 @@ test('cart checkout cannot partly reserve stock when an item is no longer availa
  const cart=(await f.api('/api/market/cart',{user:'buyer2'})).data.items;
  assert.ok(cart.some(p=>p.product_id===a.id));assert.ok(cart.some(p=>p.product_id===b.id));
  for(const p of [a,b])await f.api('/api/market/cart/items/'+p.id,{user:'buyer2',method:'DELETE'});
+});
+
+
+test('a combined purchase has one SPX shipment, one receipt confirmation and one wallet payout',async()=>{
+ const a=await product({title:'Đường phố mô hình số 1',price:120000,shipping_fee:20000,stock:3});
+ const b=await product({title:'Đường phố mô hình số 2',price:180000,shipping_fee:25000,stock:3});
+ for(const p of [a,b]){
+  const added=await f.api('/api/market/cart/items',{user:'buyer2',method:'POST',body:{product_id:p.id}});
+  assert.equal(added.status,200,JSON.stringify(added.data));
+ }
+ const paid=await f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body:{
+  seller_id:'seller',request_key:randomUUID(),payment_method:'wallet',
+  recipient:{name:'Khách Bình',phone:'0911222333',address:'Tầng 1 số 10 đường Trần Phú Hà Nội'},
+  buyer_note:'Vui lòng đóng chung một kiện',accepted_terms:true,terms_version:TERMS_VERSION
+ }});
+ assert.equal(paid.status,201,JSON.stringify(paid.data));
+ assert.equal(paid.data.orders.length,1);
+ const o=paid.data.orders[0];
+ assert.equal(Number(o.total_amount),325000);
+ assert.equal(Number(o.platform_fee),30000);
+ const before=(await f.pool.query('SELECT status FROM diora_holds WHERE ref=$1',['market:'+o.id])).rows[0];
+ assert.equal(before.status,'held');
+ await act(o,'seller','accept');
+ const shipped=await act(o,'seller','ship',{tracking_number:'SPXCOMBINED9999'});
+ assert.equal(shipped.tracking_number,'SPXCOMBINED9999');
+ assert.equal(shipped.status,'shipped');
+ await act(o,'seller','ship',{tracking_number:'SPXSECOND123'},409);
+ await act(o,'seller','receive',{},409);
+ const confirmed=await act(o,'buyer2','receive');
+ assert.equal(confirmed.status,'completed');
+ assert.equal(confirmed.payment_status,'received');
+ assert.equal(Number(confirmed.fee_collected_amount),30000);
+ await act(o,'buyer2','receive',{},409);
+ const ledger=(await f.pool.query("SELECT kind,delta FROM diora_ledger WHERE ref=$1 AND kind='sale'",['market:'+o.id])).rows;
+ assert.equal(ledger.length,1);
+ assert.equal(Number(ledger[0].delta),295000);
+ const sellerOrders=await f.api('/api/market/orders?role=seller',{user:'seller'});
+ assert.equal(sellerOrders.data.orders.filter(x=>x.id===o.id).length,1);
+ const report=(await f.api('/api/admin/market/report',{admin:true})).data;
+ assert.ok(report.products.some(p=>p.id===a.id&&p.goods>=120000));
+ assert.ok(report.products.some(p=>p.id===b.id&&p.goods>=180000));
+});
+test('cancelling combined cart purchase restores all product stock and wallet once',async()=>{
+ const a=await product({title:'Mẫu ghế gỗ nhỏ',price:110000,stock:4});
+ const b=await product({title:'Mẫu bàn gỗ nhỏ',price:230000,stock:2});
+ for(const p of [a,b])await f.api('/api/market/cart/items',{user:'buyer2',method:'POST',body:{product_id:p.id}});
+ const paid=await f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body:{
+  seller_id:'seller',request_key:randomUUID(),payment_method:'wallet',
+  recipient:{name:'Khách Bình',phone:'0911222333',address:'Số 10 đường Trần Phú Hà Nội'},
+  accepted_terms:true,terms_version:TERMS_VERSION
+ }});
+ assert.equal(paid.status,201,JSON.stringify(paid.data));
+ const order=paid.data.orders[0];
+ assert.equal((await f.api('/api/market/products/'+a.id)).data.product.stock,3);
+ assert.equal((await f.api('/api/market/products/'+b.id)).data.product.stock,1);
+ const cancelled=await act(order,'buyer2','cancel',{note:'Khách đổi địa chỉ nên hủy đơn'});
+ assert.equal(cancelled.status,'cancelled');
+ assert.equal(cancelled.payment_status,'refunded');
+ assert.equal((await f.api('/api/market/products/'+a.id)).data.product.stock,4);
+ assert.equal((await f.api('/api/market/products/'+b.id)).data.product.stock,2);
+ await act(order,'buyer2','cancel',{note:'Hủy một lần nữa'},409);
+ const hold=(await f.pool.query('SELECT status FROM diora_holds WHERE ref=$1',['market:'+order.id])).rows[0];
+ assert.equal(hold.status,'refunded');
 });
