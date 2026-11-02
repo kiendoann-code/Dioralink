@@ -89,3 +89,73 @@ test('XLSX values reconcile with report and formula-like text stays literal',asy
  assert.equal(sum,report.totals.goods);assert.equal(formulaTitle,p.title);assert.equal(typeof formulaTitle,'string');
 });
 
+
+
+test('cart stores unique items by account, updates quantity, and separates other buyers',async()=>{
+ const a=await product({title:'Đồ chơi mô hình gỗ thủ công',price:450000,shipping_fee:29000,stock:5});
+ const b=await product({title:'Đèn tiểu cảnh để bàn',price:100000,shipping_fee:45000,stock:7});
+ assert.equal((await f.api('/api/market/cart')).status,401);
+ assert.equal((await f.api('/api/market/cart',{user:'seller'})).status,403);
+ const added=await f.api('/api/market/cart/items',{user:'buyer',method:'POST',body:{product_id:a.id}});
+ assert.equal(added.status,200,JSON.stringify(added.data));
+ const same=await f.api('/api/market/cart/items',{user:'buyer',method:'POST',body:{product_id:a.id}});
+ assert.equal(same.data.items.filter(i=>i.product_id===a.id).length,1);
+ await f.api('/api/market/cart/items',{user:'buyer',method:'POST',body:{product_id:b.id}});
+ const cart=(await f.api('/api/market/cart',{user:'buyer'})).data;
+ assert.equal(cart.groups.find(g=>g.seller_id==='seller').shipping,45000);
+ assert.equal((await f.api('/api/market/cart',{user:'buyer2'})).data.items.length,0);
+ let result=await f.api('/api/market/cart/items/'+a.id,{user:'buyer',method:'PATCH',body:{quantity:2}});
+ assert.equal(result.status,200,JSON.stringify(result.data));
+ assert.equal(result.data.items.find(i=>i.product_id===a.id).quantity,2);
+ await f.api('/api/market/cart/items/'+a.id,{user:'buyer',method:'DELETE'});
+ await f.api('/api/market/cart/items/'+b.id,{user:'buyer',method:'DELETE'});
+ assert.equal((await f.api('/api/market/cart',{user:'buyer'})).data.items.length,0);
+});
+test('notes persist on buy-now orders and remain visible to the seller without exposing recipient PII',async()=>{
+ const p=await product({title:'Trang trí hộp gỗ thủ công'});
+ const note='Vui lòng đóng gói chắc chắn vì đây là quà sinh nhật.';
+ const o=await order(p,{buyer_note:note});
+ assert.equal(o.buyer_note,note);
+ const seller=await f.api('/api/market/orders/'+o.id,{user:'seller'});
+ assert.equal(seller.data.order.buyer_note,note);
+ assert.ok(!JSON.stringify(seller.data).includes('0901234567'));
+ const another=await f.api('/api/market/orders/'+o.id,{user:'buyer2'});
+ assert.equal(another.status,404);
+});
+test('same-seller cart payment is atomic, one shipping charge and no duplicate payment on retries',async()=>{
+ const a=await product({title:'Bàn gỗ tiểu cảnh size nhỏ',price:800000,shipping_fee:30000,stock:4});
+ const b=await product({title:'Ghế gỗ tiểu cảnh size nhỏ',price:1000000,shipping_fee:50000,stock:5});
+ for(const p of [a,b]){
+  const add=await f.api('/api/market/cart/items',{user:'buyer2',method:'POST',body:{product_id:p.id}});
+  assert.equal(add.status,200,JSON.stringify(add.data));
+ }
+ const note='Cho hai mô hình vào một hộp có bọc chống sốc kỹ.';
+ const body={seller_id:'seller',request_key:randomUUID(),payment_method:'wallet',recipient:{name:'Khách Bình',phone:'0911222333',address:'Tầng 2 số 25 đường Láng Hà Nội'},buyer_note:note,accepted_terms:true,terms_version:TERMS_VERSION};
+ const [one,two]=await Promise.all([f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body}),f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body})]);
+ assert.deepEqual([one.status,two.status].sort(),[200,201],JSON.stringify([one.data,two.data]));
+ const orders=one.data.orders;assert.equal(orders.length,2);
+ assert.equal(orders.reduce((v,o)=>v+Number(o.shipping_amount),0),50000);
+ assert.equal(orders.reduce((v,o)=>v+Number(o.total_amount),0),1850000);
+ assert.ok(orders.every(o=>o.buyer_note===note&&o.payment_status==='wallet_held'&&o.cart_batch_id===orders[0].cart_batch_id));
+ assert.equal((await f.api('/api/market/cart',{user:'buyer2'})).data.items.length,0);
+ assert.equal((await f.api('/api/market/products/'+a.id)).data.product.stock,3);
+ assert.equal((await f.api('/api/market/products/'+b.id)).data.product.stock,4);
+ const hold=await f.pool.query('SELECT COUNT(*)::int AS n FROM diora_holds WHERE ref=$1 OR ref=$2',['market:'+orders[0].id,'market:'+orders[1].id]);
+ assert.equal(hold.rows[0].n,2);
+ const conflict=await f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body:{...body,buyer_note:'Nội dung ghi chú khác'}});
+ assert.equal(conflict.status,409);
+});
+test('cart checkout cannot partly reserve stock when an item is no longer available',async()=>{
+ const a=await product({title:'Hộp đựng figure bằng gỗ',price:120000,stock:3});
+ const b=await product({title:'Đèn dây cho mô hình nhỏ',price:50000,stock:2});
+ for(const p of [a,b])await f.api('/api/market/cart/items',{user:'buyer2',method:'POST',body:{product_id:p.id}});
+ const edited=await f.api('/api/market/seller/products/'+b.id,{user:'seller',method:'PUT',body:{...productBody,title:b.title,price:50000,stock:0,version:b.version,previous_stock:b.stock}});
+ assert.equal(edited.status,200,JSON.stringify(edited.data));
+ const body={seller_id:'seller',request_key:randomUUID(),payment_method:'wallet',recipient:{name:'Khách Bình',phone:'0911222333',address:'Tầng 3 số 21 đường Láng Hà Nội'},accepted_terms:true,terms_version:TERMS_VERSION};
+ const result=await f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body});
+ assert.equal(result.status,409);
+ assert.equal((await f.api('/api/market/products/'+a.id)).data.product.stock,3);
+ const cart=(await f.api('/api/market/cart',{user:'buyer2'})).data.items;
+ assert.ok(cart.some(p=>p.product_id===a.id));assert.ok(cart.some(p=>p.product_id===b.id));
+ for(const p of [a,b])await f.api('/api/market/cart/items/'+p.id,{user:'buyer2',method:'DELETE'});
+});
