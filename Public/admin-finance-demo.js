@@ -26,12 +26,28 @@
       if(target.isConnected!==false)target.innerHTML=html;
     }catch(error){if(target.isConnected!==false)target.textContent=error.message||'Không tải được số liệu.';}
   }
-  function renderReport(report){
+  function renderReport(report,reconciliation){
     if(!report||!Array.isArray(report.transactions))throw Error('Báo cáo tài chính không hợp lệ.');
     const a=report.actual,d=report.simulated;
     const metric=(label,value)=>'<div class="card metric"><div class="n">'+money(value)+'</div><div class="k">'+label+'</div></div>';
-    const labels={payment_succeeded:'Đã thanh toán thành công',unpaid:'Chưa thu hoa hồng',collected:'Đã thu hoa hồng',completed:'Hoàn tất',cancelled:'Đã hủy',refunded:'Đã hoàn tiền',disputed:'Đang tranh chấp',delivered_simulated:'Chưa hạch toán'};
-    return '<p class="small">Giá trị giao dịch không phải doanh thu nền tảng. Phí được hưởng hiển thị giá trị đơn được ghi nhận. Đã thu ròng là phần thu theo tỷ lệ của từng đơn; các khoản thu đã lưu dưới dạng phí không nhân tỷ lệ lần nữa. Hoa hồng đã thu ròng tách khỏi khoản chưa thu. Các khoản chưa hạch toán không được cộng vào thực thu hoặc số dư ví.</p><div class="grid three">'+metric('Giá trị giao dịch thật được ghi nhận',a.gross)+metric('Phí được hưởng',a.platformFee)+metric('Hoa hồng thật đã thu ròng',a.collected)+metric('Hoa hồng thật còn phải thu',a.unpaid)+metric('Phí thật cần hoàn lại',a.feeReturnDue)+(d.orders?metric('Giá trị chưa hạch toán · '+d.orders+' đơn · thực thu 0 ₫',d.goods):'')+'</div><div class="card pad" style="margin-top:16px"><h2>Giao dịch và hoa hồng tổng hợp</h2><div class="table-wrap"><table><thead><tr><th>Loại dữ liệu</th><th>Nguồn</th><th>Ngày (VN)</th><th>Người bán</th><th>Đơn / Dự án</th><th>Giá trị</th><th>Tỷ lệ đã lưu</th><th>Phí đã lưu</th><th>Phí được hưởng</th><th>Đã thu ròng</th><th>Trạng thái</th></tr></thead><tbody>'+report.transactions.map(o=>'<tr><td>'+ (o.dataType==='simulated'?'Chưa hạch toán':'Đã ghi nhận')+'</td><td>'+esc(o.source==='owner_confirmed'?'Quản trị xác nhận':o.source==='demo'?'Báo cáo nội bộ':o.source)+'</td><td>'+esc(new Date(o.date).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}))+'</td><td>'+esc(o.seller)+'</td><td>'+esc(o.title)+'</td><td>'+money(o.gross)+'</td><td>'+(o.rate===null?'—':esc(o.rate)+'%')+'</td><td>'+(o.fee===null?'—':money(o.fee))+'</td><td>'+money(o.earned)+'</td><td>'+money(o.collected)+'</td><td>'+esc(labels[o.status]||o.status)+'</td></tr>').join('')+'</tbody></table></div></div>';
+    const feeEarned=reconciliation?.totals?.platformFee??report.transactions.reduce((n,o)=>n+(o.dataType==='actual'&&o.recognized!==false?Number(o.fee||0):0),0);
+    const labels={payment_succeeded:'Đã thanh toán thành công',unpaid:'Chưa thu',collected:'Đã thu',completed:'Hoàn tất',cancelled:'Đã hủy',refunded:'Đã hoàn tiền',disputed:'Tranh chấp'};
+    let html='<p class="small">Tổng hợp giao dịch trên hệ thống và hồ sơ đã được quản trị xác nhận. Tiền hàng và hoa hồng là hai chỉ tiêu riêng; trường không có chứng từ được để trống, không tự tạo địa chỉ, mã vận đơn hoặc hình thức thanh toán.</p><div class="grid three">'
+      +metric('Giá trị giao dịch thật được ghi nhận',a.gross)
+      +metric('Giá trị tiền hàng được ghi nhận',a.platformFee)
+      +metric('Hoa hồng được hưởng',feeEarned)
+      +metric('Hoa hồng thật đã thu ròng',a.collected)
+      +metric('Hoa hồng thật còn phải thu',a.unpaid)
+      +(d.orders?metric('Chưa hạch toán',d.goods):'')+'</div>';
+    html+='<div class="card pad" style="margin-top:16px"><h2>Giao dịch và hoa hồng tổng hợp</h2><div class="table-wrap"><table><thead><tr><th>Loại</th><th>Nguồn</th><th>Ngày</th><th>Người bán</th><th>Sản phẩm</th><th>Giá trị</th><th>Tỷ lệ</th><th>Hoa hồng</th><th>Đã thu ròng</th><th>Trạng thái</th></tr></thead><tbody>'
+      +report.transactions.map(o=>'<tr><td>'+(o.dataType==='actual'?'Thực tế':'Chưa hạch toán')+'</td><td>'+esc(o.source==='owner_confirmed'?'Quản trị xác nhận':o.source==='demo'?'Hồ sơ lưu trữ':o.source)+'</td><td>'+esc(new Date(o.date).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}))+'</td><td>'+esc(o.seller)+'</td><td>'+esc(o.title)+'</td><td>'+money(o.gross)+'</td><td>'+(o.rate===null?'—':esc(o.rate)+'%')+'</td><td>'+(o.fee===null?'—':money(o.fee))+'</td><td>'+money(o.collected)+'</td><td>'+esc(labels[o.status]||o.status)+'</td></tr>').join('')+'</tbody></table></div></div>';
+    if(reconciliation){
+      html+='<div class="card pad" style="margin-top:16px"><h2>Xu hướng theo ngày ghi nhận</h2><div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Giao dịch</th><th>Hoàn tất</th><th>Tiền hàng</th><th>Hoa hồng</th><th>Đã thu</th></tr></thead><tbody>'
+        +reconciliation.trend.filter(d=>d.orders).map(d=>'<tr><td>'+esc(d.date)+'</td><td>'+d.orders+'</td><td>'+d.completed+'</td><td>'+money(d.goods)+'</td><td>'+money(d.platformFee)+'</td><td>'+money(d.feeCollected)+'</td></tr>').join('')+'</tbody></table></div></div>';
+      html+='<div class="card pad" style="margin-top:16px"><h2>Đơn hàng và khách hàng đối soát</h2><div class="table-wrap"><table><thead><tr><th>Mã hồ sơ / đơn</th><th>Họ tên KH</th><th>SĐT</th><th>Email</th><th>SL</th><th>Giá trị</th><th>Hình thức thanh toán</th><th>Địa chỉ nhận</th><th>Địa chỉ thanh toán</th><th>Mã SPX</th><th>Nguồn</th></tr></thead><tbody>'
+        +reconciliation.orders.map(o=>'<tr><td>'+esc(o.id)+'</td><td>'+esc(o.buyer_name||'—')+'</td><td>'+esc(o.buyer_phone||'—')+'</td><td>'+esc(o.buyer_email||'—')+'</td><td>'+o.quantity+'</td><td>'+money(o.goods_amount)+'</td><td>'+esc(o.payment_method)+'</td><td>'+esc(o.delivery_address||'—')+'</td><td>'+esc(o.billing_address||'—')+'</td><td>'+esc(o.tracking_number||'—')+'</td><td>'+esc(o.source_label)+'</td></tr>').join('')+'</tbody></table></div></div>';
+    }
+    return html;
   }
   return {render,load,renderReport};
 });
