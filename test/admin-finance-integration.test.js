@@ -7,7 +7,7 @@ test('existing Marketplace admin endpoint and screen merge simulated and actual 
   assert.equal((await f.api(path)).status,401);
   const r=await f.api(path,{admin:true});assert.equal(r.status,200);const report=r.data;
   assert.equal(report.financeReport.actual.gross,6000000);assert.equal(report.financeReport.actual.collected,600000);assert.equal(report.totals.goods,0);
-  assert.equal(report.financeReport.transactions.length,20);
+  assert.equal(report.financeReport.transactions.length,20);assert.equal(report.reconciliation.totals.goods,6000000);assert.equal(report.reconciliation.totals.orders,20);assert.equal(report.reconciliation.trend.reduce((s,d)=>s+d.goods,0),6000000);
   const day=(await f.api('/api/admin/market/report?from=2026-10-23&to=2026-10-23',{admin:true})).data;
   assert.equal(day.financeReport.actual.gross,900000);assert.equal(day.financeReport.transactions.length,4);
   const empty=(await f.api('/api/admin/market/report?from=2026-10-01&to=2026-10-02',{admin:true})).data;assert.equal(empty.financeReport.simulated.goods,0);
