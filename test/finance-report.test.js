@@ -44,6 +44,6 @@ test('export includes confirmed receipts and matches the admin report',async()=>
  const financeReport=buildFinanceReport([],[]);
  const book=await require('../marketplace-report').reportWorkbook({financeReport,period:{from:'2026-10-23',to:'2026-10-27'},totals:{},trend:[],orders:[],sellers:[]});
  const sheet=book.getWorksheet('Giao dich tong hop');assert.equal(sheet.rowCount,21);
- let gross=0,collected=0;for(let row=2;row<=21;row++){gross+=sheet.getCell(row,7).value;collected+=sheet.getCell(row,8).value;assert.equal(sheet.getCell(row,9).value,'Đã thanh toán thành công');}
+ let gross=0,collected=0;for(let row=2;row<=21;row++){gross+=sheet.getCell(row,8).value;collected+=sheet.getCell(row,10).value;assert.equal(sheet.getCell(row,11).value,'Hoàn tất');}
  assert.equal(gross,6000000);assert.equal(collected,600000);assert.equal(book.getWorksheet('Tai chinh tong hop').getCell('B4').value,600000);
 });
