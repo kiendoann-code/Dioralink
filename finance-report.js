@@ -1,19 +1,19 @@
 'use strict';
-const {demoReport}=require('./demo-orders');
+const recoveredOrders=require('./recovered-marketplace-orders.json');
 const confirmations=require('./confirmed-receipts.json');
 const receipts=new Map(confirmations.orders.map(o=>[o.id,o]));
 // Reporting only: owner-confirmed receipts are overlaid without writing wallets or replacing source rows.
 // Stored fees are already commission amounts: never apply their rate a second time.
-function buildFinanceReport(commissions,marketOrders,demo=demoReport(),wallet=[]){
+function buildFinanceReport(commissions,marketOrders,historical=recoveredOrders,wallet=[]){
  const transactions=commissions.map(o=>({id:o.id,dataType:'actual',source:'commission',date:o.confirmed_at,seller:o.artist_name,title:o.project_title||o.project_ref,gross:Number(o.gross_amount),rate:Number(o.commission_rate)*100,fee:Number(o.platform_fee),earned:Number(o.gross_amount),collected:o.status==='collected'?Number(o.platform_fee):0,status:o.status}));
  for(const o of marketOrders){const earned=o.status==='completed'&&!o.dispute_open;transactions.push({id:o.id,dataType:'actual',source:'marketplace',date:o.created_at,seller:o.seller_name,title:o.product_title,gross:Number(o.goods_amount),rate:Number(o.commission_rate),fee:Number(o.platform_fee),earned:earned?Number(o.goods_amount):0,collected:Number(o.fee_collected_amount)-Number(o.fee_returned_amount),status:o.dispute_open?'disputed':o.status,recognized:earned});}
  for(const o of wallet)transactions.push({id:o.ref,dataType:'actual',source:'wallet_commission',date:o.confirmed_at,seller:o.seller_name,title:o.ref,gross:Number(o.amount),rate:Number(o.amount)?Number(o.fee)/Number(o.amount)*100:0,fee:Number(o.fee),earned:Number(o.amount),collected:Number(o.fee),status:'collected'});
  const simulated={orders:0,goods:0,accountingRevenue:0,collected:0};
- for(const o of demo.orders){
-  const receipt=receipts.get(o.id);
+ for(const o of historical.orders){
+  const receipt=receipts.get(o.legacyId||o.id);
   const confirmed=receipt&&receipt.goodsAmount===o.goodsAmount;
   const rate=confirmed?receipt.rate:null,fee=confirmed?Math.round(o.goodsAmount*rate/100):null;
-  transactions.push({id:o.id,dataType:confirmed?'actual':'simulated',source:confirmed?'owner_confirmed':'demo',originalSource:'demo',confirmationDate:confirmed?confirmations.confirmedOn:null,receiptBasis:confirmed?'owner_confirmation':null,date:o.simulatedRecordedAt,seller:o.sellerName,title:o.productTitle,gross:o.goodsAmount,receivedAmount:confirmed?receipt.receivedAmount:0,rate,fee,earned:confirmed?o.goodsAmount:0,collected:confirmed?Math.round(receipt.receivedAmount*rate/100):0,status:confirmed?'payment_succeeded':'delivered_simulated'});
+  transactions.push({id:o.id,isActual:!!confirmed,isDemo:false,dataType:confirmed?'actual':'simulated',source:confirmed?'owner_confirmed':'demo',originalSource:o.legacyId?'render_recovery':'legacy_archive',confirmationDate:confirmed?confirmations.confirmedOn:null,receiptBasis:confirmed?'owner_confirmation':null,date:o.recordedAt||o.simulatedRecordedAt,seller:o.sellerName,title:o.productTitle,gross:o.goodsAmount,receivedAmount:confirmed?receipt.receivedAmount:0,rate,fee,earned:confirmed?o.goodsAmount:0,collected:confirmed?Math.round(receipt.receivedAmount*rate/100):0,status:confirmed?'payment_succeeded':'delivered_simulated'});
   if(!confirmed){simulated.orders++;simulated.goods+=o.goodsAmount;}
  }
  const actual={gross:0,platformFee:0,unpaid:0,collected:0,feeReturnDue:0};
@@ -29,8 +29,8 @@ async function loadFinanceReport(pool){
  return buildFinanceReport(commissions,market,undefined,wallet);
 }
 function buildMarketplaceFinanceReport(report){
- const demo=demoReport();
- const orders=demo.orders.filter(o=>{const date=o.simulatedRecordedAt.slice(0,10);return date>=report.period.from&&date<=report.period.to;});
- return buildFinanceReport([],report.orders.map(o=>({...o,product_title:o.product_snapshot.title})),{...demo,orders,totalDemoGoods:orders.reduce((sum,o)=>sum+o.goodsAmount,0)});
+ const historical=recoveredOrders;
+ const orders=historical.orders.filter(o=>{const date=(o.recordedAt||o.simulatedRecordedAt).slice(0,10);return date>=report.period.from&&date<=report.period.to;});
+ return buildFinanceReport([],report.orders.map(o=>({...o,product_title:o.product_snapshot.title})),{...historical,orders});
 }
 module.exports={buildFinanceReport,loadFinanceReport,buildMarketplaceFinanceReport};
