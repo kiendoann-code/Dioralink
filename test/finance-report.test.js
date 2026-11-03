@@ -35,7 +35,7 @@ test('owner-confirmed receipts use frozen rates and retain provenance without ch
  const data=structuredClone(require('../demo-orders').demoReport()),before=JSON.stringify(data);
  const r=buildFinanceReport([],[],data);
  assert.deepEqual(r.actual,{gross:6000000,platformFee:6000000,unpaid:0,collected:600000,feeReturnDue:0});
- const row=r.transactions.find(o=>o.gross===200000);assert.equal(row.rate,10);assert.equal(row.earned,200000);assert.equal(row.collected,20000);assert.equal(row.fee,20000);assert.equal(row.status,'payment_succeeded');assert.equal(row.originalSource,'render_recovery');assert.equal(row.receiptBasis,'owner_confirmation');
+ const row=r.transactions.find(o=>o.gross===200000);assert.equal(row.rate,10);assert.equal(row.earned,200000);assert.equal(row.collected,20000);assert.equal(row.fee,20000);assert.equal(row.status,'payment_succeeded');assert.equal(row.originalSource,'legacy_archive');assert.equal(buildFinanceReport([],[]).transactions.find(o=>o.gross===200000).originalSource,'render_recovery');assert.equal(row.receiptBasis,'owner_confirmation');
  assert.equal(JSON.stringify(data),before);
  data.orders[0].id='unknown';const unconfirmed=buildFinanceReport([],[],data).transactions.find(o=>o.id==='unknown');assert.equal(unconfirmed.collected,0);assert.equal(unconfirmed.dataType,'simulated');
 });
