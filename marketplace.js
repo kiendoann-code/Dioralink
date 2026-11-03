@@ -226,7 +226,7 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
   const result=aggregate(rows,p);const before={...p,start:new Date(+new Date(p.start)-p.days*864e5).toISOString(),end:p.start};
   const prevRows=await listOrders('WHERE o.created_at >= $1 AND o.created_at < $2 ORDER BY o.created_at DESC LIMIT 20001',[before.start,before.end],true);if(prevRows.length>20000)fail('Kỳ so sánh quá lớn. Hãy chọn khoảng ngày ngắn hơn.',413);
   const previous=aggregate(prevRows,{...p,...before});result.previous=previous.totals;result.growthPercent=previous.totals.goods?Math.round((result.totals.goods-previous.totals.goods)/previous.totals.goods*1000)/10:null;result.financeReport=require('./finance-report').buildMarketplaceFinanceReport(result);
-   const historic=require('./demo-orders').demoReport().orders;
+   const historic=require('./recovered-marketplace-orders.json').orders;
    const actualIds=new Set(result.financeReport.transactions.filter(o=>o.source==='owner_confirmed'&&o.dataType==='actual').map(o=>o.id));
    const buyerIds=[...new Set(historic.filter(o=>actualIds.has(o.id)).map(o=>o.buyerId))];
    const userRows=buyerIds.length?(await pool.query('SELECT id,name,email,phone,city FROM users WHERE id=ANY($1::text[])',[buyerIds])).rows:[];
