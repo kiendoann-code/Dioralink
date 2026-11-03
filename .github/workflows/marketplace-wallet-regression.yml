@@ -4,6 +4,13 @@ on:
     paths:
       - 'marketplace*.js'
       - 'wallet.js'
+      - 'finance-report.js'
+      - 'recovered-marketplace-orders.json'
+      - 'test/marketplace-fixture.js'
+      - 'test/finance-report.test.js'
+      - 'test/admin-finance-integration.test.js'
+      - 'test/marketplace-reconciliation.test.js'
+      - 'Public/admin-finance-demo.js'
       - 'Public/marketplace.js'
       - 'test/marketplace.test.js'
       - 'test/wallet.test.js'
@@ -21,4 +28,4 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: node --test test/marketplace.test.js test/wallet.test.js
+      - run: node --test test/marketplace.test.js test/wallet.test.js test/finance-report.test.js test/admin-finance-integration.test.js test/marketplace-reconciliation.test.js
