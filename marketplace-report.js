@@ -91,7 +91,7 @@ function reportWorkbook(report){
  for(const o of all)orders.addRow([
   o.id,vnDate(o.created_at),o.seller_name,o.product_title,o.quantity,
   o.payment_method,labelStatus(o.status),labelStatus(o.payment_status),o.dispute_open?'Có':'Không',
-  o.goods_amount,number(o.shipping_amount),number(o.total_amount),
+  o.goods_amount,number(o.display_shipping_amount??o.shipping_amount),number(o.display_total_amount??o.total_amount),
   o.commission_rate/100,o.platform_fee,o.fee_earned,o.fee_collected,o.fee_returned,
   o.tracking_number,o.buyer_name,o.buyer_phone,o.buyer_email,o.recipient_name,
   o.recipient_phone,o.delivery_address,o.billing_address,o.buyer_city,
@@ -113,12 +113,13 @@ function reportWorkbook(report){
   if(!o.buyer_name)missing.push('Họ tên');
   if(!o.buyer_phone)missing.push('SĐT');
   if(!o.buyer_email)missing.push('Email');
+  if(String(o.buyer_phone||'').replace(/\D/g,'').length<9 || (o.audit_buyer_phone && o.buyer_phone!==o.audit_buyer_phone))missing.push('SĐT');
   if(!o.delivery_address)missing.push('Địa chỉ nhận');
-  if(!o.billing_address)missing.push('Địa chỉ thanh toán');
+  if(!o.billing_address || o.billing_address==='29')missing.push('Địa chỉ thanh toán');
   if(o.payment_method==='Chưa có trong hồ sơ phục hồi')missing.push('Hình thức thanh toán');
   if(!o.tracking_number)missing.push('Mã SPX');
   provenance.addRow([
-   o.id,o.source_label,o.buyer_name,o.buyer_phone,o.buyer_email,
+   o.id,o.source_label,o.buyer_name,o.audit_buyer_phone||o.buyer_phone,o.buyer_email,
    o.delivery_address,o.billing_address,o.payment_method,o.tracking_number,
    missing.length?'Cần bổ sung chứng từ: '+missing.join(', '):'Đầy đủ'
   ]);

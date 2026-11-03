@@ -33,6 +33,12 @@ async function ensureMarketplaceSchema(pool){
  CREATE TABLE IF NOT EXISTS market_order_events (
   id UUID PRIMARY KEY,order_id UUID NOT NULL REFERENCES market_orders(id),actor_id TEXT NOT NULL,actor_role TEXT NOT NULL,action TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',evidence JSONB NOT NULL DEFAULT '[]',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
  CREATE INDEX IF NOT EXISTS market_events_order ON market_order_events(order_id,created_at);
+ CREATE TABLE IF NOT EXISTS marketplace_report_records (
+  record_id TEXT PRIMARY KEY,
+  record_source TEXT NOT NULL CHECK(record_source IN ('historical','live')),
+  source_row INTEGER NOT NULL,source_file TEXT NOT NULL,source_sha256 TEXT NOT NULL,
+  legacy_id TEXT,report_payload JSONB NOT NULL,imported_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ );
  ALTER TABLE market_orders DROP CONSTRAINT IF EXISTS market_orders_payment_method_check;
  ALTER TABLE market_orders ADD CONSTRAINT market_orders_payment_method_check CHECK(payment_method IN ('transfer','cod','wallet'));
  `);
@@ -225,12 +231,17 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
   const p=period(query);const rows=await listOrders('WHERE o.created_at >= $1 AND o.created_at < $2 ORDER BY o.created_at DESC LIMIT 20001',[p.start,p.end],true,true);if(rows.length>20000)fail('Kỳ báo cáo quá lớn. Hãy chọn khoảng ngày ngắn hơn.',413);
   const result=aggregate(rows,p);const before={...p,start:new Date(+new Date(p.start)-p.days*864e5).toISOString(),end:p.start};
   const prevRows=await listOrders('WHERE o.created_at >= $1 AND o.created_at < $2 ORDER BY o.created_at DESC LIMIT 20001',[before.start,before.end],true);if(prevRows.length>20000)fail('Kỳ so sánh quá lớn. Hãy chọn khoảng ngày ngắn hơn.',413);
-  const previous=aggregate(prevRows,{...p,...before});result.previous=previous.totals;result.growthPercent=previous.totals.goods?Math.round((result.totals.goods-previous.totals.goods)/previous.totals.goods*1000)/10:null;result.financeReport=require('./finance-report').buildMarketplaceFinanceReport(result);
-   const historic=require('./recovered-marketplace-orders.json').orders;
+  const previous=aggregate(prevRows,{...p,...before});result.previous=previous.totals;result.growthPercent=previous.totals.goods?Math.round((result.totals.goods-previous.totals.goods)/previous.totals.goods*1000)/10:null;const importedRows=(await pool.query(
+   'SELECT record_id,record_source,report_payload FROM marketplace_report_records WHERE source_file=$1',
+   ['DioraLink-Marketplace.xlsx']
+  )).rows;
+  const importedHistorical=importedRows.filter(row=>row.record_source==='historical').map(row=>row.report_payload);
+  result.financeReport=require('./finance-report').buildMarketplaceFinanceReport(result,importedHistorical);
+   const historic=importedHistorical.length?importedHistorical:require('./recovered-marketplace-orders.json').orders;
    const actualIds=new Set(result.financeReport.transactions.filter(o=>o.source==='owner_confirmed'&&o.dataType==='actual').map(o=>o.id));
    const buyerIds=[...new Set(historic.filter(o=>actualIds.has(o.id)).map(o=>o.buyerId))];
    const userRows=buyerIds.length?(await pool.query('SELECT id,name,email,phone,city FROM users WHERE id=ANY($1::text[])',[buyerIds])).rows:[];
-   result.reconciliation=require('./marketplace-reconciliation').buildMarketplaceReconciliation(result,userRows);
+   result.reconciliation=require('./marketplace-reconciliation').buildMarketplaceReconciliation(result,userRows,importedRows);
    return result;
  };
  router.get('/api/admin/market/report',requireAdmin,wrap(async(req,res)=>{const result=await report(req.query);result.orders=result.orders.map(o=>{const r=sanitizeOrder(o,req.user,true);delete r.product_snapshot.images;delete r.terms_snapshot;delete r.recipient;delete r.bank_snapshot;return r;});res.json(result);}));

@@ -8,17 +8,22 @@ const receiptById=new Map(confirmedReceipts.orders.map(row=>[row.id,row]));
 const dayVN=value=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
 const numeric=value=>Number(value||0);
 const formatMethod=value=>({wallet:'Ví Diora',cod:'COD',transfer:'Chuyển khoản'}[value]||value||'Chưa xác minh');
-function buildMarketplaceReconciliation(report,buyerUsers=[]){
+function buildMarketplaceReconciliation(report,buyerUsers=[],importedRecords=[]){
  const people=new Map(buyerUsers.map(u=>[String(u.id),u]));
+ const snapshots=new Map(importedRecords.map(r=>[String(r.record_id),r.report_payload||{}]));
+ const importedHistory=importedRecords.filter(r=>r.record_source==='historical').map(r=>r.report_payload);
+ const historicalOrders=importedHistory.length?importedHistory:recoveredOrders.orders;
  const live=(report.orders||[]).map(o=>{
   const recipient=o.recipient||{};
+  const snap=snapshots.get(String(o.id))||{};
   const earned=o.status==='completed'&&!o.dispute_open;
   return {
    id:String(o.id),record_id:String(o.id),source:'marketplace',source_label:'Đơn trên hệ thống',
    isActual:true,isDemo:false,created_at:o.created_at,buyer_id:o.buyer_id||'',
-   buyer_name:o.buyer_name||'',buyer_email:o.buyer_email||'',buyer_phone:o.buyer_phone||'',
-   buyer_city:o.buyer_city||'',recipient_name:recipient.name||'',recipient_phone:recipient.phone||'',
-   delivery_address:recipient.address||'',billing_address:'',
+   buyer_name:o.buyer_name||'',buyer_email:o.buyer_email||'',buyer_phone:snap.buyerPhoneRaw??o.buyer_phone??'',
+   audit_buyer_phone:snap.buyerAuditPhone||recipient.phone||o.buyer_phone||'',
+   buyer_city:snap.buyerCityRaw||o.buyer_city||'',recipient_name:recipient.name||'',recipient_phone:recipient.phone||'',
+   delivery_address:recipient.address||'',billing_address:snap.billingAddressRaw||'',
    seller_id:o.seller_id||'',seller_name:o.seller_name||'',product_title:o.product_snapshot?.title||'',
    quantity:numeric(o.quantity),payment_method:formatMethod(o.payment_method),
    payment_status:o.payment_status||'',status:o.status||'',dispute_open:!!o.dispute_open,
@@ -32,25 +37,29 @@ function buildMarketplaceReconciliation(report,buyerUsers=[]){
  });
  const actualHistoricalIds=new Set((report.financeReport?.transactions||[])
   .filter(o=>o.dataType==='actual'&&o.source==='owner_confirmed').map(o=>String(o.id)));
- const historical=recoveredOrders.orders.filter(o=>actualHistoricalIds.has(o.id)).map(o=>{
+ const historical=historicalOrders.filter(o=>actualHistoricalIds.has(o.id)).map(o=>{
   const receipt=receiptById.get(o.legacyId||o.id);
   if(!receipt||Number(receipt.goodsAmount)!==Number(o.goodsAmount))
    throw Error('Thiếu chứng từ xác nhận phù hợp cho hồ sơ lịch sử '+o.id);
   const user=people.get(String(o.buyerId))||{};
+  const snap=snapshots.get(String(o.id))||o;
   const fee=Math.round(numeric(o.goodsAmount)*numeric(receipt.rate)/100);
   const collected=Math.round(numeric(receipt.receivedAmount)*numeric(receipt.rate)/100);
   return {
    id:o.id,record_id:o.legacyId||o.id,source:'owner_confirmed',source_label:'Hồ sơ phục hồi · quản trị xác nhận',
    isActual:true,isDemo:false,created_at:o.recordedAt||o.simulatedRecordedAt,buyer_id:o.buyerId,
-   buyer_name:user.name||o.buyerName,buyer_email:user.email||'',buyer_phone:user.phone||'',
-   buyer_city:user.city||'',recipient_name:'',recipient_phone:'',
-   delivery_address:'',billing_address:'',seller_id:o.sellerId,
+   buyer_name:o.buyerName||user.name||'',buyer_email:snap.buyerEmailRaw||user.email||'',buyer_phone:snap.buyerPhoneRaw||user.phone||'',
+   audit_buyer_phone:snap.buyerPhoneRaw||user.phone||'',
+   buyer_city:snap.buyerCityRaw||user.city||'',recipient_name:snap.recipientNameRaw||o.buyerName||'',recipient_phone:snap.recipientPhoneRaw||'',
+   delivery_address:snap.deliveryAddressRaw||'',billing_address:snap.billingAddressRaw||'',seller_id:o.sellerId,
    seller_name:o.sellerName,product_title:o.productTitle,quantity:numeric(o.quantity),
-   payment_method:'Chưa có trong hồ sơ phục hồi',payment_status:'Quản trị xác nhận đã thu',
+   payment_method:snap.paymentMethodRaw||'Chưa có trong hồ sơ phục hồi',payment_status:'Quản trị xác nhận đã thu',
    status:'completed',dispute_open:false,goods_amount:numeric(o.goodsAmount),
-   shipping_amount:null,total_amount:null,commission_rate:numeric(receipt.rate),
+   shipping_amount:null,total_amount:null,
+   display_shipping_amount:snap.shippingAmountRaw??null,display_total_amount:snap.totalAmountRaw??null,
+   commission_rate:numeric(receipt.rate),
    platform_fee:fee,fee_earned:fee,fee_collected:collected,fee_returned:0,
-   artist_net:numeric(o.goodsAmount)-fee,tracking_number:'',
+   artist_net:numeric(o.goodsAmount)-fee,tracking_number:snap.trackingNumberRaw||'',
    recognized:true,confirmed_at:confirmedReceipts.confirmedOn
   };
  });

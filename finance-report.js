@@ -28,8 +28,8 @@ async function loadFinanceReport(pool){
  const wallet=(await pool.query(`SELECT h.ref,h.amount,h.fee,u.name AS seller_name,l.created_at AS confirmed_at FROM diora_holds h JOIN users u ON u.id=h.seller_id JOIN diora_ledger l ON l.ref=h.ref AND l.user_id='@platform' AND l.kind='fee' WHERE h.status='released' AND h.ref LIKE 'commission:%' AND NOT EXISTS (SELECT 1 FROM platform_commissions pc WHERE h.ref='commission:'||pc.project_ref||':'||pc.milestone_ref)`)).rows;
  return buildFinanceReport(commissions,market,undefined,wallet);
 }
-function buildMarketplaceFinanceReport(report){
- const historical=recoveredOrders;
+function buildMarketplaceFinanceReport(report,restoredFromDatabase=[]){
+ const historical=restoredFromDatabase.length?{...recoveredOrders,orders:restoredFromDatabase}:recoveredOrders;
  const orders=historical.orders.filter(o=>{const date=(o.recordedAt||o.simulatedRecordedAt).slice(0,10);return date>=report.period.from&&date<=report.period.to;});
  return buildFinanceReport([],report.orders.map(o=>({...o,product_title:o.product_snapshot.title})),{...historical,orders});
 }
