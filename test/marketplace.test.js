@@ -83,10 +83,10 @@ test('XLSX values reconcile with report and formula-like text stays literal',asy
  const report=(await f.api('/api/admin/market/report',{admin:true})).data;
  const response=await fetch(f.url+'/api/admin/market/export.xlsx',{headers:{'x-test-admin':'yes'}});assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/spreadsheetml/);
  const book=new ExcelJS.Workbook();await book.xlsx.load(Buffer.from(await response.arrayBuffer()));assert.ok(book.worksheets.length>=4,'Marketplace workbook must retain its four original worksheets');
- assert.equal(book.getWorksheet('Tong quan').getCell('B6').value,report.totals.goods);
+ assert.equal(book.getWorksheet('Tong quan').getCell('B6').value,report.reconciliation.totals.goods);
  const sheet=book.getWorksheet('Don hang');let sum=0,formulaTitle;
- sheet.eachRow((r,n)=>{if(n>1){assert.equal(typeof r.getCell(10).value,'number');assert.ok(r.getCell(2).value instanceof Date);if(r.getCell(7).value==='completed'&&r.getCell(9).value==='Không')sum+=r.getCell(10).value;if(r.getCell(1).value===o.id)formulaTitle=r.getCell(4).value;}});
- assert.equal(sum,report.totals.goods);assert.equal(formulaTitle,p.title);assert.equal(typeof formulaTitle,'string');
+ sheet.eachRow((r,n)=>{if(n>1){assert.equal(typeof r.getCell(10).value,'number');assert.ok(r.getCell(2).value instanceof Date);if(r.getCell(7).value==='Hoàn tất'&&r.getCell(9).value==='Không')sum+=r.getCell(10).value;if(r.getCell(1).value===o.id)formulaTitle=r.getCell(4).value;}});
+ assert.equal(sum,report.reconciliation.totals.goods);assert.equal(formulaTitle,p.title);assert.equal(typeof formulaTitle,'string');
 });
 
 
