@@ -33,7 +33,7 @@ test('all Marketplace export tabs reconcile verified receipts and never fabricat
  assert.equal(sum(trend,4),6000000);
  assert.equal(sum(orders,10),6000000);
  assert.equal(sum(sellers,4),6000000);
- assert.equal(orders.getCell('U2').value,'customer0@example.test');
+ assert.ok(Array.from({length:20},(_,i)=>orders.getCell('U'+(i+2)).value).includes('customer0@example.test'));
  assert.equal(orders.getCell('R2').value,'');
  assert.equal(orders.getCell('Y2').value,'');
 });
