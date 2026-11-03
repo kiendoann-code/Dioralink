@@ -146,7 +146,7 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
      COALESCE((SELECT jsonb_agg(item.value - 'images' ORDER BY item.ordinality)
        FROM jsonb_array_elements(o.product_snapshot->'items') WITH ORDINALITY AS item(value,ordinality)),'[]'::jsonb))
    ELSE o.product_snapshot - 'images' END`;
- const listOrders=async(where,params,light=false)=> (await pool.query(`SELECT ${light?summaryFields+','+lightSnapshot+' AS product_snapshot':'o.*'},u.name AS seller_name,b.name AS buyer_name FROM market_orders o JOIN users u ON u.id=o.seller_id JOIN users b ON b.id=o.buyer_id ${where}`,params)).rows;
+ const listOrders=async(where,params,light=false,includeAdminContacts=false)=> (await pool.query(`SELECT ${light?summaryFields+','+lightSnapshot+' AS product_snapshot'+(includeAdminContacts?',o.recipient,o.completed_at':''):'o.*'},u.name AS seller_name,b.name AS buyer_name${includeAdminContacts?',b.email AS buyer_email,b.phone AS buyer_phone,b.city AS buyer_city':''} FROM market_orders o JOIN users u ON u.id=o.seller_id JOIN users b ON b.id=o.buyer_id ${where}`,params)).rows;
  const readOrder=async(req,admin=false)=>{
   const o=(await listOrders('WHERE o.id=$1',[id(req.params.id)]))[0];if(!o||(!admin&&req.user.id!==o.buyer_id&&req.user.id!==o.seller_id))fail('Không tìm thấy đơn hàng.',404);
   const events=(await pool.query('SELECT * FROM market_order_events WHERE order_id=$1 ORDER BY created_at,id',[o.id])).rows;
@@ -222,10 +222,16 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
  router.get('/api/admin/market/orders/:id',requireAdmin,wrap(async(req,res)=>res.json(await readOrder(req,true))));
  router.post('/api/admin/market/orders/:id/actions',requireAdmin,wrap(async(req,res)=>{await transaction(pool,async c=>{const o=(await c.query('SELECT * FROM market_orders WHERE id=$1 FOR UPDATE',[id(req.params.id)])).rows[0];if(!o)fail('Không tìm thấy đơn.',404);await changeOrder(c,o,{id:req.admin.id,role:'admin'},req.body.action,req.body);});res.json(await readOrder(req,true));}));
  const report=async query=>{
-  const p=period(query);const rows=await listOrders('WHERE o.created_at >= $1 AND o.created_at < $2 ORDER BY o.created_at DESC LIMIT 20001',[p.start,p.end],true);if(rows.length>20000)fail('Kỳ báo cáo quá lớn. Hãy chọn khoảng ngày ngắn hơn.',413);
+  const p=period(query);const rows=await listOrders('WHERE o.created_at >= $1 AND o.created_at < $2 ORDER BY o.created_at DESC LIMIT 20001',[p.start,p.end],true,true);if(rows.length>20000)fail('Kỳ báo cáo quá lớn. Hãy chọn khoảng ngày ngắn hơn.',413);
   const result=aggregate(rows,p);const before={...p,start:new Date(+new Date(p.start)-p.days*864e5).toISOString(),end:p.start};
   const prevRows=await listOrders('WHERE o.created_at >= $1 AND o.created_at < $2 ORDER BY o.created_at DESC LIMIT 20001',[before.start,before.end],true);if(prevRows.length>20000)fail('Kỳ so sánh quá lớn. Hãy chọn khoảng ngày ngắn hơn.',413);
-  const previous=aggregate(prevRows,{...p,...before});result.previous=previous.totals;result.growthPercent=previous.totals.goods?Math.round((result.totals.goods-previous.totals.goods)/previous.totals.goods*1000)/10:null;result.financeReport=require('./finance-report').buildMarketplaceFinanceReport(result);return result;
+  const previous=aggregate(prevRows,{...p,...before});result.previous=previous.totals;result.growthPercent=previous.totals.goods?Math.round((result.totals.goods-previous.totals.goods)/previous.totals.goods*1000)/10:null;result.financeReport=require('./finance-report').buildMarketplaceFinanceReport(result);
+   const historic=require('./demo-orders').demoReport().orders;
+   const actualIds=new Set(result.financeReport.transactions.filter(o=>o.source==='owner_confirmed'&&o.dataType==='actual').map(o=>o.id));
+   const buyerIds=[...new Set(historic.filter(o=>actualIds.has(o.id)).map(o=>o.buyerId))];
+   const userRows=buyerIds.length?(await pool.query('SELECT id,name,email,phone,city FROM users WHERE id=ANY($1::text[])',[buyerIds])).rows:[];
+   result.reconciliation=require('./marketplace-reconciliation').buildMarketplaceReconciliation(result,userRows);
+   return result;
  };
  router.get('/api/admin/market/report',requireAdmin,wrap(async(req,res)=>{const result=await report(req.query);result.orders=result.orders.map(o=>{const r=sanitizeOrder(o,req.user,true);delete r.product_snapshot.images;delete r.terms_snapshot;delete r.recipient;delete r.bank_snapshot;return r;});res.json(result);}));
  router.get('/api/admin/market/export.xlsx',requireAdmin,wrap(async(req,res)=>{const r=await report(req.query);const workbook=await reportWorkbook(r);res.set('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition',`attachment; filename="DioraLink-Marketplace-${r.period.from}-${r.period.to}.xlsx"`);res.send(Buffer.from(await workbook.xlsx.writeBuffer()));}));
