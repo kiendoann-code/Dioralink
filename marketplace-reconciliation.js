@@ -2,7 +2,7 @@
 // Unified, read-only reconciliation of live Marketplace orders and owner-confirmed historical receipts.
 // The historical source file retains its original identifiers for audit; external reports use an
 // explicitly labelled reconciliation reference, never a made-up shipping or payment reference.
-const {demoReport}=require('./demo-orders');
+const recoveredOrders=require('./recovered-marketplace-orders.json');
 const confirmedReceipts=require('./confirmed-receipts.json');
 const receiptById=new Map(confirmedReceipts.orders.map(row=>[row.id,row]));
 const dayVN=value=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
@@ -32,16 +32,16 @@ function buildMarketplaceReconciliation(report,buyerUsers=[]){
  });
  const actualHistoricalIds=new Set((report.financeReport?.transactions||[])
   .filter(o=>o.dataType==='actual'&&o.source==='owner_confirmed').map(o=>String(o.id)));
- const historical=demoReport().orders.filter(o=>actualHistoricalIds.has(o.id)).map(o=>{
-  const receipt=receiptById.get(o.id);
+ const historical=recoveredOrders.orders.filter(o=>actualHistoricalIds.has(o.id)).map(o=>{
+  const receipt=receiptById.get(o.legacyId||o.id);
   if(!receipt||Number(receipt.goodsAmount)!==Number(o.goodsAmount))
    throw Error('Thiếu chứng từ xác nhận phù hợp cho hồ sơ lịch sử '+o.id);
   const user=people.get(String(o.buyerId))||{};
   const fee=Math.round(numeric(o.goodsAmount)*numeric(receipt.rate)/100);
   const collected=Math.round(numeric(receipt.receivedAmount)*numeric(receipt.rate)/100);
   return {
-   id:'HS-'+o.id.replace(/^DEMO-/,''),record_id:o.id,source:'owner_confirmed',source_label:'Hồ sơ phục hồi · quản trị xác nhận',
-   isActual:true,isDemo:false,created_at:o.simulatedRecordedAt,buyer_id:o.buyerId,
+   id:o.id,record_id:o.legacyId||o.id,source:'owner_confirmed',source_label:'Hồ sơ phục hồi · quản trị xác nhận',
+   isActual:true,isDemo:false,created_at:o.recordedAt||o.simulatedRecordedAt,buyer_id:o.buyerId,
    buyer_name:user.name||o.buyerName,buyer_email:user.email||'',buyer_phone:user.phone||'',
    buyer_city:user.city||'',recipient_name:'',recipient_phone:'',
    delivery_address:'',billing_address:'',seller_id:o.sellerId,
