@@ -146,7 +146,7 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
      COALESCE((SELECT jsonb_agg(item.value - 'images' ORDER BY item.ordinality)
        FROM jsonb_array_elements(o.product_snapshot->'items') WITH ORDINALITY AS item(value,ordinality)),'[]'::jsonb))
    ELSE o.product_snapshot - 'images' END`;
- const listOrders=async(where,params,light=false,includeAdminContacts=false)=> (await pool.query(`SELECT ${light?summaryFields+','+lightSnapshot+' AS product_snapshot'+(includeAdminContacts?',o.recipient,o.completed_at':''):'o.*'},u.name AS seller_name,b.name AS buyer_name${includeAdminContacts?',b.email AS buyer_email,b.phone AS buyer_phone,b.city AS buyer_city':''} FROM market_orders o JOIN users u ON u.id=o.seller_id JOIN users b ON b.id=o.buyer_id ${where}`,params)).rows;
+ const listOrders=async(where,params,light=false,includeAdminContacts=false)=> (await pool.query(`SELECT ${light?summaryFields+','+lightSnapshot+' AS product_snapshot'+(includeAdminContacts?',o.recipient':''):'o.*'},u.name AS seller_name,b.name AS buyer_name${includeAdminContacts?',b.email AS buyer_email,b.phone AS buyer_phone,b.city AS buyer_city':''} FROM market_orders o JOIN users u ON u.id=o.seller_id JOIN users b ON b.id=o.buyer_id ${where}`,params)).rows;
  const readOrder=async(req,admin=false)=>{
   const o=(await listOrders('WHERE o.id=$1',[id(req.params.id)]))[0];if(!o||(!admin&&req.user.id!==o.buyer_id&&req.user.id!==o.seller_id))fail('Không tìm thấy đơn hàng.',404);
   const events=(await pool.query('SELECT * FROM market_order_events WHERE order_id=$1 ORDER BY created_at,id',[o.id])).rows;
