@@ -1,12 +1,12 @@
 'use strict';
 const crypto=require('node:crypto');
-const TERMS_VERSION='2026-10-14-wallet-v1';
+const TERMS_VERSION='2026-11-04-cod-wallet-v2';
 const TERMS=[
- ['Thanh toán bằng Ví Diora','Đơn mới giữ đủ tổng tiền trong Ví Diora khi đặt hàng. Tiền được chuyển vào ví nghệ nhân sau khi khách xác nhận nhận hàng, trừ phí dịch vụ.'],
+ ['Thanh toán COD hoặc Ví Diora','Khách chọn COD (trả tiền khi nhận hàng) hoặc Ví Diora trước khi xác nhận đơn. COD không trừ ví lúc đặt; nghệ nhân đối soát khoản tiền COD sau khi khách nhận hàng. Ví Diora giữ đủ tổng tiền khi đặt, rồi giải ngân cho nghệ nhân sau khi khách xác nhận nhận hàng, trừ phí dịch vụ.'],
  ['Nạp và rút tiền','Nạp chỉ được cộng sau khi admin đối soát ngân hàng. Nhập đúng mã nạp và số tiền. DioraLink không chịu trách nhiệm đối với sai sót do người gửi nhập sai thông tin; vui lòng liên hệ hỗ trợ với chứng từ để kiểm tra. Rút tiền được xử lý bởi admin; số tiền yêu cầu rút sẽ tạm giữ.'],
  ['Ẩn danh người mua','Nghệ nhân chỉ thấy mã khách theo đơn; tên, điện thoại và địa chỉ nhận hàng do nền tảng quản lý và dùng để điều phối giao hàng. Khách vẫn xem được thông tin nghệ nhân.'],
  ['Giao hàng','Admin điều phối vận đơn và cập nhật mã SPX. Không gửi thông tin liên hệ cá nhân trong trao đổi.'],
- ['Hủy và tranh chấp','Khách có thể hủy đơn đang chờ xác nhận để hoàn số tiền giữ. Khi có tranh chấp, tiền chưa giải ngân tiếp tục được giữ để admin xem xét chứng cứ. Giao dịch đã giải ngân cần được đối soát và xử lý riêng, không tự động hoàn.'],
+ ['Hủy và tranh chấp','Khách có thể hủy đơn đang chờ nghệ nhân xác nhận. Với Ví Diora, tiền đang giữ được hoàn về ví; COD chưa thu không phát sinh khoản hoàn ví. Khi có tranh chấp, tiền ví chưa giải ngân tiếp tục được giữ để quản trị kiểm tra chứng cứ. COD đã thu và các giao dịch đã giải ngân phải được đối soát và xử lý riêng, không tự động hoàn.'],
  ['Phí dịch vụ','Phí trên tiền hàng: 10% dưới 2 triệu; 8% từ 2 đến 5 triệu; 7% trên 5 đến 10 triệu; 5% trên 10 triệu đồng. Phí vận chuyển được tách riêng.']
 ];
 const text=(v,n=3000)=>typeof v==='string'?v.trim().slice(0,n):'';

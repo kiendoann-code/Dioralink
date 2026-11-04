@@ -226,3 +226,34 @@ test('cancelling combined cart purchase restores all product stock and wallet on
  const hold=(await f.pool.query('SELECT status FROM diora_holds WHERE ref=$1',['market:'+order.id])).rows[0];
  assert.equal(hold.status,'refunded');
 });
+
+test('buy-now COD creates no wallet hold and requires SPX reconciliation to complete',async()=>{
+ const p=await product({title:'Mô hình COD mới',price:310000,shipping_fee:30000,stock:2});
+ const q=await f.api('/api/market/products/'+p.id+'/quote?quantity=1&method=cod');
+ assert.equal(q.status,200,JSON.stringify(q.data));assert.equal(q.data.allow_cod,true);assert.equal(q.data.allow_wallet,true);
+ const o=await order(p,{payment_method:'cod'});assert.equal(o.payment_status,'awaiting_cod');
+ assert.equal((await f.pool.query('SELECT COUNT(*)::int AS n FROM diora_holds WHERE ref=$1',['market:'+o.id])).rows[0].n,0);
+ await act(o,'seller','accept');await act(o,'seller','ship',{tracking_number:'SPXCOD123456'});
+ const receipt=await act(o,'buyer','receive');assert.equal(receipt.status,'delivered');assert.equal(receipt.payment_status,'awaiting_cod');
+ const settled=await act(o,'seller','cod_received',{reference:'SPXCODSETTLE123'});
+ assert.equal(settled.status,'completed');assert.equal(settled.payment_status,'cod_received');assert.equal(Number(settled.fee_collected_amount),0);
+ assert.equal((await f.pool.query('SELECT COUNT(*)::int AS n FROM diora_ledger WHERE ref=$1',['market:'+o.id])).rows[0].n,0);
+});
+test('COD cart preserves one order and tracking code with no wallet deduction',async()=>{
+ const a=await product({title:'Bộ COD thứ nhất',price:180000,shipping_fee:17000,stock:3});
+ const b=await product({title:'Bộ COD thứ hai',price:210000,shipping_fee:25000,stock:2});
+ for(const p of [a,b])assert.equal((await f.api('/api/market/cart/items',{user:'buyer2',method:'POST',body:{product_id:p.id}})).status,200);
+ const body={seller_id:'seller',request_key:randomUUID(),payment_method:'cod',recipient:{name:'Khách Bình',phone:'0911222333',address:'Số 10 đường Lê Lợi Hà Nội'},accepted_terms:true,terms_version:TERMS_VERSION};
+ const first=await f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body});
+ assert.equal(first.status,201,JSON.stringify(first.data));
+ const o=first.data.orders[0];assert.equal(first.data.orders.length,1);assert.equal(o.payment_method,'cod');assert.equal(o.payment_status,'awaiting_cod');
+ assert.equal(Number(o.total_amount),415000);assert.equal(o.product_snapshot.items.length,2);
+ assert.equal((await f.pool.query('SELECT COUNT(*)::int AS n FROM diora_holds WHERE ref=$1',['market:'+o.id])).rows[0].n,0);
+ const replay=await f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body});
+ assert.equal(replay.status,200);assert.equal(replay.data.orders[0].id,o.id);
+ assert.equal((await f.api('/api/market/cart/checkout',{user:'buyer2',method:'POST',body:{...body,payment_method:'wallet'}})).status,409);
+ await act(o,'seller','accept');await act(o,'seller','ship',{tracking_number:'SPXCODCOMBINED'});
+ assert.equal((await act(o,'buyer2','receive')).status,'delivered');
+ assert.equal((await act(o,'seller','cod_received',{reference:'SPXCODCARTSETTLE'})).status,'completed');
+ assert.equal((await f.pool.query('SELECT COUNT(*)::int AS n FROM diora_ledger WHERE ref=$1',['market:'+o.id])).rows[0].n,0);
+});

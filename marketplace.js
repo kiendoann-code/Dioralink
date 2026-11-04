@@ -44,7 +44,7 @@ async function ensureMarketplaceSchema(pool){
  `);
  await require('./marketplace-cart').ensureCartSchema(pool);
 }
-function settingsInput(b){const s={bank_name:text(b.bank_name,120),account_name:text(b.account_name,150),account_number:text(b.account_number,40),allow_transfer:b.allow_transfer===true,allow_cod:b.allow_cod===true};if(s.allow_transfer&&(!s.bank_name||!s.account_name||!/^\d{6,30}$/.test(s.account_number)))fail('Điền đầy đủ ngân hàng, chủ tài khoản và số tài khoản để nhận chuyển khoản.');if(!s.allow_transfer&&!s.allow_cod)fail('Chọn ít nhất một phương thức thanh toán.');return s;}
+function settingsInput(b){const s={bank_name:text(b.bank_name,120),account_name:text(b.account_name,150),account_number:text(b.account_number,40),allow_transfer:b.allow_transfer===true,allow_cod:true};if(s.allow_transfer&&(!s.bank_name||!s.account_name||!/^\d{6,30}$/.test(s.account_number)))fail('Điền đầy đủ ngân hàng, chủ tài khoản và số tài khoản để nhận chuyển khoản.');return s;}
 function marketImage(value){try{const image=safeImage(value);if(!image)fail('Ảnh không được để trống.');return image;}catch(e){fail(e.message);}}
 function marketEvidence(value){
  try{
@@ -161,9 +161,9 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
  const quote=async(p,quantity,method)=>{
   if(!p||p.status!=='active')fail('Sản phẩm không còn bán.',404);
   const qty=integer(quantity,1,99,'Số lượng');if(p.stock<qty)fail('Số lượng vượt quá tồn kho.',409);
-  const settings=(await pool.query('SELECT * FROM market_seller_settings WHERE seller_id=$1',[p.seller_id])).rows[0]||{allow_cod:true,allow_transfer:false};
-  if(method&&method!=='wallet')fail('Phương thức thanh toán không khả dụng.');
-  return {quantity:qty,...amounts(Number(p.price),qty,Number(p.shipping_fee)),allow_transfer:false,allow_cod:false,allow_wallet:true,version:p.version,terms_version:TERMS_VERSION};
+  
+  if(method&&!['wallet','cod'].includes(method))fail('Phương thức thanh toán không khả dụng.');
+  return {quantity:qty,...amounts(Number(p.price),qty,Number(p.shipping_fee)),allow_transfer:false,allow_cod:true,allow_wallet:true,version:p.version,terms_version:TERMS_VERSION};
  };
  router.use('/api/market',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
  router.use('/api/admin/market',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
@@ -209,11 +209,11 @@ function createMarketplace({pool,indexFile,requireAuth,requireAdmin}){
    if(!p||p.status!=='active')fail('Sản phẩm không còn bán.',404);if(p.seller_id===req.user.id)fail('Không thể mua sản phẩm của chính mình.');
    if(p.version!==Number(req.body.product_version))fail('Sản phẩm vừa được cập nhật. Xem lại giá và đặt lại đơn.',409);
    if(p.stock<quantity)fail('Sản phẩm không còn đủ tồn kho.',409);
-   const settings=(await c.query('SELECT * FROM market_seller_settings WHERE seller_id=$1',[p.seller_id])).rows[0]||{allow_cod:true,allow_transfer:false};
-   if(method!=='wallet')fail('Phương thức thanh toán không khả dụng.');
+   
+   if(!['wallet','cod'].includes(method))fail('Chọn COD hoặc Ví Diora để thanh toán.');
    const n=amounts(Number(p.price),quantity,Number(p.shipping_fee)),oid=crypto.randomUUID();
    const snapshot={title:p.title,description:p.description,category:p.category,condition:p.condition,price:Number(p.price),slug:p.slug,images:p.images,version:p.version};
-   const bank=method==='transfer'?{bank_name:settings.bank_name,account_name:settings.account_name,account_number:settings.account_number}:{};
+   const bank={}; // Only COD or wallet for new orders; legacy transfer snapshots remain unchanged.
    const o=(await c.query(`INSERT INTO market_orders(id,request_key,buyer_id,seller_id,product_id,request_hash,product_snapshot,quantity,recipient,bank_snapshot,payment_method,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,terms_version,terms_snapshot,buyer_note) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *`,[oid,key,req.user.id,p.seller_id,pid,hash,JSON.stringify(snapshot),quantity,JSON.stringify(recipient),JSON.stringify(bank),method,method==='cod'?'awaiting_cod':'pending',n.goods,n.shipping,n.total,n.rate,n.fee,n.artistNet,TERMS_VERSION,JSON.stringify(TERMS),note])).rows[0];
    if(method==='wallet'){await fund(c,'market:'+oid,req.user.id,p.seller_id,n.total,n.fee);await c.query("UPDATE market_orders SET payment_status='wallet_held' WHERE id=$1",[oid]);o.payment_status='wallet_held';}
    await c.query('UPDATE market_products SET stock=stock-$1,updated_at=NOW() WHERE id=$2',[quantity,pid]);await event(c,o,{id:req.user.id,role:'customer'},'created','Khách đã đọc và đồng ý '+TERMS_VERSION);return o;

@@ -63,7 +63,7 @@ function createCartRouter({pool,requireAuth}){
  r.post('/api/market/cart/checkout',wrap(async(req,res)=>{
   if(req.body?.accepted_terms!==true||req.body.terms_version!==TERMS_VERSION)fail('Vui lòng đồng ý điều khoản mua hàng hiện tại.',409);
   const key=uuid(req.body.request_key),seller=text(req.body.seller_id,120),recipient=shippingAddress(req.body.recipient||{}),note=buyerNote(req.body.buyer_note),method=req.body.payment_method;
-  if(method!=='wallet')fail('Chỉ hỗ trợ Ví Diora.',409);
+  if(!['wallet','cod'].includes(method))fail('Chọn COD hoặc Ví Diora để thanh toán.',409);
   if(!seller)fail('Chưa chọn nghệ nhân thanh toán.');
   const hash=fingerprint({seller,recipient,note,method,terms:TERMS_VERSION});
   const result=await transaction(pool,async c=>{
@@ -78,7 +78,7 @@ function createCartRouter({pool,requireAuth}){
    const products=(await c.query('SELECT p.*,i.quantity FROM market_cart_items i JOIN market_products p ON p.id=i.product_id WHERE i.buyer_id=$1 AND p.seller_id=$2 ORDER BY p.id FOR UPDATE OF p,i',[req.user.id,seller])).rows;
    if(!products.length)fail('Giỏ không có sản phẩm của nghệ nhân này.',409);
    if(products.length>40)fail('Tối đa 40 mặt hàng trong một lượt thanh toán.',409);
-   // One checkout creates one order, tracking number, wallet hold and receipt confirmation.
+   // One checkout creates one order, one SPX reference and one receipt confirmation. Only wallet payments create a hold.
    // Keep all product lines snapshotted for accurate stock and historical reporting.
    for(const p of products){
     if(p.status!=='active'||p.stock<p.quantity||!p.stock)fail('Sản phẩm "'+p.title+'" đã hết hoặc thay đổi số lượng. Hãy cập nhật giỏ.',409);
@@ -100,9 +100,9 @@ function createCartRouter({pool,requireAuth}){
     slug:first.slug,version:first.version,images:first.images,items
    };
    const oid=crypto.randomUUID(),batch=crypto.randomUUID();
-   const order=(await c.query("INSERT INTO market_orders(id,request_key,buyer_id,seller_id,product_id,request_hash,product_snapshot,quantity,recipient,bank_snapshot,payment_method,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,terms_version,terms_snapshot,buyer_note,cart_batch_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'{}'::jsonb,'wallet','wallet_held',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *",[
+   const order=(await c.query("INSERT INTO market_orders(id,request_key,buyer_id,seller_id,product_id,request_hash,product_snapshot,quantity,recipient,bank_snapshot,payment_method,payment_status,goods_amount,shipping_amount,total_amount,commission_rate,platform_fee,artist_net,terms_version,terms_snapshot,buyer_note,cart_batch_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'{}'::jsonb,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *",[
      oid,crypto.randomUUID(),req.user.id,seller,first.product_id,hash,JSON.stringify(snapshot),units,JSON.stringify(recipient),
-     sums.goods,sums.shipping,sums.total,sums.rate,sums.fee,sums.artistNet,TERMS_VERSION,JSON.stringify(TERMS),note,batch
+     method,method==='cod'?'awaiting_cod':'wallet_held',sums.goods,sums.shipping,sums.total,sums.rate,sums.fee,sums.artistNet,TERMS_VERSION,JSON.stringify(TERMS),note,batch
    ])).rows[0];
    for(const p of products){
     const item=items.find(x=>x.product_id===p.id);
@@ -111,7 +111,7 @@ function createCartRouter({pool,requireAuth}){
     ]);
     await c.query('UPDATE market_products SET stock=stock-$1,updated_at=NOW() WHERE id=$2',[p.quantity,p.id]);
    }
-   await fund(c,'market:'+oid,req.user.id,seller,sums.total,sums.fee);
+   if(method==='wallet')await fund(c,'market:'+oid,req.user.id,seller,sums.total,sums.fee);
    await c.query('INSERT INTO market_order_events(id,order_id,actor_id,actor_role,action,note) VALUES($1,$2,$3,$4,$5,$6)',[crypto.randomUUID(),oid,req.user.id,'customer','created','Đơn nhiều sản phẩm từ giỏ hàng; đồng ý '+TERMS_VERSION]);
    const orders=[order];
    await c.query('DELETE FROM market_cart_items WHERE buyer_id=$1 AND product_id=ANY($2::uuid[])',[req.user.id,products.map(p=>p.id)]);
